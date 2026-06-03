@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>香水商品运营平台 MVP</title>
+  <title>香水商品运营平台 v2</title>
   <style>
     :root {
       --bg: #f4f1ea;
@@ -24,72 +24,66 @@
       --radius: 8px;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
       font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-      background:
-        linear-gradient(180deg, rgba(20, 99, 86, 0.06), rgba(20, 99, 86, 0) 160px),
-        var(--bg);
+      background: linear-gradient(180deg, rgba(20, 99, 86, 0.06), rgba(20, 99, 86, 0) 180px), var(--bg);
       color: var(--ink);
     }
 
     .shell {
-      max-width: 1480px;
+      max-width: 1500px;
       margin: 0 auto;
       padding: 28px 24px 40px;
     }
 
     .topbar {
       display: flex;
-      align-items: flex-start;
       justify-content: space-between;
       gap: 24px;
       margin-bottom: 24px;
     }
 
-    .title-block h1 {
+    h1 {
       margin: 0;
       font-size: 30px;
-      font-weight: 700;
       line-height: 1.15;
     }
 
-    .title-block p {
+    .subtitle {
       margin: 10px 0 0;
+      max-width: 920px;
       color: var(--muted);
-      max-width: 860px;
       line-height: 1.6;
       font-size: 14px;
     }
 
     .actions {
       display: flex;
-      align-items: center;
       gap: 10px;
       flex-wrap: wrap;
       justify-content: flex-end;
+      align-items: flex-start;
       min-width: 360px;
     }
 
-    button,
-    .file-label {
+    button, .file-label, input, select {
       border: 1px solid var(--line);
+      border-radius: var(--radius);
       background: var(--panel-strong);
       color: var(--ink);
-      border-radius: var(--radius);
-      padding: 10px 14px;
       font-size: 13px;
-      cursor: pointer;
-      transition: 0.2s ease;
-      box-shadow: 0 1px 0 rgba(45, 36, 29, 0.03);
     }
 
-    button:hover,
-    .file-label:hover {
+    button, .file-label {
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: .2s ease;
+    }
+
+    button:hover, .file-label:hover {
       transform: translateY(-1px);
       border-color: #bfae9a;
     }
@@ -100,24 +94,20 @@
       color: #fff;
     }
 
-    button.ghost {
-      background: transparent;
-    }
+    button.ghost { background: transparent; }
 
-    .file-label input {
-      display: none;
-    }
+    .file-label input { display: none; }
 
     .layout {
       display: grid;
-      grid-template-columns: 320px minmax(0, 1fr);
+      grid-template-columns: 360px minmax(0, 1fr);
       gap: 18px;
       align-items: start;
     }
 
     .panel {
       background: var(--panel);
-      border: 1px solid rgba(216, 205, 191, 0.9);
+      border: 1px solid rgba(216, 205, 191, .9);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
     }
@@ -126,19 +116,31 @@
       padding: 18px;
       position: sticky;
       top: 20px;
+      display: grid;
+      gap: 18px;
     }
 
     .section-title {
       margin: 0 0 14px;
       font-size: 14px;
       font-weight: 700;
-      letter-spacing: 0;
     }
 
-    .field-group {
+    .card, .status-item {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, .58);
+    }
+
+    .card {
+      padding: 14px;
       display: grid;
       gap: 12px;
-      margin-bottom: 18px;
+    }
+
+    .field-group, .status-grid, .mapping-grid, .main {
+      display: grid;
+      gap: 12px;
     }
 
     .field {
@@ -151,43 +153,39 @@
       color: var(--muted);
     }
 
-    .field input {
+    .field input, .field select, .mapping-row select {
       width: 100%;
       padding: 10px 12px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
       background: #fffefb;
-      color: var(--ink);
-      font-size: 14px;
     }
 
-    .hint {
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-
-    .status-grid {
+    .mapping-row {
       display: grid;
+      grid-template-columns: 130px minmax(0, 1fr);
       gap: 10px;
+      align-items: center;
+    }
+
+    .mapping-row strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 2px;
+    }
+
+    .hint, .note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
     }
 
     .status-item {
-      border: 1px solid var(--line);
-      border-radius: 6px;
       padding: 10px 12px;
-      background: rgba(255, 255, 255, 0.55);
     }
 
     .status-item strong {
       display: block;
       font-size: 18px;
       margin-top: 4px;
-    }
-
-    .main {
-      display: grid;
-      gap: 18px;
     }
 
     .kpis {
@@ -204,8 +202,8 @@
     .kpi small {
       display: block;
       color: var(--muted);
-      font-size: 12px;
       margin-bottom: 18px;
+      font-size: 12px;
     }
 
     .kpi strong {
@@ -217,27 +215,19 @@
 
     .kpi p {
       margin: 0;
-      font-size: 13px;
       color: var(--muted);
       line-height: 1.5;
+      font-size: 13px;
     }
 
-    .kpi.critical {
-      background: linear-gradient(180deg, rgba(185, 35, 24, 0.08), rgba(185, 35, 24, 0));
-    }
-
-    .kpi.warning {
-      background: linear-gradient(180deg, rgba(217, 119, 6, 0.08), rgba(217, 119, 6, 0));
-    }
-
-    .kpi.good {
-      background: linear-gradient(180deg, rgba(20, 99, 86, 0.08), rgba(20, 99, 86, 0));
-    }
+    .critical { background: linear-gradient(180deg, rgba(185, 35, 24, .08), rgba(185, 35, 24, 0)); }
+    .warning { background: linear-gradient(180deg, rgba(217, 119, 6, .08), rgba(217, 119, 6, 0)); }
+    .good { background: linear-gradient(180deg, rgba(20, 99, 86, .08), rgba(20, 99, 86, 0)); }
 
     .tabs {
       display: flex;
-      flex-wrap: wrap;
       gap: 8px;
+      flex-wrap: wrap;
       padding: 14px;
     }
 
@@ -247,11 +237,12 @@
       border: 1px solid var(--line);
       background: transparent;
       font-size: 13px;
+      cursor: pointer;
     }
 
     .tab.active {
       background: var(--accent-soft);
-      border-color: rgba(20, 99, 86, 0.22);
+      border-color: rgba(20, 99, 86, .22);
       color: var(--accent);
       font-weight: 600;
     }
@@ -275,28 +266,30 @@
     .box {
       border: 1px solid var(--line);
       border-radius: 6px;
-      background: rgba(255, 255, 255, 0.64);
+      background: rgba(255, 255, 255, .64);
       overflow: hidden;
     }
 
     .box-header {
       display: flex;
-      align-items: center;
       justify-content: space-between;
       gap: 12px;
+      align-items: center;
       padding: 12px 14px;
-      border-bottom: 1px solid rgba(216, 205, 191, 0.9);
-      background: rgba(255, 255, 255, 0.6);
+      border-bottom: 1px solid rgba(216, 205, 191, .9);
+      background: rgba(255, 255, 255, .6);
     }
 
-    .box-header h2,
-    .box-header h3 {
+    .box-header h2, .box-header h3 {
       margin: 0;
       font-size: 15px;
     }
 
-    .box-body {
-      padding: 14px;
+    .box-body { padding: 14px; }
+
+    .preview-wrap, .table-wrap {
+      max-height: 420px;
+      overflow: auto;
     }
 
     table {
@@ -305,32 +298,23 @@
       font-size: 13px;
     }
 
-    th,
-    td {
-      padding: 10px 10px;
-      border-bottom: 1px solid rgba(216, 205, 191, 0.9);
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid rgba(216, 205, 191, .9);
       text-align: left;
       vertical-align: top;
     }
 
     th {
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 600;
-      background: rgba(255, 255, 255, 0.45);
       position: sticky;
       top: 0;
+      background: rgba(255, 255, 255, .45);
+      color: var(--muted);
+      font-size: 12px;
       z-index: 1;
     }
 
-    tr:last-child td {
-      border-bottom: 0;
-    }
-
-    .table-wrap {
-      max-height: 420px;
-      overflow: auto;
-    }
+    tr:last-child td { border-bottom: 0; }
 
     .badge {
       display: inline-flex;
@@ -342,112 +326,15 @@
       white-space: nowrap;
     }
 
-    .badge.good {
-      color: var(--good);
-      background: var(--good-soft);
-    }
-
-    .badge.warn {
-      color: var(--warn);
-      background: var(--warn-soft);
-    }
-
-    .badge.danger {
-      color: var(--danger);
-      background: var(--danger-soft);
-    }
-
-    .badge.neutral {
-      color: #5b4d42;
-      background: #ece4d7;
-    }
-
-    .metric-row {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .metric-card {
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      padding: 12px;
-      background: rgba(255, 255, 255, 0.55);
-    }
-
-    .metric-card small {
-      display: block;
-      color: var(--muted);
-      margin-bottom: 10px;
-    }
-
-    .metric-card strong {
-      font-size: 22px;
-      line-height: 1;
-    }
-
-    .progress-list {
-      display: grid;
-      gap: 10px;
-    }
-
-    .progress-item {
-      display: grid;
-      gap: 6px;
-    }
-
-    .progress-top {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      font-size: 13px;
-    }
-
-    .bar {
-      height: 10px;
-      border-radius: 999px;
-      background: #e9dfd2;
-      overflow: hidden;
-    }
-
-    .bar > span {
-      display: block;
-      height: 100%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, #146356, #2b8a78);
-    }
-
-    .legend {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .legend span {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .swatch {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      display: inline-block;
-    }
+    .badge.good { color: var(--good); background: var(--good-soft); }
+    .badge.warn { color: var(--warn); background: var(--warn-soft); }
+    .badge.danger { color: var(--danger); background: var(--danger-soft); }
+    .badge.neutral { color: #5b4d42; background: #ece4d7; }
 
     .empty {
       padding: 18px;
       color: var(--muted);
       font-size: 13px;
-    }
-
-    .note {
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.6;
     }
 
     .footer-note {
@@ -457,42 +344,32 @@
       line-height: 1.6;
     }
 
-    @media (max-width: 1120px) {
-      .layout,
-      .subgrid,
-      .kpis {
-        grid-template-columns: 1fr;
-      }
+    @media (max-width: 1200px) {
+      .layout, .subgrid, .kpis { grid-template-columns: 1fr; }
+      .sidebar { position: static; }
+      .topbar { flex-direction: column; }
+      .actions { min-width: 0; justify-content: flex-start; }
+    }
 
-      .sidebar {
-        position: static;
-      }
-
-      .topbar {
-        flex-direction: column;
-      }
-
-      .actions {
-        min-width: 0;
-        justify-content: flex-start;
-      }
+    @media (max-width: 680px) {
+      .mapping-row { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
   <div class="shell">
     <div class="topbar">
-      <div class="title-block">
+      <div>
         <h1>香水商品运营平台</h1>
-        <p>围绕四件事做商品决策：防断货、管临期、抓滞销、做调拨。第一版支持本地 CSV 导入、自动规则计算、风险分层和调拨建议，适合先把你自己的商品管理逻辑跑顺。</p>
+        <p class="subtitle">现在已经支持识别你这类“90天销售明细 CSV”。系统会把订单商品流水自动聚合成店铺-SKU 的近90天销量。等你后续给库存和保质期文件，我们再把补货、临期和调拨判断完全接上。</p>
       </div>
       <div class="actions">
         <button id="load-sample" class="ghost">恢复示例数据</button>
         <button id="download-template" class="ghost">下载模板 CSV</button>
         <button id="download-transfer" class="ghost">导出调拨建议</button>
         <label class="file-label">
-          导入 CSV
-          <input id="file-input" type="file" accept=".csv">
+          导入 Excel / CSV
+          <input id="file-input" type="file" accept=".csv,.xlsx,.xls">
         </label>
         <button id="save-local" class="primary">保存到本地浏览器</button>
       </div>
@@ -500,57 +377,50 @@
 
     <div class="layout">
       <aside class="panel sidebar">
-        <h2 class="section-title">规则参数</h2>
-        <div class="field-group" id="settings-form"></div>
+        <section>
+          <h2 class="section-title">导入中心</h2>
+          <div id="import-panel" class="card"></div>
+        </section>
 
-        <h2 class="section-title">数据概况</h2>
-        <div class="status-grid" id="data-quality"></div>
-        <p class="hint">模板字段包含 `store` 和 `batchNo`，这样系统才能同时做店铺调拨和临期批次判断。</p>
+        <section>
+          <h2 class="section-title">规则参数</h2>
+          <div id="settings-form" class="field-group"></div>
+        </section>
+
+        <section>
+          <h2 class="section-title">数据概况</h2>
+          <div id="data-quality" class="status-grid"></div>
+          <p class="hint">当前已经支持“90天销售明细 CSV”自动聚合。库存、在途、保质期还需要你后续再提供文件，补货、临期、调拨判断会更完整。</p>
+        </section>
       </aside>
 
       <main class="main">
-        <section class="kpis" id="kpi-grid"></section>
+        <section id="kpi-grid" class="kpis"></section>
 
         <section class="panel">
-          <div class="tabs" id="tabs"></div>
-
-          <div class="view active" id="view-dashboard"></div>
-          <div class="view" id="view-replenishment"></div>
-          <div class="view" id="view-expiry"></div>
-          <div class="view" id="view-slowmoving"></div>
-          <div class="view" id="view-transfer"></div>
-          <div class="view" id="view-master"></div>
+          <div id="tabs" class="tabs"></div>
+          <div id="view-dashboard" class="view active"></div>
+          <div id="view-replenishment" class="view"></div>
+          <div id="view-expiry" class="view"></div>
+          <div id="view-slowmoving" class="view"></div>
+          <div id="view-transfer" class="view"></div>
+          <div id="view-master" class="view"></div>
         </section>
 
-        <div class="footer-note">
-          数据口径说明：`sales90d`、`sales30d` 建议用近 90 天与近 30 天销量；`sellableStock` 为可售库存；`inTransit` 为已下单未到货数量；`expiryDate` 必须精确到日期；`seasonTag` 建议统一成春夏、秋冬、四季。当前版本是前端 MVP，后续可以继续接 Excel 批量导入、权限、审批、数据库、消息提醒和生产计划流。
-        </div>
+        <div class="footer-note">当前支持的导入方式有两种：1. 模板明细表导入。2. 你的 `90天销售.csv` 这类订单明细自动聚合导入。只有销售数据时，平台会优先展示销售排行和动销结果；补货、临期、调拨还需要库存和保质期文件补齐。</div>
       </main>
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script>
     const sampleRows = [
       { sku: "AMBR-50", productName: "琥珀余温", brand: "Arome", series: "Signature", scentFamily: "东方木质", seasonTag: "秋冬", concentration: "EDP", sizeMl: 50, packType: "正装", store: "天猫旗舰店", batchNo: "A2408", sellableStock: 25, inTransit: 20, sales90d: 180, sales30d: 70, expiryDate: "2027-01-18" },
       { sku: "AMBR-50", productName: "琥珀余温", brand: "Arome", series: "Signature", scentFamily: "东方木质", seasonTag: "秋冬", concentration: "EDP", sizeMl: 50, packType: "正装", store: "上海久光店", batchNo: "A2408", sellableStock: 55, inTransit: 0, sales90d: 54, sales30d: 16, expiryDate: "2027-01-18" },
-      { sku: "AMBR-50", productName: "琥珀余温", brand: "Arome", series: "Signature", scentFamily: "东方木质", seasonTag: "秋冬", concentration: "EDP", sizeMl: 50, packType: "正装", store: "成都IFS店", batchNo: "A2408", sellableStock: 72, inTransit: 0, sales90d: 18, sales30d: 4, expiryDate: "2027-01-18" },
-      { sku: "CITR-30", productName: "晨光橘园", brand: "Arome", series: "Daily", scentFamily: "柑橘清新", seasonTag: "春夏", concentration: "EDT", sizeMl: 30, packType: "正装", store: "天猫旗舰店", batchNo: "B2411", sellableStock: 180, inTransit: 0, sales90d: 45, sales30d: 12, expiryDate: "2026-11-20" },
-      { sku: "CITR-30", productName: "晨光橘园", brand: "Arome", series: "Daily", scentFamily: "柑橘清新", seasonTag: "春夏", concentration: "EDT", sizeMl: 30, packType: "正装", store: "杭州万象城店", batchNo: "B2411", sellableStock: 86, inTransit: 0, sales90d: 8, sales30d: 2, expiryDate: "2026-11-20" },
       { sku: "CITR-30", productName: "晨光橘园", brand: "Arome", series: "Daily", scentFamily: "柑橘清新", seasonTag: "春夏", concentration: "EDT", sizeMl: 30, packType: "正装", store: "深圳万象天地店", batchNo: "B2411", sellableStock: 42, inTransit: 0, sales90d: 60, sales30d: 20, expiryDate: "2026-11-20" },
       { sku: "ROSE-75", productName: "白玫长街", brand: "Maison Verre", series: "Fleurs", scentFamily: "花香", seasonTag: "四季", concentration: "EDP", sizeMl: 75, packType: "礼盒", store: "抖音旗舰店", batchNo: "C2404", sellableStock: 130, inTransit: 0, sales90d: 21, sales30d: 7, expiryDate: "2026-08-10" },
-      { sku: "ROSE-75", productName: "白玫长街", brand: "Maison Verre", series: "Fleurs", scentFamily: "花香", seasonTag: "四季", concentration: "EDP", sizeMl: 75, packType: "礼盒", store: "北京SKP店", batchNo: "C2404", sellableStock: 40, inTransit: 0, sales90d: 30, sales30d: 11, expiryDate: "2026-08-10" },
-      { sku: "TEA-100", productName: "乌龙云雾", brand: "Maison Verre", series: "Archive", scentFamily: "茶香木质", seasonTag: "四季", concentration: "Parfum", sizeMl: 100, packType: "正装", store: "天猫旗舰店", batchNo: "D2501", sellableStock: 18, inTransit: 0, sales90d: 135, sales30d: 52, expiryDate: "2028-01-15" },
-      { sku: "TEA-100", productName: "乌龙云雾", brand: "Maison Verre", series: "Archive", scentFamily: "茶香木质", seasonTag: "四季", concentration: "Parfum", sizeMl: 100, packType: "正装", store: "南京德基店", batchNo: "D2501", sellableStock: 24, inTransit: 0, sales90d: 63, sales30d: 24, expiryDate: "2028-01-15" },
-      { sku: "TEA-100", productName: "乌龙云雾", brand: "Maison Verre", series: "Archive", scentFamily: "茶香木质", seasonTag: "四季", concentration: "Parfum", sizeMl: 100, packType: "正装", store: "武汉武商MALL店", batchNo: "D2501", sellableStock: 60, inTransit: 0, sales90d: 9, sales30d: 1, expiryDate: "2028-01-15" },
-      { sku: "MUSK-50", productName: "白麝纸页", brand: "Serein", series: "Studio", scentFamily: "麝香皂感", seasonTag: "四季", concentration: "EDP", sizeMl: 50, packType: "试香装", store: "私域小程序", batchNo: "E2406", sellableStock: 240, inTransit: 0, sales90d: 12, sales30d: 2, expiryDate: "2026-07-05" },
-      { sku: "MUSK-50", productName: "白麝纸页", brand: "Serein", series: "Studio", scentFamily: "麝香皂感", seasonTag: "四季", concentration: "EDP", sizeMl: 50, packType: "试香装", store: "广州太古汇店", batchNo: "E2406", sellableStock: 28, inTransit: 0, sales90d: 48, sales30d: 15, expiryDate: "2026-07-05" }
+      { sku: "TEA-100", productName: "乌龙云雾", brand: "Maison Verre", series: "Archive", scentFamily: "茶香木质", seasonTag: "四季", concentration: "Parfum", sizeMl: 100, packType: "正装", store: "南京德基店", batchNo: "D2501", sellableStock: 24, inTransit: 0, sales90d: 63, sales30d: 24, expiryDate: "2028-01-15" }
     ];
-
-    const templateCsv = [
-      "sku,productName,brand,series,scentFamily,seasonTag,concentration,sizeMl,packType,store,batchNo,sellableStock,inTransit,sales90d,sales30d,expiryDate",
-      "AMBR-50,琥珀余温,Arome,Signature,东方木质,秋冬,EDP,50,正装,天猫旗舰店,A2408,25,20,180,70,2027-01-18",
-      "AMBR-50,琥珀余温,Arome,Signature,东方木质,秋冬,EDP,50,正装,上海久光店,A2408,55,0,54,16,2027-01-18"
-    ].join("\n");
 
     const defaultSettings = {
       leadTimeDays: 45,
@@ -563,20 +433,24 @@
       goodSellerDailySales: 0.4
     };
 
-    const tabs = [
-      { id: "dashboard", label: "驾驶舱" },
-      { id: "replenishment", label: "补货预警" },
-      { id: "expiry", label: "临期管理" },
-      { id: "slowmoving", label: "滞销分析" },
-      { id: "transfer", label: "店铺调拨" },
-      { id: "master", label: "主数据与标签" }
+    const fieldMeta = [
+      { key: "sku", label: "SKU 编码", required: true, aliases: ["sku", "sku编码", "货号", "商品编码", "编码"] },
+      { key: "productName", label: "商品名称", required: true, aliases: ["productname", "商品名称", "品名", "商品名", "名称"] },
+      { key: "brand", label: "品牌", aliases: ["brand", "品牌"] },
+      { key: "series", label: "系列", aliases: ["series", "系列"] },
+      { key: "scentFamily", label: "香型", aliases: ["scentfamily", "香型", "香调", "香调类型"] },
+      { key: "seasonTag", label: "季节标签", aliases: ["seasontag", "季节标签", "季节"] },
+      { key: "concentration", label: "浓度", aliases: ["concentration", "浓度"] },
+      { key: "sizeMl", label: "容量(ml)", aliases: ["sizeml", "容量", "规格", "ml"] },
+      { key: "packType", label: "包装类型", aliases: ["packtype", "包装类型", "包装", "类型"] },
+      { key: "store", label: "门店 / 渠道", required: true, aliases: ["store", "门店", "店铺", "渠道", "shop"] },
+      { key: "batchNo", label: "批次号", aliases: ["batchno", "batch", "批次", "批次号"] },
+      { key: "sellableStock", label: "可售库存", required: true, aliases: ["sellablestock", "可售库存", "库存", "可用库存", "stock"] },
+      { key: "inTransit", label: "在途库存", aliases: ["intransit", "在途", "在途库存", "未到货"] },
+      { key: "sales90d", label: "近90天销量", aliases: ["sales90d", "近90天销量", "90天销量", "近三个月销量"] },
+      { key: "sales30d", label: "近30天销量", aliases: ["sales30d", "近30天销量", "30天销量", "近一个月销量"] },
+      { key: "expiryDate", label: "到期日", aliases: ["expirydate", "到期日", "保质期", "有效期"] }
     ];
-
-    let state = {
-      rows: loadRows(),
-      settings: loadSettings(),
-      activeTab: "dashboard"
-    };
 
     const settingsMeta = [
       ["leadTimeDays", "生产交期（天）"],
@@ -588,6 +462,25 @@
       ["transferKeepDays", "调出保留库存天数"],
       ["goodSellerDailySales", "好卖基线（日均销量）"]
     ];
+
+    const tabs = [
+      { id: "dashboard", label: "驾驶舱" },
+      { id: "replenishment", label: "补货预警" },
+      { id: "expiry", label: "临期管理" },
+      { id: "slowmoving", label: "滞销分析" },
+      { id: "transfer", label: "店铺调拨" },
+      { id: "master", label: "主数据与标签" }
+    ];
+
+    const SALES_DETAIL_COLUMNS = ["商品名称", "归属店铺", "商品数量"];
+
+    let state = {
+      rows: loadRows(),
+      settings: loadSettings(),
+      meta: loadMeta(),
+      importDraft: null,
+      activeTab: "dashboard"
+    };
 
     function loadRows() {
       const raw = localStorage.getItem("perfume-ops-rows");
@@ -610,31 +503,99 @@
       }
     }
 
+    function loadMeta() {
+      const raw = localStorage.getItem("perfume-ops-meta");
+      if (!raw) return { lastImportName: "当前是示例数据", importedAt: "", dataKind: "sample" };
+      try {
+        return { lastImportName: "当前是示例数据", importedAt: "", dataKind: "sample", ...JSON.parse(raw) };
+      } catch {
+        return { lastImportName: "当前是示例数据", importedAt: "", dataKind: "sample" };
+      }
+    }
+
     function saveState() {
       localStorage.setItem("perfume-ops-rows", JSON.stringify(state.rows));
       localStorage.setItem("perfume-ops-settings", JSON.stringify(state.settings));
+      localStorage.setItem("perfume-ops-meta", JSON.stringify(state.meta));
     }
 
     function asNumber(value) {
-      const num = Number(value);
+      if (value === null || value === undefined || value === "") return 0;
+      const text = String(value).replace(/,/g, "").trim();
+      const num = Number(text);
       return Number.isFinite(num) ? num : 0;
     }
 
+    function normalizeText(value) {
+      return String(value || "").trim().replace(/\s+/g, "").replace(/[_-]/g, "").toLowerCase();
+    }
+
+    function formatDateInput(value) {
+      if (!value) return "";
+      if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+      if (typeof value === "number" && value > 20000 && value < 70000) {
+        const base = new Date(Date.UTC(1899, 11, 30));
+        base.setUTCDate(base.getUTCDate() + value);
+        return base.toISOString().slice(0, 10);
+      }
+      const text = String(value).trim();
+      if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(text)) return new Date(text).toISOString().slice(0, 10);
+      if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(text)) return new Date(text.replace(/\//g, "-")).toISOString().slice(0, 10);
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(text)) {
+        const [m, d, y] = text.split("/");
+        return new Date(`${y}-${m}-${d}`).toISOString().slice(0, 10);
+      }
+      return text;
+    }
+
     function daysBetween(dateText) {
+      if (!dateText) return 9999;
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const target = new Date(dateText);
+      if (Number.isNaN(target.getTime())) return 9999;
       target.setHours(0, 0, 0, 0);
       return Math.round((target - today) / 86400000);
+    }
+
+    function coverDays(stock, dailySales) {
+      if (dailySales <= 0) return stock > 0 ? 9999 : 0;
+      return stock / dailySales;
     }
 
     function dailySales90(row) {
       return asNumber(row.sales90d) / 90;
     }
 
-    function coverDays(stock, dailySales) {
-      if (dailySales <= 0) return stock > 0 ? 9999 : 0;
-      return stock / dailySales;
+    function formatNum(value) {
+      return new Intl.NumberFormat("zh-CN").format(Math.round(value));
+    }
+
+    function formatDays(value) {
+      if (value >= 9999) return "无动销";
+      return `${Math.round(value)} 天`;
+    }
+
+    function formatDateTime(value) {
+      if (!value) return "未记录";
+      return new Date(value).toLocaleString("zh-CN", { hour12: false });
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function badge(type, text) {
+      return `<span class="badge ${type}">${text}</span>`;
+    }
+
+    function csvCell(value) {
+      return `"${String(value ?? "").replace(/"/g, "\"\"")}"`;
     }
 
     function parseCsv(text) {
@@ -676,33 +637,55 @@
 
       pushCell();
       pushLine();
-      return rows.filter((row) => row.some((cell) => cell.trim() !== ""));
+      return rows.filter((row) => row.some((cell) => String(cell).trim() !== ""));
     }
 
-    function normalizeRows(rawRows) {
-      const [header, ...body] = rawRows;
-      const fields = header.map((item) => item.trim());
-      return body.map((line) => {
-        const row = {};
-        fields.forEach((field, index) => {
-          row[field] = (line[index] || "").trim();
+    function decodeCsvBuffer(buffer) {
+      const attempts = ["utf-8", "gb18030"];
+      let best = { score: -1, text: "", rows: [] };
+
+      attempts.forEach((encoding) => {
+        try {
+          const text = new TextDecoder(encoding).decode(buffer);
+          const rows = parseCsv(text);
+          const headers = rows[0] || [];
+          const score = scoreHeaders(headers);
+          if (score > best.score) {
+            best = { score, text, rows };
+          }
+        } catch (_) {
+          // Ignore failed decode attempts and keep the best successful one.
+        }
+      });
+
+      return best;
+    }
+
+    function scoreHeaders(headers) {
+      const headerSet = new Set((headers || []).map((header) => String(header).trim()));
+      let score = 0;
+      SALES_DETAIL_COLUMNS.forEach((column) => {
+        if (headerSet.has(column)) score += 3;
+      });
+      fieldMeta.forEach((field) => {
+        field.aliases.forEach((alias) => {
+          if (headerSet.has(alias)) score += 1;
         });
-        row.sizeMl = asNumber(row.sizeMl);
-        row.sellableStock = asNumber(row.sellableStock);
-        row.inTransit = asNumber(row.inTransit);
-        row.sales90d = asNumber(row.sales90d);
-        row.sales30d = asNumber(row.sales30d);
-        return row;
-      }).filter((row) => row.sku && row.store);
+      });
+      return score;
     }
 
-    function groupBy(array, keyFn) {
-      return array.reduce((map, item) => {
+    function groupBy(list, keyFn) {
+      return list.reduce((map, item) => {
         const key = keyFn(item);
         if (!map.has(key)) map.set(key, []);
         map.get(key).push(item);
         return map;
       }, new Map());
+    }
+
+    function currentModel() {
+      return computeModel(state.rows, state.settings);
     }
 
     function computeModel(rows, settings) {
@@ -712,7 +695,8 @@
         inTransit: asNumber(row.inTransit),
         sales90d: asNumber(row.sales90d),
         sales30d: asNumber(row.sales30d),
-        sizeMl: asNumber(row.sizeMl)
+        sizeMl: asNumber(row.sizeMl),
+        expiryDate: formatDateInput(row.expiryDate)
       }));
 
       const skuGroups = groupBy(cleanRows, (row) => row.sku);
@@ -728,113 +712,66 @@
         const stockCoverDays = coverDays(stock, daily);
         const targetStock = Math.ceil(daily * (settings.leadTimeDays + settings.safetyStockDays));
         const suggestedProduction = Math.max(0, Math.ceil(targetStock - stock - inTransit));
-        const urgency = stockCoverDays <= settings.leadTimeDays
-          ? "立即生产"
-          : stockCoverDays <= settings.prepWindowDays
-            ? "进入备货"
-            : "观察";
-        const shortReason = stockCoverDays <= settings.leadTimeDays
-          ? "预计会在生产周期内卖空"
-          : stockCoverDays <= settings.prepWindowDays
-            ? "距离紧张只差一步"
-            : "库存覆盖仍安全";
-
-        const batchRiskRows = items.map((item) => {
-          const daysLeft = daysBetween(item.expiryDate);
-          const projectedCover = coverDays(item.sellableStock, dailySales90(item));
-          return {
-            ...item,
-            daysLeft,
-            projectedCover,
-            expiryRisk: item.sellableStock > 0 && (daysLeft <= settings.expiryWarningDays || projectedCover > daysLeft)
-          };
-        });
-
-        const worstBatch = batchRiskRows
-          .filter((item) => item.expiryRisk)
-          .sort((a, b) => a.daysLeft - b.daysLeft)[0];
-
+        const urgency = stockCoverDays <= settings.leadTimeDays ? "立即生产" : stockCoverDays <= settings.prepWindowDays ? "进入备货" : "观察";
         return {
-          sku,
           ...first,
+          sku,
           stock,
           inTransit,
           sales90,
           sales30,
           daily,
           stockCoverDays,
-          targetStock,
           suggestedProduction,
           urgency,
-          shortReason,
-          batchRiskCount: batchRiskRows.filter((item) => item.expiryRisk).length,
-          worstBatch
+          shortReason: urgency === "立即生产" ? "预计会在生产周期内卖空" : urgency === "进入备货" ? "库存进入备货窗口" : "库存覆盖仍然安全"
         };
-      }).sort((a, b) => a.stockCoverDays - b.stockCoverDays);
-
-      const replenishment = skuSummaries.filter((item) => item.stock > 0 || item.daily > 0);
+      }).sort((a, b) => b.sales90 - a.sales90);
 
       const expiryRows = cleanRows.map((row) => {
-        const network = skuSummaries.find((item) => item.sku === row.sku);
-        const daily = dailySales90(row);
+        const network = skuSummaries.find((item) => item.sku === row.sku) || { daily: 0 };
         const daysLeft = daysBetween(row.expiryDate);
-        const projectedCover = coverDays(row.sellableStock, daily);
+        const projectedCover = coverDays(row.sellableStock, dailySales90(row));
         const isGoodSeller = network.daily >= settings.goodSellerDailySales;
-        const riskLevel = row.sellableStock <= 0
-          ? "正常"
-          : daysLeft <= 0
-            ? "已过期"
-            : (daysLeft <= settings.expiryWarningDays || projectedCover > daysLeft)
-              ? "风险"
-              : "正常";
+        const riskLevel = !row.expiryDate
+          ? "缺到期日"
+          : row.sellableStock <= 0
+            ? "正常"
+            : daysLeft <= 0
+              ? "已过期"
+              : (daysLeft <= settings.expiryWarningDays || projectedCover > daysLeft)
+                ? "风险"
+                : "正常";
         const action = riskLevel === "正常"
           ? "正常出货，继续按批次先进先出"
-          : isGoodSeller
-            ? "优先出旧批次，轻促销或调拨到高动销门店"
-            : "降价清仓、组合促销，必要时停止补货并评估报损";
-        return {
-          ...row,
-          daysLeft,
-          projectedCover,
-          isGoodSeller,
-          riskLevel,
-          action
-        };
+          : riskLevel === "缺到期日"
+            ? "补齐批次到期信息后再做临期判断"
+            : isGoodSeller
+              ? "优先出旧批次，轻促销或调拨到高动销门店"
+              : "降价清仓、组合促销，必要时停止补货并评估报损";
+        return { ...row, daysLeft, isGoodSeller, riskLevel, action };
       }).sort((a, b) => a.daysLeft - b.daysLeft);
 
-      const slowMoving = skuSummaries
-        .map((item) => {
-          const activeStores = cleanRows.filter((row) => row.sku === item.sku && row.sales30d > 0).length;
-          const totalStores = cleanRows.filter((row) => row.sku === item.sku).length;
-          let reason = "销售稳定";
-          let action = "维持当前策略";
-
-          if (item.stockCoverDays > settings.slowMoverDays) {
-            if (activeStores > 0 && activeStores < totalStores) {
-              reason = "部分门店动销，部分门店积压，渠道匹配有问题";
-              action = "优先做调拨，把存货集中到高动销门店";
-            } else if (item.seasonTag && item.seasonTag !== "四季" && !isCurrentSeason(item.seasonTag)) {
-              reason = "当前销售季节不匹配";
-              action = "降低短期投放，等旺季前再重新布货";
-            } else if (item.daily < settings.goodSellerDailySales / 2) {
-              reason = "整体需求偏弱，可能是价格或产品力问题";
-              action = "停止新增生产，清货并复盘定价、包装和渠道";
-            } else {
-              reason = "库存结构偏重，周转明显偏慢";
-              action = "做促销、加曝光，观察 2 至 4 周后的改善";
-            }
+      const slowMoving = skuSummaries.map((item) => {
+        const skuRows = cleanRows.filter((row) => row.sku === item.sku);
+        const activeStores = skuRows.filter((row) => row.sales30d > 0).length;
+        const totalStores = skuRows.length;
+        let reason = "销售稳定";
+        let action = "维持当前策略";
+        if (item.stockCoverDays > settings.slowMoverDays) {
+          if (activeStores > 0 && activeStores < totalStores) {
+            reason = "部分门店动销，部分门店积压，渠道匹配有问题";
+            action = "优先做调拨，把存货集中到高动销门店";
+          } else if (item.daily < settings.goodSellerDailySales / 2) {
+            reason = "整体需求偏弱，可能是价格或产品力问题";
+            action = "停止新增生产，清货并复盘定价、包装和渠道";
+          } else {
+            reason = "库存结构偏重，周转明显偏慢";
+            action = "做促销、加曝光，观察 2 至 4 周后的改善";
           }
-
-          return {
-            ...item,
-            activeStores,
-            totalStores,
-            reason,
-            action
-          };
-        })
-        .filter((item) => item.stockCoverDays > settings.slowMoverDays)
-        .sort((a, b) => b.stockCoverDays - a.stockCoverDays);
+        }
+        return { ...item, activeStores, totalStores, reason, action };
+      }).filter((item) => item.stockCoverDays > settings.slowMoverDays).sort((a, b) => b.stockCoverDays - a.stockCoverDays);
 
       const transferPlan = [];
       skuGroups.forEach((items, sku) => {
@@ -850,15 +787,10 @@
           };
         });
 
-        const receivers = stores
-          .filter((item) => item.need > 0 && item.daily > 0)
-          .sort((a, b) => b.daily - a.daily);
+        const receivers = stores.filter((item) => item.need > 0 && item.daily > 0).sort((a, b) => b.daily - a.daily);
         const donors = stores
           .filter((item) => item.excess > 0 || (item.sales30d === 0 && item.sellableStock > 0))
-          .map((item) => ({
-            ...item,
-            transferable: item.excess > 0 ? item.excess : Math.floor(item.sellableStock * 0.5)
-          }))
+          .map((item) => ({ ...item, transferable: item.excess > 0 ? item.excess : Math.floor(item.sellableStock * 0.5) }))
           .sort((a, b) => b.transferable - a.transferable);
 
         receivers.forEach((receiver) => {
@@ -867,9 +799,6 @@
             if (stillNeed <= 0 || donor.transferable <= 0 || donor.store === receiver.store) return;
             const qty = Math.min(stillNeed, donor.transferable);
             if (qty <= 0) return;
-            const reason = donor.daily < receiver.daily
-              ? "从低动销店向高动销店集中库存"
-              : "平衡门店库存，减少一端断货一端积压";
             transferPlan.push({
               sku,
               productName: network.productName,
@@ -878,7 +807,7 @@
               qty,
               fromCover: donor.cover,
               toCover: receiver.cover,
-              reason
+              reason: donor.daily < receiver.daily ? "从低动销店向高动销店集中库存" : "平衡门店库存，减少一端断货一端积压"
             });
             donor.transferable -= qty;
             stillNeed -= qty;
@@ -891,59 +820,30 @@
         const stock = items.reduce((sum, item) => sum + item.sellableStock, 0);
         const sales90 = items.reduce((sum, item) => sum + item.sales90d, 0);
         const daily = sales90 / 90;
-        return {
-          store,
-          stock,
-          sales90,
-          coverDays: coverDays(stock, daily)
-        };
+        return { store, stock, sales90, coverDays: coverDays(stock, daily) };
       }).sort((a, b) => b.sales90 - a.sales90);
 
       return {
         rows: cleanRows,
         skuSummaries,
-        replenishment,
+        replenishment: skuSummaries.slice().sort((a, b) => a.stockCoverDays - b.stockCoverDays),
         expiryRows,
         slowMoving,
         transferPlan,
         transferSummary,
         storeSummary,
         kpis: {
-          urgentReplenishmentCount: replenishment.filter((item) => item.stockCoverDays <= settings.leadTimeDays).length,
-          expiryRiskCount: expiryRows.filter((item) => item.riskLevel !== "正常").length,
+          urgentReplenishmentCount: skuSummaries.filter((item) => item.stockCoverDays <= settings.leadTimeDays && item.stock > 0).length,
+          expiryRiskCount: expiryRows.filter((item) => item.riskLevel === "风险" || item.riskLevel === "已过期").length,
           slowMovingCount: slowMoving.length,
           transferCount: transferPlan.length
         }
       };
     }
 
-    function isCurrentSeason(seasonTag) {
-      const month = new Date().getMonth() + 1;
-      if (seasonTag === "春夏") return month >= 3 && month <= 8;
-      if (seasonTag === "秋冬") return month >= 9 || month <= 2;
-      return true;
-    }
-
-    function badge(type, text) {
-      return `<span class="badge ${type}">${text}</span>`;
-    }
-
-    function formatDays(value) {
-      if (value >= 9999) return "无动销";
-      return `${Math.round(value)} 天`;
-    }
-
-    function formatNum(value) {
-      return new Intl.NumberFormat("zh-CN").format(Math.round(value));
-    }
-
-    function currentModel() {
-      return computeModel(state.rows, state.settings);
-    }
-
     function renderSettings() {
-      const form = document.getElementById("settings-form");
-      form.innerHTML = settingsMeta.map(([key, label]) => `
+      const host = document.getElementById("settings-form");
+      host.innerHTML = settingsMeta.map(([key, label]) => `
         <div class="field">
           <label for="${key}">${label}</label>
           <input id="${key}" type="number" step="0.1" value="${state.settings[key]}">
@@ -958,6 +858,83 @@
       });
     }
 
+    function renderImportPanel() {
+      const host = document.getElementById("import-panel");
+      if (!state.importDraft) {
+        host.innerHTML = `
+          <div>
+            <strong>当前数据源</strong>
+            <div class="note">${escapeHtml(state.meta.lastImportName)}</div>
+          </div>
+          <div class="note">${state.meta.dataKind === "sales90d" ? "你现在导入的是销售明细聚合结果。库存、在途、保质期还没有接进来。" : "支持导入模板明细表，也支持像你这份 90 天销售订单明细这样自动聚合的 CSV。"}</div>
+          <div class="status-item">
+            <div>最近导入时间</div>
+            <strong style="font-size:14px;">${formatDateTime(state.meta.importedAt)}</strong>
+          </div>
+        `;
+        return;
+      }
+
+      const sheet = getCurrentDraftSheet();
+      const headers = sheet ? (sheet.rows[0] || []) : [];
+      const previewRows = sheet ? sheet.rows.slice(1, 4) : [];
+      host.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:start;">
+          <div>
+            <strong>${escapeHtml(state.importDraft.fileName)}</strong>
+            <div class="note">这份文件没有被识别为销售明细流水，系统会按通用明细表模式处理，请确认字段映射。</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button id="cancel-import" class="ghost">取消</button>
+            <button id="apply-import" class="primary">应用导入</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="sheet-select">工作表</label>
+          <select id="sheet-select">
+            ${state.importDraft.sheets.map((item, index) => `<option value="${index}" ${index === state.importDraft.sheetIndex ? "selected" : ""}>${escapeHtml(item.name)}（${Math.max(0, item.rows.length - 1)} 行）</option>`).join("")}
+          </select>
+        </div>
+        <div class="mapping-grid">
+          ${fieldMeta.map((field) => `
+            <div class="mapping-row">
+              <div><strong>${field.label}</strong><span class="note">${field.required ? "必填" : "可选"}</span></div>
+              <select data-map-key="${field.key}">
+                <option value="">不导入</option>
+                ${headers.map((header) => `<option value="${escapeHtml(header)}" ${state.importDraft.fieldMap[field.key] === header ? "selected" : ""}>${escapeHtml(header)}</option>`).join("")}
+              </select>
+            </div>
+          `).join("")}
+        </div>
+        <div class="preview-wrap">
+          <table>
+            <thead><tr>${headers.slice(0, 8).map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead>
+            <tbody>${previewRows.length ? previewRows.map((row) => `<tr>${row.slice(0, 8).map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${Math.max(1, headers.length)}">这张表没有可预览的数据行。</td></tr>`}</tbody>
+          </table>
+        </div>
+      `;
+
+      document.getElementById("sheet-select").addEventListener("change", (event) => {
+        const nextIndex = Number(event.target.value);
+        state.importDraft.sheetIndex = nextIndex;
+        state.importDraft.fieldMap = autoDetectFieldMap(state.importDraft.sheets[nextIndex].rows[0] || []);
+        renderImportPanel();
+      });
+
+      host.querySelectorAll("select[data-map-key]").forEach((select) => {
+        select.addEventListener("change", () => {
+          state.importDraft.fieldMap[select.dataset.mapKey] = select.value;
+        });
+      });
+
+      document.getElementById("cancel-import").addEventListener("click", () => {
+        state.importDraft = null;
+        renderImportPanel();
+      });
+
+      document.getElementById("apply-import").addEventListener("click", applyImportDraft);
+    }
+
     function renderDataQuality(model) {
       const missingSeason = model.rows.filter((row) => !row.seasonTag).length;
       const missingExpiry = model.rows.filter((row) => !row.expiryDate).length;
@@ -967,40 +944,39 @@
         <div class="status-item"><div>SKU 数</div><strong>${formatNum(skus)}</strong></div>
         <div class="status-item"><div>门店数</div><strong>${formatNum(stores)}</strong></div>
         <div class="status-item"><div>缺季节标签</div><strong>${formatNum(missingSeason)}</strong></div>
-        <div class="status-item"><div>缺保质期</div><strong>${formatNum(missingExpiry)}</strong></div>
+        <div class="status-item"><div>缺到期日</div><strong>${formatNum(missingExpiry)}</strong></div>
       `;
     }
 
     function renderKpis(model) {
+      const salesOnly = state.meta.dataKind === "sales90d";
       document.getElementById("kpi-grid").innerHTML = `
-        <div class="panel kpi critical">
-          <small>立即补货 SKU</small>
-          <strong>${formatNum(model.kpis.urgentReplenishmentCount)}</strong>
-          <p>库存覆盖天数已经压到生产交期以内，继续拖会直接影响销售。</p>
+        <div class="panel kpi ${salesOnly ? "good" : "critical"}">
+          <small>${salesOnly ? "近90天总销量" : "立即补货 SKU"}</small>
+          <strong>${formatNum(salesOnly ? model.rows.reduce((sum, row) => sum + asNumber(row.sales90d), 0) : model.kpis.urgentReplenishmentCount)}</strong>
+          <p>${salesOnly ? "当前只导入了销售明细，先把销量聚合起来给你看。" : "库存覆盖天数已经压到生产交期以内，继续拖会直接影响销售。"}</p>
         </div>
         <div class="panel kpi warning">
           <small>临期风险批次</small>
           <strong>${formatNum(model.kpis.expiryRiskCount)}</strong>
-          <p>按当前动销速度推算，到期前可能卖不完或已经接近临期窗口。</p>
+          <p>没有保质期文件时这里会保持为空，等你补数据后就能自动识别。</p>
         </div>
         <div class="panel kpi warning">
           <small>滞销 SKU</small>
           <strong>${formatNum(model.kpis.slowMovingCount)}</strong>
-          <p>库存可售天数过长，说明压货明显，应该进入诊断与处理动作。</p>
+          <p>只有销售没有库存时，滞销判断会偏弱，后续接库存后会更准确。</p>
         </div>
         <div class="panel kpi good">
           <small>建议调拨单</small>
           <strong>${formatNum(model.kpis.transferCount)}</strong>
-          <p>把低动销门店的库存向高动销门店迁移，优先减少断货和积压同时发生。</p>
+          <p>调拨也依赖库存，当前先保留结构，等库存文件接入后就能真正跑起来。</p>
         </div>
       `;
     }
 
     function renderTabs() {
       const host = document.getElementById("tabs");
-      host.innerHTML = tabs.map((tab) => `
-        <button class="tab ${state.activeTab === tab.id ? "active" : ""}" data-tab="${tab.id}">${tab.label}</button>
-      `).join("");
+      host.innerHTML = tabs.map((tab) => `<button class="tab ${state.activeTab === tab.id ? "active" : ""}" data-tab="${tab.id}">${tab.label}</button>`).join("");
       host.querySelectorAll(".tab").forEach((button) => {
         button.addEventListener("click", () => {
           state.activeTab = button.dataset.tab;
@@ -1021,323 +997,152 @@
       host.innerHTML = `
         <div class="table-wrap">
           <table>
-            <thead>
-              <tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr>
-            </thead>
-            <tbody>
-              ${rows.join("")}
-            </tbody>
+            <thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead>
+            <tbody>${rows.join("")}</tbody>
           </table>
         </div>
       `;
     }
 
     function renderDashboard(model) {
-      const urgent = model.replenishment.filter((item) => item.stockCoverDays <= state.settings.prepWindowDays).slice(0, 5);
-      const expiry = model.expiryRows.filter((item) => item.riskLevel !== "正常").slice(0, 5);
-      const transfers = model.transferPlan.slice(0, 5);
-      const brands = Array.from(groupBy(model.skuSummaries, (item) => item.brand).entries())
-        .map(([brand, items]) => ({
-          brand,
-          sales90: items.reduce((sum, item) => sum + item.sales90, 0)
-        }))
-        .sort((a, b) => b.sales90 - a.sales90)
-        .slice(0, 5);
-
+      const topSkus = model.skuSummaries.slice(0, 6);
+      const topStores = model.storeSummary.slice(0, 6);
       document.getElementById("view-dashboard").innerHTML = `
+        ${state.meta.dataKind === "sales90d" ? `<div class="card"><strong>当前是销售数据模式</strong><div class="note">你这次导入的是 90 天销售明细，系统已经按 SKU + 门店帮你自动聚合。补货、临期、调拨相关判断等你补库存和保质期文件后会一起启用。</div></div>` : ""}
         <div class="subgrid">
-          <div class="box">
-            <div class="box-header"><h2>今天先处理什么</h2><span class="note">按影响销售和损耗的优先级排序</span></div>
-            <div class="box-body">
-              <div class="metric-row">
-                <div class="metric-card">
-                  <small>补货紧急</small>
-                  <strong>${model.kpis.urgentReplenishmentCount}</strong>
-                </div>
-                <div class="metric-card">
-                  <small>临期风险</small>
-                  <strong>${model.kpis.expiryRiskCount}</strong>
-                </div>
-                <div class="metric-card">
-                  <small>待调拨</small>
-                  <strong>${model.kpis.transferCount}</strong>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="box">
-            <div class="box-header"><h2>品牌近 90 天销量</h2><span class="note">帮助你看品牌结构</span></div>
-            <div class="box-body">
-              <div class="progress-list">
-                ${brands.map((item) => {
-                  const max = brands[0]?.sales90 || 1;
-                  const width = Math.max(8, (item.sales90 / max) * 100);
-                  return `
-                    <div class="progress-item">
-                      <div class="progress-top"><span>${item.brand}</span><span>${formatNum(item.sales90)}</span></div>
-                      <div class="bar"><span style="width:${width}%"></span></div>
-                    </div>
-                  `;
-                }).join("")}
-              </div>
-            </div>
-          </div>
+          <div class="box"><div class="box-header"><h2>畅销 SKU</h2><span class="note">按近90天销量排序</span></div><div id="dashboard-topsku"></div></div>
+          <div class="box"><div class="box-header"><h2>门店销量概览</h2><span class="note">先看哪个店最能卖</span></div><div id="dashboard-topstore"></div></div>
         </div>
-
         <div class="subgrid">
-          <div class="box">
-            <div class="box-header"><h3>补货关注清单</h3><span class="legend"><span><i class="swatch" style="background:#b42318"></i>立即生产</span><span><i class="swatch" style="background:#d97706"></i>进入备货</span></span></div>
-            <div id="dashboard-replenishment"></div>
-          </div>
-          <div class="box">
-            <div class="box-header"><h3>临期关注清单</h3><span class="note">优先处理剩余天数更短的批次</span></div>
-            <div id="dashboard-expiry"></div>
-          </div>
-        </div>
-
-        <div class="subgrid">
-          <div class="box">
-            <div class="box-header"><h3>调拨建议</h3><span class="note">从低动销门店向高动销门店集中库存</span></div>
-            <div id="dashboard-transfer"></div>
-          </div>
-          <div class="box">
-            <div class="box-header"><h3>门店库存周转概览</h3><span class="note">先看大盘，再决定要不要调拨</span></div>
-            <div id="dashboard-stores"></div>
-          </div>
+          <div class="box"><div class="box-header"><h3>补货关注清单</h3></div><div id="dashboard-replenishment"></div></div>
+          <div class="box"><div class="box-header"><h3>临期关注清单</h3></div><div id="dashboard-expiry"></div></div>
         </div>
       `;
 
-      renderTable(
-        "dashboard-replenishment",
-        ["SKU", "库存覆盖", "动作", "建议生产量"],
-        urgent.map((item) => `
+      renderTable("dashboard-topsku", ["SKU", "品牌", "门店数", "近90天销量"], topSkus.map((item) => {
+        const storeCount = model.rows.filter((row) => row.sku === item.sku).length;
+        return `
           <tr>
-            <td>${item.productName}<br><span class="note">${item.sku}</span></td>
-            <td>${formatDays(item.stockCoverDays)}</td>
-            <td>${item.urgency === "立即生产" ? badge("danger", item.urgency) : badge("warn", item.urgency)}</td>
-            <td>${formatNum(item.suggestedProduction)}</td>
-          </tr>
-        `),
-        "当前没有需要优先补货的 SKU。"
-      );
-
-      renderTable(
-        "dashboard-expiry",
-        ["批次", "门店", "剩余天数", "处理建议"],
-        expiry.map((item) => `
-          <tr>
-            <td>${item.productName}<br><span class="note">${item.batchNo}</span></td>
-            <td>${item.store}</td>
-            <td>${item.daysLeft <= 30 ? badge("danger", `${item.daysLeft} 天`) : badge("warn", `${item.daysLeft} 天`)}</td>
-            <td>${item.action}</td>
-          </tr>
-        `),
-        "当前没有临期风险批次。"
-      );
-
-      renderTable(
-        "dashboard-transfer",
-        ["SKU", "从", "到", "数量"],
-        transfers.map((item) => `
-          <tr>
-            <td>${item.productName}<br><span class="note">${item.sku}</span></td>
-            <td>${item.fromStore}</td>
-            <td>${item.toStore}</td>
-            <td>${formatNum(item.qty)}</td>
-          </tr>
-        `),
-        "当前没有建议调拨单。"
-      );
-
-      renderTable(
-        "dashboard-stores",
-        ["门店", "近90天销量", "库存覆盖"],
-        model.storeSummary.slice(0, 6).map((item) => `
-          <tr>
-            <td>${item.store}</td>
+            <td>${escapeHtml(item.productName)}<br><span class="note">${escapeHtml(item.sku)}</span></td>
+            <td>${escapeHtml(item.brand || "-")}</td>
+            <td>${formatNum(storeCount)}</td>
             <td>${formatNum(item.sales90)}</td>
-            <td>${formatDays(item.coverDays)}</td>
           </tr>
-        `),
-        "暂无门店数据。"
-      );
+        `;
+      }), "暂无销售数据。");
+
+      renderTable("dashboard-topstore", ["门店", "SKU数", "近90天销量"], topStores.map((item) => {
+        const skuCount = model.rows.filter((row) => row.store === item.store).length;
+        return `
+          <tr>
+            <td>${escapeHtml(item.store)}</td>
+            <td>${formatNum(skuCount)}</td>
+            <td>${formatNum(item.sales90)}</td>
+          </tr>
+        `;
+      }), "暂无门店数据。");
+
+      renderTable("dashboard-replenishment", ["SKU", "库存覆盖", "动作", "建议生产量"], model.replenishment.filter((item) => item.stock > 0 && item.stockCoverDays <= state.settings.prepWindowDays).slice(0, 5).map((item) => `
+        <tr>
+          <td>${escapeHtml(item.productName)}<br><span class="note">${escapeHtml(item.sku)}</span></td>
+          <td>${formatDays(item.stockCoverDays)}</td>
+          <td>${item.urgency === "立即生产" ? badge("danger", item.urgency) : badge("warn", item.urgency)}</td>
+          <td>${formatNum(item.suggestedProduction)}</td>
+        </tr>
+      `), "当前还没有库存数据，所以这里暂时不会出现补货建议。");
+
+      renderTable("dashboard-expiry", ["批次", "门店", "剩余天数", "处理建议"], model.expiryRows.filter((item) => item.riskLevel !== "正常" && item.expiryDate).slice(0, 5).map((item) => `
+        <tr>
+          <td>${escapeHtml(item.productName)}<br><span class="note">${escapeHtml(item.batchNo || "未填批次")}</span></td>
+          <td>${escapeHtml(item.store)}</td>
+          <td>${item.daysLeft <= 30 ? badge("danger", `${item.daysLeft} 天`) : badge("warn", `${item.daysLeft} 天`)}</td>
+          <td>${escapeHtml(item.action)}</td>
+        </tr>
+      `), "当前还没有保质期数据，所以这里暂时不会出现临期建议。");
     }
 
     function renderReplenishment(model) {
-      document.getElementById("view-replenishment").innerHTML = `
-        <div class="box">
-          <div class="box-header"><h2>补货与生产预警</h2><span class="note">逻辑：库存可售天数小于生产交期，立即进入生产；小于提前备货线，进入排产</span></div>
-          <div id="replenishment-table"></div>
-        </div>
-      `;
-      renderTable(
-        "replenishment-table",
-        ["SKU", "近90天销量", "当前库存", "在途", "库存覆盖", "状态", "建议生产量", "说明"],
-        model.replenishment.map((item) => `
-          <tr>
-            <td>${item.productName}<br><span class="note">${item.sku} | ${item.brand} | ${item.scentFamily}</span></td>
-            <td>${formatNum(item.sales90)}</td>
-            <td>${formatNum(item.stock)}</td>
-            <td>${formatNum(item.inTransit)}</td>
-            <td>${formatDays(item.stockCoverDays)}</td>
-            <td>${item.urgency === "立即生产" ? badge("danger", item.urgency) : item.urgency === "进入备货" ? badge("warn", item.urgency) : badge("good", item.urgency)}</td>
-            <td>${formatNum(item.suggestedProduction)}</td>
-            <td>${item.shortReason}</td>
-          </tr>
-        `),
-        "暂无补货数据。"
-      );
+      document.getElementById("view-replenishment").innerHTML = `<div class="box"><div class="box-header"><h2>补货与生产预警</h2><span class="note">需要库存与在途数据才能真正计算。</span></div><div id="replenishment-table"></div></div>`;
+      renderTable("replenishment-table", ["SKU", "近90天销量", "当前库存", "在途", "库存覆盖", "状态", "建议生产量"], model.replenishment.map((item) => `
+        <tr>
+          <td>${escapeHtml(item.productName)}<br><span class="note">${escapeHtml(item.sku)}</span></td>
+          <td>${formatNum(item.sales90)}</td>
+          <td>${formatNum(item.stock)}</td>
+          <td>${formatNum(item.inTransit)}</td>
+          <td>${item.stock > 0 ? formatDays(item.stockCoverDays) : badge("neutral", "待库存")}</td>
+          <td>${item.stock > 0 ? (item.urgency === "立即生产" ? badge("danger", item.urgency) : item.urgency === "进入备货" ? badge("warn", item.urgency) : badge("good", item.urgency)) : badge("neutral", "待库存")}</td>
+          <td>${formatNum(item.suggestedProduction)}</td>
+        </tr>
+      `), "暂无数据。");
     }
 
     function renderExpiry(model) {
-      document.getElementById("view-expiry").innerHTML = `
-        <div class="box">
-          <div class="box-header"><h2>临期与保质期管理</h2><span class="note">逻辑：看剩余天数，也看按当前动销速度能不能在到期前卖完</span></div>
-          <div id="expiry-table"></div>
-        </div>
-      `;
-      renderTable(
-        "expiry-table",
-        ["SKU/批次", "门店", "库存", "剩余天数", "本来好卖吗", "风险", "建议动作"],
-        model.expiryRows.map((item) => `
-          <tr>
-            <td>${item.productName}<br><span class="note">${item.sku} | ${item.batchNo}</span></td>
-            <td>${item.store}</td>
-            <td>${formatNum(item.sellableStock)}</td>
-            <td>${item.daysLeft <= 30 ? badge("danger", `${item.daysLeft} 天`) : item.daysLeft <= state.settings.expiryWarningDays ? badge("warn", `${item.daysLeft} 天`) : badge("good", `${item.daysLeft} 天`)}</td>
-            <td>${item.isGoodSeller ? badge("good", "是") : badge("neutral", "否")}</td>
-            <td>${item.riskLevel === "正常" ? badge("good", item.riskLevel) : badge("danger", item.riskLevel)}</td>
-            <td>${item.action}</td>
-          </tr>
-        `),
-        "暂无临期数据。"
-      );
+      document.getElementById("view-expiry").innerHTML = `<div class="box"><div class="box-header"><h2>临期与保质期管理</h2><span class="note">需要批次与到期日数据才能真正计算。</span></div><div id="expiry-table"></div></div>`;
+      renderTable("expiry-table", ["SKU/批次", "门店", "库存", "剩余天数", "本来好卖吗", "风险", "建议动作"], model.expiryRows.map((item) => `
+        <tr>
+          <td>${escapeHtml(item.productName)}<br><span class="note">${escapeHtml(item.sku)} | ${escapeHtml(item.batchNo || "未填批次")}</span></td>
+          <td>${escapeHtml(item.store)}</td>
+          <td>${formatNum(item.sellableStock)}</td>
+          <td>${item.expiryDate ? (item.daysLeft <= 30 ? badge("danger", `${item.daysLeft} 天`) : badge("warn", `${item.daysLeft} 天`)) : badge("neutral", "待保质期")}</td>
+          <td>${item.isGoodSeller ? badge("good", "是") : badge("neutral", "否")}</td>
+          <td>${item.riskLevel === "正常" ? badge("good", item.riskLevel) : item.riskLevel === "缺到期日" ? badge("neutral", item.riskLevel) : badge("danger", item.riskLevel)}</td>
+          <td>${escapeHtml(item.action)}</td>
+        </tr>
+      `), "暂无数据。");
     }
 
     function renderSlowMoving(model) {
-      document.getElementById("view-slowmoving").innerHTML = `
-        <div class="box">
-          <div class="box-header"><h2>长期不动销与滞销诊断</h2><span class="note">逻辑：库存覆盖天数过长，说明货压得久；再结合季节、门店分布、整体需求看原因</span></div>
-          <div id="slowmoving-table"></div>
-        </div>
-      `;
-      renderTable(
-        "slowmoving-table",
-        ["SKU", "库存覆盖", "动销门店", "滞销原因判断", "建议动作"],
-        model.slowMoving.map((item) => `
+      document.getElementById("view-slowmoving").innerHTML = `<div class="box"><div class="box-header"><h2>滞销分析</h2><span class="note">只有销售没有库存时，这里更多是销量观察，滞销结论要等库存补齐。</span></div><div id="slowmoving-table"></div></div>`;
+      const rows = state.meta.dataKind === "sales90d"
+        ? model.skuSummaries.slice().sort((a, b) => a.sales90 - b.sales90).slice(0, 20).map((item) => `
           <tr>
-            <td>${item.productName}<br><span class="note">${item.sku} | ${item.brand} | ${item.seasonTag}</span></td>
-            <td>${badge(item.stockCoverDays > state.settings.slowMoverDays * 1.5 ? "danger" : "warn", formatDays(item.stockCoverDays))}</td>
-            <td>${item.activeStores}/${item.totalStores}</td>
-            <td>${item.reason}</td>
-            <td>${item.action}</td>
+            <td>${escapeHtml(item.productName)}<br><span class="note">${escapeHtml(item.sku)}</span></td>
+            <td>${formatNum(item.sales90)}</td>
+            <td>${formatNum(item.sales30)}</td>
+            <td>${escapeHtml(item.store)}</td>
+            <td>${badge("neutral", "待库存")}</td>
           </tr>
-        `),
-        "当前没有超过滞销阈值的 SKU。"
-      );
+        `)
+        : model.slowMoving.map((item) => `
+          <tr>
+            <td>${escapeHtml(item.productName)}<br><span class="note">${escapeHtml(item.sku)}</span></td>
+            <td>${formatDays(item.stockCoverDays)}</td>
+            <td>${item.activeStores}/${item.totalStores}</td>
+            <td>${escapeHtml(item.reason)}</td>
+            <td>${escapeHtml(item.action)}</td>
+          </tr>
+        `);
+      const headers = state.meta.dataKind === "sales90d"
+        ? ["SKU", "近90天销量", "近30天估算", "门店", "状态"]
+        : ["SKU", "库存覆盖", "动销门店", "滞销原因判断", "建议动作"];
+      renderTable("slowmoving-table", headers, rows, "暂无数据。");
     }
 
     function renderTransfer(model) {
-      const summaryRows = Array.from(model.transferSummary.entries()).map(([sku, items]) => ({
-        sku,
-        productName: items[0].productName,
-        qty: items.reduce((sum, item) => sum + item.qty, 0),
-        routes: items.length
-      })).sort((a, b) => b.qty - a.qty);
-
-      document.getElementById("view-transfer").innerHTML = `
-        <div class="subgrid">
-          <div class="box">
-            <div class="box-header"><h2>调拨总览</h2><span class="note">目的是把低动销门店的库存调到高动销门店去卖</span></div>
-            <div id="transfer-summary"></div>
-          </div>
-          <div class="box">
-            <div class="box-header"><h2>调拨明细</h2><span class="note">按 SKU 看每一条建议路线</span></div>
-            <div id="transfer-detail"></div>
-          </div>
-        </div>
-      `;
-
-      renderTable(
-        "transfer-summary",
-        ["SKU", "建议调拨量", "路线数"],
-        summaryRows.map((item) => `
-          <tr>
-            <td>${item.productName}<br><span class="note">${item.sku}</span></td>
-            <td>${formatNum(item.qty)}</td>
-            <td>${formatNum(item.routes)}</td>
-          </tr>
-        `),
-        "当前没有需要调拨的 SKU。"
-      );
-
-      renderTable(
-        "transfer-detail",
-        ["SKU", "调出门店", "调入门店", "建议数量", "原因"],
-        model.transferPlan.map((item) => `
-          <tr>
-            <td>${item.productName}<br><span class="note">${item.sku}</span></td>
-            <td>${item.fromStore}<br><span class="note">覆盖 ${formatDays(item.fromCover)}</span></td>
-            <td>${item.toStore}<br><span class="note">覆盖 ${formatDays(item.toCover)}</span></td>
-            <td>${formatNum(item.qty)}</td>
-            <td>${item.reason}</td>
-          </tr>
-        `),
-        "当前没有建议调拨单。"
-      );
+      document.getElementById("view-transfer").innerHTML = `<div class="box"><div class="box-header"><h2>店铺调拨</h2><span class="note">调拨要等库存文件接入后才能真正计算。</span></div><div id="transfer-table"></div></div>`;
+      renderTable("transfer-table", ["SKU", "调出门店", "调入门店", "建议数量", "原因"], model.transferPlan.map((item) => `
+        <tr>
+          <td>${escapeHtml(item.productName)}<br><span class="note">${escapeHtml(item.sku)}</span></td>
+          <td>${escapeHtml(item.fromStore)}</td>
+          <td>${escapeHtml(item.toStore)}</td>
+          <td>${formatNum(item.qty)}</td>
+          <td>${escapeHtml(item.reason)}</td>
+        </tr>
+      `), "当前还没有库存数据，所以这里暂时不会出现调拨建议。");
     }
 
     function renderMaster(model) {
-      const tagStats = [
-        ["品牌", model.rows.filter((row) => row.brand).length],
-        ["系列", model.rows.filter((row) => row.series).length],
-        ["香型", model.rows.filter((row) => row.scentFamily).length],
-        ["季节标签", model.rows.filter((row) => row.seasonTag).length],
-        ["包装类型", model.rows.filter((row) => row.packType).length]
-      ];
-
-      document.getElementById("view-master").innerHTML = `
-        <div class="subgrid">
-          <div class="box">
-            <div class="box-header"><h2>标签完整度</h2><span class="note">先把主数据打齐，后面选品和复盘才有意义</span></div>
-            <div class="box-body">
-              <div class="progress-list">
-                ${tagStats.map(([label, count]) => {
-                  const pct = model.rows.length ? (count / model.rows.length) * 100 : 0;
-                  return `
-                    <div class="progress-item">
-                      <div class="progress-top"><span>${label}</span><span>${Math.round(pct)}%</span></div>
-                      <div class="bar"><span style="width:${pct}%"></span></div>
-                    </div>
-                  `;
-                }).join("")}
-              </div>
-            </div>
-          </div>
-          <div class="box">
-            <div class="box-header"><h2>SKU 主数据</h2><span class="note">这一页主要是帮你检查标签口径</span></div>
-            <div id="master-table"></div>
-          </div>
-        </div>
-      `;
-
-      renderTable(
-        "master-table",
-        ["SKU", "品牌", "系列", "香型", "季节", "包装", "生命周期建议"],
-        model.skuSummaries.map((item) => `
-          <tr>
-            <td>${item.productName}<br><span class="note">${item.sku}</span></td>
-            <td>${item.brand || "-"}</td>
-            <td>${item.series || "-"}</td>
-            <td>${item.scentFamily || "-"}</td>
-            <td>${item.seasonTag || "-"}</td>
-            <td>${item.packType || "-"}</td>
-            <td>${item.stockCoverDays <= state.settings.prepWindowDays ? "补货重点" : item.stockCoverDays > state.settings.slowMoverDays ? "清货/调拨重点" : "正常维护"}</td>
-          </tr>
-        `),
-        "暂无主数据。"
-      );
+      document.getElementById("view-master").innerHTML = `<div class="box"><div class="box-header"><h2>SKU 主数据与标签</h2><span class="note">这一页主要用来检查从销售明细聚合出来的商品骨架。</span></div><div id="master-table"></div></div>`;
+      renderTable("master-table", ["SKU", "品牌", "商品名称", "门店", "包装类型", "近90天销量"], model.rows.slice().sort((a, b) => asNumber(b.sales90d) - asNumber(a.sales90d)).map((item) => `
+        <tr>
+          <td>${escapeHtml(item.sku)}</td>
+          <td>${escapeHtml(item.brand || "-")}</td>
+          <td>${escapeHtml(item.productName || "-")}</td>
+          <td>${escapeHtml(item.store || "-")}</td>
+          <td>${escapeHtml(item.packType || "-")}</td>
+          <td>${formatNum(item.sales90d)}</td>
+        </tr>
+      `), "暂无数据。");
     }
 
     function renderViews(model) {
@@ -1351,12 +1156,22 @@
 
     function render() {
       const model = currentModel();
+      renderImportPanel();
       renderSettings();
       renderDataQuality(model);
       renderKpis(model);
       renderTabs();
       renderViews(model);
       saveState();
+    }
+
+    function templateCsv() {
+      const headers = ["sku", "productName", "brand", "series", "scentFamily", "seasonTag", "concentration", "sizeMl", "packType", "store", "batchNo", "sellableStock", "inTransit", "sales90d", "sales30d", "expiryDate"];
+      const lines = [headers.join(",")];
+      sampleRows.forEach((row) => {
+        lines.push(headers.map((key) => csvCell(row[key])).join(","));
+      });
+      return "\uFEFF" + lines.join("\n");
     }
 
     function downloadFile(filename, content, type) {
@@ -1369,28 +1184,218 @@
       URL.revokeObjectURL(url);
     }
 
+    function autoDetectFieldMap(headers) {
+      const normalizedHeaders = headers.map((header) => ({ original: header, normalized: normalizeText(header) }));
+      const map = {};
+      fieldMeta.forEach((field) => {
+        const aliases = field.aliases.map(normalizeText);
+        const match = normalizedHeaders.find((item) => aliases.includes(item.normalized));
+        map[field.key] = match ? match.original : "";
+      });
+      return map;
+    }
+
+    function buildImportDraft(fileName, sheets) {
+      return {
+        fileName,
+        sheets,
+        sheetIndex: 0,
+        fieldMap: autoDetectFieldMap(sheets[0].rows[0] || [])
+      };
+    }
+
+    function getCurrentDraftSheet() {
+      if (!state.importDraft) return null;
+      return state.importDraft.sheets[state.importDraft.sheetIndex] || null;
+    }
+
+    function normalizeRowsFromMappedSheet(rows, fieldMap) {
+      const [headers, ...body] = rows;
+      const headerIndex = new Map(headers.map((header, index) => [header, index]));
+      return body.map((line) => {
+        const row = {};
+        fieldMeta.forEach((field) => {
+          const mappedHeader = fieldMap[field.key];
+          const idx = headerIndex.has(mappedHeader) ? headerIndex.get(mappedHeader) : -1;
+          row[field.key] = idx >= 0 ? line[idx] : "";
+        });
+        row.sizeMl = asNumber(row.sizeMl);
+        row.sellableStock = asNumber(row.sellableStock);
+        row.inTransit = asNumber(row.inTransit);
+        row.sales90d = asNumber(row.sales90d);
+        row.sales30d = asNumber(row.sales30d);
+        row.expiryDate = formatDateInput(row.expiryDate);
+        return row;
+      }).filter((row) => row.sku && row.productName && row.store);
+    }
+
+    function detectSalesDetailSheet(headers) {
+      const headerSet = new Set(headers.map((header) => String(header).trim()));
+      const required = SALES_DETAIL_COLUMNS.every((column) => headerSet.has(column));
+      const hasCode = headerSet.has("规格编码") || headerSet.has("商品编码") || headerSet.has("商品条码");
+      return required && hasCode;
+    }
+
+    function findValue(row, headerIndex, names) {
+      for (const name of names) {
+        if (headerIndex.has(name)) {
+          return row[headerIndex.get(name)];
+        }
+      }
+      return "";
+    }
+
+    function parseSizeMlFromText(text) {
+      const match = String(text || "").match(/(\d+(?:\.\d+)?)\s*ml/i);
+      return match ? Number(match[1]) : 0;
+    }
+
+    function transformSalesDetailRows(rows) {
+      const [headers, ...body] = rows;
+      const headerIndex = new Map(headers.map((header, index) => [String(header).trim(), index]));
+      const grouped = new Map();
+
+      body.forEach((line) => {
+        const status = String(findValue(line, headerIndex, ["订单商品状态"]) || "");
+        if (status.includes("关闭") || status.includes("取消")) return;
+        const qty = asNumber(findValue(line, headerIndex, ["商品数量"]));
+        if (qty <= 0) return;
+
+        const productName = String(findValue(line, headerIndex, ["商品名称"]) || "").trim();
+        const store = String(findValue(line, headerIndex, ["归属店铺"]) || "").trim();
+        const specCode = String(findValue(line, headerIndex, ["规格编码"]) || "").trim();
+        const productCode = String(findValue(line, headerIndex, ["商品编码"]) || "").trim();
+        const productBarcode = String(findValue(line, headerIndex, ["商品条码"]) || "").trim();
+        const specText = String(findValue(line, headerIndex, ["商品规格"]) || "").trim();
+        const brand = String(findValue(line, headerIndex, ["商品品牌"]) || "").trim();
+        const primaryCategory = String(findValue(line, headerIndex, ["商品一级分类"]) || "").trim();
+        const productType = String(findValue(line, headerIndex, ["商品类型"]) || "").trim();
+
+        const sku = specCode || productCode || productBarcode || `${productName}-${specText}`;
+        const key = `${store}__${sku}`;
+        const sizeMl = parseSizeMlFromText(specText || productName);
+
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            sku,
+            productName,
+            brand,
+            series: "",
+            scentFamily: primaryCategory || "",
+            seasonTag: "",
+            concentration: "",
+            sizeMl,
+            packType: primaryCategory || productType || "",
+            store,
+            batchNo: "",
+            sellableStock: 0,
+            inTransit: 0,
+            sales90d: 0,
+            sales30d: 0,
+            expiryDate: ""
+          });
+        }
+
+        const item = grouped.get(key);
+        item.sales90d += qty;
+      });
+
+      const result = Array.from(grouped.values()).map((item) => ({
+        ...item,
+        sales30d: Math.max(1, Math.round(item.sales90d / 3))
+      }));
+
+      return result.sort((a, b) => b.sales90d - a.sales90d);
+    }
+
+    async function handleImportFile(file) {
+      const lowerName = file.name.toLowerCase();
+      let sheets = [];
+
+      if (lowerName.endsWith(".csv")) {
+        const buffer = await file.arrayBuffer();
+        const decoded = decodeCsvBuffer(buffer);
+        const rows = decoded.rows;
+        if (rows.length < 2) {
+          window.alert("CSV 没有读到有效数据，请检查文件内容。");
+          return;
+        }
+        sheets = [{ name: "CSV 数据", rows }];
+      } else {
+        if (!window.XLSX) {
+          window.alert("Excel 解析库没有加载成功，请刷新页面后重试。");
+          return;
+        }
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: "array", cellDates: true, raw: true });
+        sheets = workbook.SheetNames.map((name) => ({
+          name,
+          rows: XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, raw: true, defval: "" }).filter((row) => Array.isArray(row) && row.some((cell) => String(cell).trim() !== ""))
+        })).filter((sheet) => sheet.rows.length >= 2);
+      }
+
+      if (!sheets.length) {
+        window.alert("没有读到有效工作表，请检查文件内容。");
+        return;
+      }
+
+      const firstHeaders = sheets[0].rows[0] || [];
+      if (detectSalesDetailSheet(firstHeaders)) {
+        const transformed = transformSalesDetailRows(sheets[0].rows);
+        state.rows = transformed;
+        state.importDraft = null;
+        state.meta.lastImportName = `${file.name} / 销售明细自动聚合`;
+        state.meta.importedAt = new Date().toISOString();
+        state.meta.dataKind = "sales90d";
+        render();
+        return;
+      }
+
+      state.importDraft = buildImportDraft(file.name, sheets);
+      renderImportPanel();
+    }
+
+    function applyImportDraft() {
+      const missingRequired = fieldMeta.filter((field) => field.required && !state.importDraft.fieldMap[field.key]);
+      if (missingRequired.length) {
+        window.alert(`还缺必填字段映射：${missingRequired.map((field) => field.label).join("、")}`);
+        return;
+      }
+
+      const sheet = getCurrentDraftSheet();
+      const normalized = normalizeRowsFromMappedSheet(sheet.rows, state.importDraft.fieldMap);
+      if (!normalized.length) {
+        window.alert("导入后没有有效记录，请检查映射是否正确，尤其是 SKU、商品名称和门店字段。");
+        return;
+      }
+
+      state.rows = normalized;
+      state.meta.lastImportName = `${state.importDraft.fileName} / ${sheet.name}`;
+      state.meta.importedAt = new Date().toISOString();
+      state.meta.dataKind = "generic";
+      state.importDraft = null;
+      render();
+    }
+
     document.getElementById("download-template").addEventListener("click", () => {
-      downloadFile("perfume_template.csv", templateCsv, "text/csv;charset=utf-8;");
+      downloadFile("perfume_template.csv", templateCsv(), "text/csv;charset=utf-8;");
     });
 
     document.getElementById("download-transfer").addEventListener("click", () => {
       const model = currentModel();
-      const lines = [
-        ["sku", "productName", "fromStore", "toStore", "qty", "reason"].join(","),
-        ...model.transferPlan.map((item) => [
-          item.sku,
-          item.productName,
-          item.fromStore,
-          item.toStore,
-          item.qty,
-          item.reason
-        ].map((cell) => `"${String(cell).replace(/"/g, "\"\"")}"`).join(","))
-      ];
-      downloadFile("transfer_plan.csv", lines.join("\n"), "text/csv;charset=utf-8;");
+      const lines = [["sku", "productName", "fromStore", "toStore", "qty", "reason"].join(",")];
+      model.transferPlan.forEach((item) => {
+        lines.push([item.sku, item.productName, item.fromStore, item.toStore, item.qty, item.reason].map(csvCell).join(","));
+      });
+      downloadFile("transfer_plan.csv", "\uFEFF" + lines.join("\n"), "text/csv;charset=utf-8;");
     });
 
     document.getElementById("load-sample").addEventListener("click", () => {
       state.rows = sampleRows;
+      state.importDraft = null;
+      state.meta.lastImportName = "当前是示例数据";
+      state.meta.importedAt = new Date().toISOString();
+      state.meta.dataKind = "sample";
       render();
     });
 
@@ -1402,15 +1407,14 @@
     document.getElementById("file-input").addEventListener("change", async (event) => {
       const file = event.target.files[0];
       if (!file) return;
-      const text = await file.text();
-      const rawRows = parseCsv(text);
-      const normalized = normalizeRows(rawRows);
-      if (!normalized.length) {
-        window.alert("没有读到有效数据，请检查模板字段是否正确。");
-        return;
+      try {
+        await handleImportFile(file);
+      } catch (error) {
+        console.error(error);
+        window.alert("导入失败，请检查文件格式是否正确。");
+      } finally {
+        event.target.value = "";
       }
-      state.rows = normalized;
-      render();
     });
 
     render();
