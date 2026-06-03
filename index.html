@@ -698,6 +698,8 @@
         sizeMl: asNumber(row.sizeMl),
         expiryDate: formatDateInput(row.expiryDate)
       }));
+      const hasSalesData = cleanRows.some((row) => asNumber(row.sales90d) > 0);
+      const hasInventoryData = cleanRows.some((row) => asNumber(row.sellableStock) > 0);
 
       const skuGroups = groupBy(cleanRows, (row) => row.sku);
       const storeGroups = groupBy(cleanRows, (row) => row.store);
@@ -726,7 +728,7 @@
           urgency,
           shortReason: urgency === "立即生产" ? "预计会在生产周期内卖空" : urgency === "进入备货" ? "库存进入备货窗口" : "库存覆盖仍然安全"
         };
-      }).sort((a, b) => b.sales90 - a.sales90);
+      }).sort((a, b) => (hasSalesData ? b.sales90 - a.sales90 : b.stock - a.stock));
 
       const expiryRows = cleanRows.map((row) => {
         const network = skuSummaries.find((item) => item.sku === row.sku) || { daily: 0 };
@@ -821,7 +823,7 @@
         const sales90 = items.reduce((sum, item) => sum + item.sales90d, 0);
         const daily = sales90 / 90;
         return { store, stock, sales90, coverDays: coverDays(stock, daily) };
-      }).sort((a, b) => b.sales90 - a.sales90);
+      }).sort((a, b) => (hasSalesData ? b.sales90 - a.sales90 : b.stock - a.stock));
 
       return {
         rows: cleanRows,
@@ -832,6 +834,8 @@
         transferPlan,
         transferSummary,
         storeSummary,
+        hasSalesData,
+        hasInventoryData,
         kpis: {
           urgentReplenishmentCount: skuSummaries.filter((item) => item.stockCoverDays <= settings.leadTimeDays && item.stock > 0).length,
           expiryRiskCount: expiryRows.filter((item) => item.riskLevel === "风险" || item.riskLevel === "已过期").length,
@@ -861,12 +865,19 @@
     function renderImportPanel() {
       const host = document.getElementById("import-panel");
       if (!state.importDraft) {
+        const modeText = state.meta.dataKind === "combined"
+          ? "销售和库存已经合并进来了，补货、临期、调拨都可以一起看。"
+          : state.meta.dataKind === "inventory"
+            ? "你现在导入的是库存数据，后续补上销售文件后，滞销和调拨判断会更完整。"
+            : state.meta.dataKind === "sales90d"
+              ? "你现在导入的是销售明细聚合结果。库存、在途、保质期还没有接进来。"
+              : "支持导入模板明细表，也支持像你这份 90 天销售订单明细这样自动聚合的 CSV。";
         host.innerHTML = `
           <div>
             <strong>当前数据源</strong>
             <div class="note">${escapeHtml(state.meta.lastImportName)}</div>
           </div>
-          <div class="note">${state.meta.dataKind === "sales90d" ? "你现在导入的是销售明细聚合结果。库存、在途、保质期还没有接进来。" : "支持导入模板明细表，也支持像你这份 90 天销售订单明细这样自动聚合的 CSV。"}</div>
+          <div class="note">${modeText}</div>
           <div class="status-item">
             <div>最近导入时间</div>
             <strong style="font-size:14px;">${formatDateTime(state.meta.importedAt)}</strong>
@@ -949,12 +960,20 @@
     }
 
     function renderKpis(model) {
-      const salesOnly = state.meta.dataKind === "sales90d";
+      const hasSalesData = model.hasSalesData;
+      const hasInventoryData = model.hasInventoryData;
+      const primaryValue = hasSalesData
+        ? model.rows.reduce((sum, row) => sum + asNumber(row.sales90d), 0)
+        : new Set(model.rows.filter((row) => asNumber(row.sellableStock) > 0).map((row) => row.sku)).size;
+      const primaryLabel = hasSalesData ? "近90天总销量" : "有库存 SKU";
+      const primaryNote = hasSalesData
+        ? (hasInventoryData ? "销售和库存已合并，先看整体销量，再去看补货和调拨。" : "当前只有销售数据，等库存补进来后，补货和临期判断会更完整。")
+        : "当前只有库存数据，先看哪些 SKU 还有货。";
       document.getElementById("kpi-grid").innerHTML = `
-        <div class="panel kpi ${salesOnly ? "good" : "critical"}">
-          <small>${salesOnly ? "近90天总销量" : "立即补货 SKU"}</small>
-          <strong>${formatNum(salesOnly ? model.rows.reduce((sum, row) => sum + asNumber(row.sales90d), 0) : model.kpis.urgentReplenishmentCount)}</strong>
-          <p>${salesOnly ? "当前只导入了销售明细，先把销量聚合起来给你看。" : "库存覆盖天数已经压到生产交期以内，继续拖会直接影响销售。"}</p>
+        <div class="panel kpi ${hasSalesData ? "good" : "critical"}">
+          <small>${primaryLabel}</small>
+          <strong>${formatNum(primaryValue)}</strong>
+          <p>${primaryNote}</p>
         </div>
         <div class="panel kpi warning">
           <small>临期风险批次</small>
@@ -1007,8 +1026,15 @@
     function renderDashboard(model) {
       const topSkus = model.skuSummaries.slice(0, 6);
       const topStores = model.storeSummary.slice(0, 6);
+      const modeBanner = model.hasSalesData && model.hasInventoryData
+        ? `<div class="card"><strong>当前是销售 + 库存联合模式</strong><div class="note">销售、库存、调拨、临期可以一起联动看了。你后面只要再补保质期文件，这套判断就会更完整。</div></div>`
+        : model.hasSalesData
+          ? `<div class="card"><strong>当前是销售数据模式</strong><div class="note">你这次导入的是销售明细，系统已经按 SKU + 门店帮你自动聚合。补货、临期、调拨相关判断等你补库存和保质期文件后会一起启用。</div></div>`
+          : model.hasInventoryData
+            ? `<div class="card"><strong>当前是库存数据模式</strong><div class="note">你已经导入库存，接下来补上销售文件后，滞销和调拨判断会更准确。</div></div>`
+            : "";
       document.getElementById("view-dashboard").innerHTML = `
-        ${state.meta.dataKind === "sales90d" ? `<div class="card"><strong>当前是销售数据模式</strong><div class="note">你这次导入的是 90 天销售明细，系统已经按 SKU + 门店帮你自动聚合。补货、临期、调拨相关判断等你补库存和保质期文件后会一起启用。</div></div>` : ""}
+        ${modeBanner}
         <div class="subgrid">
           <div class="box"><div class="box-header"><h2>畅销 SKU</h2><span class="note">按近90天销量排序</span></div><div id="dashboard-topsku"></div></div>
           <div class="box"><div class="box-header"><h2>门店销量概览</h2><span class="note">先看哪个店最能卖</span></div><div id="dashboard-topstore"></div></div>
@@ -1093,8 +1119,18 @@
 
     function renderSlowMoving(model) {
       document.getElementById("view-slowmoving").innerHTML = `<div class="box"><div class="box-header"><h2>滞销分析</h2><span class="note">只有销售没有库存时，这里更多是销量观察，滞销结论要等库存补齐。</span></div><div id="slowmoving-table"></div></div>`;
-      const rows = state.meta.dataKind === "sales90d"
-        ? model.skuSummaries.slice().sort((a, b) => a.sales90 - b.sales90).slice(0, 20).map((item) => `
+      const rows = model.hasSalesData && model.hasInventoryData
+        ? model.slowMoving.map((item) => `
+          <tr>
+            <td>${escapeHtml(item.productName)}<br><span class="note">${escapeHtml(item.sku)}</span></td>
+            <td>${formatDays(item.stockCoverDays)}</td>
+            <td>${item.activeStores}/${item.totalStores}</td>
+            <td>${escapeHtml(item.reason)}</td>
+            <td>${escapeHtml(item.action)}</td>
+          </tr>
+        `)
+        : model.hasSalesData
+          ? model.skuSummaries.slice().sort((a, b) => a.sales90 - b.sales90).slice(0, 20).map((item) => `
           <tr>
             <td>${escapeHtml(item.productName)}<br><span class="note">${escapeHtml(item.sku)}</span></td>
             <td>${formatNum(item.sales90)}</td>
@@ -1103,19 +1139,11 @@
             <td>${badge("neutral", "待库存")}</td>
           </tr>
         `)
-        : model.slowMoving.map((item) => `
-          <tr>
-            <td>${escapeHtml(item.productName)}<br><span class="note">${escapeHtml(item.sku)}</span></td>
-            <td>${formatDays(item.stockCoverDays)}</td>
-            <td>${item.activeStores}/${item.totalStores}</td>
-            <td>${escapeHtml(item.reason)}</td>
-            <td>${escapeHtml(item.action)}</td>
-          </tr>
-        `);
-      const headers = state.meta.dataKind === "sales90d"
-        ? ["SKU", "近90天销量", "近30天估算", "门店", "状态"]
-        : ["SKU", "库存覆盖", "动销门店", "滞销原因判断", "建议动作"];
-      renderTable("slowmoving-table", headers, rows, "暂无数据。");
+          : [];
+      const headers = model.hasSalesData && model.hasInventoryData
+        ? ["SKU", "库存覆盖", "动销门店", "滞销原因判断", "建议动作"]
+        : ["SKU", "近90天销量", "近30天估算", "门店", "状态"];
+      renderTable("slowmoving-table", headers, rows, model.hasSalesData ? "暂无数据。" : "请先导入销售数据。");
     }
 
     function renderTransfer(model) {
@@ -1250,6 +1278,157 @@
       return match ? Number(match[1]) : 0;
     }
 
+    function findInventoryHeaderRow(rows) {
+      for (let i = 0; i < Math.min(rows.length, 12); i += 1) {
+        const headers = (rows[i] || []).map((header) => String(header || "").trim());
+        const headerSet = new Set(headers);
+        const looksLikeInventory = headerSet.has("商品名称")
+          && headerSet.has("商品编码")
+          && headerSet.has("在途库存合计")
+          && headerSet.has("实物库存合计")
+          && headers.slice(11).some((header) => header && !header.includes("合计"));
+        if (looksLikeInventory) {
+          return { headerRowIndex: i, headers };
+        }
+      }
+      return null;
+    }
+
+    function detectInventorySheet(rows) {
+      return Boolean(findInventoryHeaderRow(rows));
+    }
+
+    function transformInventorySheet(rows) {
+      const headerInfo = findInventoryHeaderRow(rows);
+      if (!headerInfo) return [];
+
+      const { headerRowIndex, headers } = headerInfo;
+      const headerIndex = new Map(headers.map((header, index) => [String(header).trim(), index]));
+      const storeColumns = headers
+        .map((header, index) => ({ header: String(header || "").trim(), index }))
+        .filter(({ header, index }) => index >= 11 && header && header !== "在途库存合计" && header !== "实物库存合计" && !header.includes("导出数据说明"));
+
+      const grouped = new Map();
+
+      rows.slice(headerRowIndex + 1).forEach((line) => {
+        const productName = String(findValue(line, headerIndex, ["商品名称"]) || "").trim();
+        const sku = String(findValue(line, headerIndex, ["商品编码", "规格编码", "商品条码"]) || "").trim();
+        if (!productName && !sku) return;
+
+        const resolvedSku = sku || productName;
+        const brand = String(findValue(line, headerIndex, ["一级品牌"]) || "").trim();
+        const primaryCategory = String(findValue(line, headerIndex, ["一级分类"]) || "").trim();
+        const spec1 = String(findValue(line, headerIndex, ["规格项1"]) || "").trim();
+        const spec2 = String(findValue(line, headerIndex, ["规格项2"]) || "").trim();
+        const spec3 = String(findValue(line, headerIndex, ["规格项3"]) || "").trim();
+        const unit = String(findValue(line, headerIndex, ["库存单位"]) || "").trim();
+        const inTransitTotal = asNumber(findValue(line, headerIndex, ["在途库存合计"]));
+        const stockTotal = asNumber(findValue(line, headerIndex, ["实物库存合计"]));
+        const base = {
+          sku: resolvedSku,
+          productName,
+          brand,
+          series: "",
+          scentFamily: primaryCategory || spec1 || "",
+          seasonTag: "",
+          concentration: "",
+          sizeMl: parseSizeMlFromText(spec1 || spec2 || spec3 || productName),
+          packType: spec1 || primaryCategory || unit || "",
+          store: "",
+          batchNo: "",
+          sellableStock: 0,
+          inTransit: 0,
+          sales90d: 0,
+          sales30d: 0,
+          expiryDate: "",
+          inventoryTotal: stockTotal,
+          inventoryInTransitTotal: inTransitTotal
+        };
+
+        storeColumns.forEach(({ header, index }) => {
+          const stock = asNumber(line[index]);
+          if (stock <= 0) return;
+          const key = `${resolvedSku}__${header}`;
+          if (!grouped.has(key)) {
+            grouped.set(key, { ...base, store: header });
+          }
+          grouped.get(key).sellableStock += stock;
+        });
+      });
+
+      return Array.from(grouped.values()).sort((a, b) => b.sellableStock - a.sellableStock);
+    }
+
+    function mergeRowsBySkuStore(existingRows, incomingRows) {
+      const merged = new Map();
+      const keyOf = (row) => `${String(row.sku || "").trim()}__${String(row.store || "").trim()}`;
+      const pickText = (nextValue, prevValue) => {
+        const next = String(nextValue ?? "").trim();
+        return next ? nextValue : prevValue;
+      };
+
+      existingRows.forEach((row) => {
+        if (row.sku && row.store) {
+          merged.set(keyOf(row), { ...row });
+        }
+      });
+
+      incomingRows.forEach((row) => {
+        if (!row.sku) return;
+        const key = keyOf(row);
+        const prev = merged.get(key);
+        if (!prev) {
+          merged.set(key, { ...row });
+          return;
+        }
+
+        merged.set(key, {
+          ...prev,
+          ...row,
+          sku: pickText(row.sku, prev.sku),
+          productName: pickText(row.productName, prev.productName),
+          brand: pickText(row.brand, prev.brand),
+          series: pickText(row.series, prev.series),
+          scentFamily: pickText(row.scentFamily, prev.scentFamily),
+          seasonTag: pickText(row.seasonTag, prev.seasonTag),
+          concentration: pickText(row.concentration, prev.concentration),
+          packType: pickText(row.packType, prev.packType),
+          batchNo: pickText(row.batchNo, prev.batchNo),
+          store: pickText(row.store, prev.store),
+          sizeMl: asNumber(row.sizeMl) || asNumber(prev.sizeMl),
+          sellableStock: row.sellableStock !== undefined && row.sellableStock !== null && row.sellableStock !== ""
+            ? asNumber(row.sellableStock)
+            : asNumber(prev.sellableStock),
+          inTransit: row.inTransit !== undefined && row.inTransit !== null && row.inTransit !== ""
+            ? asNumber(row.inTransit)
+            : asNumber(prev.inTransit),
+          sales90d: Math.max(asNumber(prev.sales90d), asNumber(row.sales90d)),
+          sales30d: Math.max(asNumber(prev.sales30d), asNumber(row.sales30d)),
+          expiryDate: pickText(row.expiryDate, prev.expiryDate)
+        });
+      });
+
+      return Array.from(merged.values());
+    }
+
+    function resolveDataKind(rows) {
+      const hasSales = rows.some((row) => asNumber(row.sales90d) > 0);
+      const hasInventory = rows.some((row) => asNumber(row.sellableStock) > 0);
+      if (hasSales && hasInventory) return "combined";
+      if (hasSales) return "sales90d";
+      if (hasInventory) return "inventory";
+      return "generic";
+    }
+
+    function commitImportedRows(incomingRows, sourceLabel) {
+      const shouldReplace = state.meta.dataKind === "sample" || !state.rows.length;
+      state.rows = mergeRowsBySkuStore(shouldReplace ? [] : state.rows, incomingRows);
+      state.importDraft = null;
+      state.meta.lastImportName = sourceLabel;
+      state.meta.importedAt = new Date().toISOString();
+      state.meta.dataKind = resolveDataKind(state.rows);
+    }
+
     function transformSalesDetailRows(rows) {
       const [headers, ...body] = rows;
       const headerIndex = new Map(headers.map((header, index) => [String(header).trim(), index]));
@@ -1339,14 +1518,25 @@
         return;
       }
 
-      const firstHeaders = sheets[0].rows[0] || [];
-      if (detectSalesDetailSheet(firstHeaders)) {
-        const transformed = transformSalesDetailRows(sheets[0].rows);
-        state.rows = transformed;
-        state.importDraft = null;
-        state.meta.lastImportName = `${file.name} / 销售明细自动聚合`;
-        state.meta.importedAt = new Date().toISOString();
-        state.meta.dataKind = "sales90d";
+      const importedBlocks = [];
+      const importedLabels = [];
+
+      sheets.forEach((sheet) => {
+        const headers = sheet.rows[0] || [];
+        if (detectSalesDetailSheet(headers)) {
+          importedBlocks.push(...transformSalesDetailRows(sheet.rows));
+          importedLabels.push(`${sheet.name} / 销售明细`);
+          return;
+        }
+
+        if (detectInventorySheet(sheet.rows)) {
+          importedBlocks.push(...transformInventorySheet(sheet.rows));
+          importedLabels.push(`${sheet.name} / 库存横表`);
+        }
+      });
+
+      if (importedBlocks.length) {
+        commitImportedRows(importedBlocks, `${file.name} / ${importedLabels.join(" + ")}`);
         render();
         return;
       }
@@ -1369,11 +1559,7 @@
         return;
       }
 
-      state.rows = normalized;
-      state.meta.lastImportName = `${state.importDraft.fileName} / ${sheet.name}`;
-      state.meta.importedAt = new Date().toISOString();
-      state.meta.dataKind = "generic";
-      state.importDraft = null;
+      commitImportedRows(normalized, `${state.importDraft.fileName} / ${sheet.name}`);
       render();
     }
 
