@@ -528,6 +528,9 @@
       { id: "storeInventory", label: "门店库存" },
       { id: "channelSales", label: "渠道销售" },
       { id: "storeSales", label: "门店销售" },
+      { id: "replenishment", label: "补货预警" },
+      { id: "slowmoving", label: "滞销预警" },
+      { id: "expiry", label: "保质期预警" },
       { id: "linked", label: "联动总表" },
     ];
 
@@ -643,6 +646,33 @@
       const text = normalizeText(value);
       if (!text) return false;
       return ["总计", "合计", "小计", "汇总", "总合计"].some((label) => text.startsWith(normalizeText(label)));
+    }
+
+    function safeDivide(numerator, denominator) {
+      if (!denominator) return null;
+      return numerator / denominator;
+    }
+
+    function toFixedNumber(value, digits = 1) {
+      if (value === null || value === undefined || Number.isNaN(value)) return null;
+      return Number(Number(value).toFixed(digits));
+    }
+
+    function latestDate(existing, candidate) {
+      if (!candidate) return existing || "";
+      if (!existing) return candidate;
+      const existingDate = new Date(existing);
+      const candidateDate = new Date(candidate);
+      if (Number.isNaN(existingDate.getTime())) return candidate;
+      if (Number.isNaN(candidateDate.getTime())) return existing;
+      return candidateDate > existingDate ? candidate : existing;
+    }
+
+    function riskBadgeType(level) {
+      if (level === "danger") return "danger";
+      if (level === "warn") return "warn";
+      if (level === "neutral") return "neutral";
+      return "good";
     }
 
     function keyFrom(...parts) {
@@ -1098,8 +1128,16 @@
       return Array.from(map.values()).map((item) => {
         item.totalSalesQty = item.channelSalesQty + item.storeSalesQty;
         item.totalInventoryQty = item.warehouseAvailable + item.storeAvailable;
-        item.salesDaily = item.totalSalesQty > 0 ? item.totalSalesQty / 30 : 0;
+        item.salesDaily = safeDivide(item.totalSalesQty, 30) || 0;
+        item.sales30Qty = item.totalSalesQty;
+        item.inventoryQty = item.totalInventoryQty;
         item.stockDepthDays = item.salesDaily > 0 ? item.totalInventoryQty / item.salesDaily : null;
+        item.coverMonths = item.salesDaily > 0 ? item.totalInventoryQty / (item.salesDaily * 30) : null;
+        item.targetInventory6m = item.salesDaily > 0 ? item.salesDaily * 180 : null;
+        item.replenishmentQty = item.targetInventory6m !== null ? Math.max(0, Math.round(item.targetInventory6m - item.totalInventoryQty)) : 0;
+        item.expiryMinDays = item.remainingDays;
+        item.slowRisk = evaluateSlowRisk(item);
+        item.expiryRisk = evaluateExpiryRisk(item);
         item.sourceCount = Object.values(item.sourceFlags).filter(Boolean).length;
         return item;
       }).sort((a, b) => {
@@ -1107,6 +1145,27 @@
         const bScore = b.totalSalesQty || b.totalInventoryQty || 0;
         return bScore - aScore;
       });
+    }
+
+    function evaluateExpiryRisk(row) {
+      if (row.remainingDays === null || row.remainingDays === undefined) return { level: "neutral", label: "未知", days: null };
+      if (row.remainingDays <= 365) return { level: "danger", label: "1年内", days: row.remainingDays };
+      if (row.remainingDays <= 730) return { level: "warn", label: "2年内", days: row.remainingDays };
+      return { level: "good", label: "2年以上", days: row.remainingDays };
+    }
+
+    function evaluateSlowRisk(row) {
+      if (!row.remainingDays || row.remainingDays <= 0) {
+        return { level: "danger", label: "临期/过期", gapDays: row.remainingDays || 0 };
+      }
+      if (!row.stockDepthDays) return { level: "warn", label: "无销量", gapDays: null };
+      if (row.stockDepthDays >= row.remainingDays) {
+        return { level: "danger", label: "卖不完", gapDays: row.stockDepthDays - row.remainingDays };
+      }
+      if (row.stockDepthDays >= row.remainingDays - 365) {
+        return { level: "warn", label: "有滞销风险", gapDays: row.stockDepthDays - (row.remainingDays - 365) };
+      }
+      return { level: "good", label: "正常", gapDays: row.remainingDays - row.stockDepthDays };
     }
 
     function buildModel() {
@@ -1126,6 +1185,22 @@
       const storeSalesQty = storeSales.rows.reduce((sum, row) => sum + (row.qty || 0), 0);
       const linkedCount = linkedRows.length;
       const uploadedCount = SOURCE_CONFIGS.filter((cfg) => state.sources[cfg.key].rows.length).length;
+      const replenishmentRows = linkedRows
+        .filter((row) => row.totalSalesQty > 0 || row.totalInventoryQty > 0)
+        .map((row) => ({
+          ...row,
+          sales30Qty: row.totalSalesQty,
+          inventoryQty: row.totalInventoryQty,
+          stockMonths: row.coverMonths,
+        }))
+        .filter((row) => row.replenishmentQty > 0)
+        .sort((a, b) => b.replenishmentQty - a.replenishmentQty);
+      const slowRows = linkedRows
+        .filter((row) => row.slowRisk && row.slowRisk.level !== "good")
+        .sort((a, b) => (b.stockDepthDays || 0) - (a.stockDepthDays || 0));
+      const expiryRows = linkedRows
+        .filter((row) => row.expiryRisk && row.expiryRisk.level !== "good")
+        .sort((a, b) => (a.remainingDays ?? 999999) - (b.remainingDays ?? 999999));
 
       return {
         sources: state.sources,
@@ -1140,6 +1215,9 @@
         allUploaded: uploadedCount === SOURCE_CONFIGS.length,
         channelSalesAgg: channelSalesAgg.sort((a, b) => b.qty - a.qty),
         storeSalesAgg: storeSalesAgg.sort((a, b) => b.qty - a.qty),
+        replenishmentRows,
+        slowRows,
+        expiryRows,
       };
     }
 
@@ -1155,6 +1233,7 @@
         `<span class="pill">库存数量 ${formatInteger(model.warehouseQty + model.storeQty)}</span>`,
         `<span class="pill">销售数量 ${formatInteger(model.channelQty + model.storeSalesQty)}</span>`,
         `<span class="pill">联动商品 ${formatInteger(model.linkedCount)}</span>`,
+        `<span class="pill">建议补货 ${formatInteger(model.replenishmentRows.reduce((sum, row) => sum + (row.replenishmentQty || 0), 0))}</span>`,
       ].join("");
     }
 
@@ -1344,6 +1423,18 @@
         `;
       }).join("");
 
+      const warningCards = [
+        { title: "建议补货", value: formatInteger(model.replenishmentRows.reduce((sum, row) => sum + (row.replenishmentQty || 0), 0)), note: "按 6 个月目标库存推算" },
+        { title: "滞销风险", value: formatInteger(model.slowRows.length), note: "库存覆盖期接近或超过剩余保质期" },
+        { title: "临期预警", value: formatInteger(model.expiryRows.length), note: "剩余保质期 2 年以内" },
+      ].map((item) => `
+        <div class="soft-card">
+          <strong>${escapeHtml(item.title)}</strong>
+          <div style="font-size:22px;font-weight:700;margin:8px 0 4px;">${escapeHtml(item.value)}</div>
+          <div class="note">${escapeHtml(item.note)}</div>
+        </div>
+      `).join("");
+
       const columns = [
         { label: "品名", render: (row) => escapeHtml(row.productName || "-") },
         { label: "条码", render: (row) => escapeHtml(row.barcode || row.sku || "-") },
@@ -1358,6 +1449,9 @@
       ];
 
       return `
+        <div class="summary-grid">
+          ${warningCards}
+        </div>
         <div class="summary-grid">
           ${sourceTiles}
         </div>
@@ -1484,6 +1578,65 @@
       });
     }
 
+    function renderReplenishmentTab(model) {
+      const rows = model.replenishmentRows.slice(0, PREVIEW_LIMIT);
+      return tableSection({
+        title: "补货预警",
+        note: "按 30 天销量推 6 个月目标库存，补货量 = 6 个月目标库存 - 当前库存。",
+        rows,
+        columns: [
+          { label: "品名", render: (row) => escapeHtml(row.productName || "-") },
+          { label: "条码", render: (row) => escapeHtml(row.barcode || row.sku || "-") },
+          { label: "30天销量", render: (row) => formatInteger(row.sales30Qty || 0) },
+          { label: "当前库存", render: (row) => formatInteger(row.inventoryQty || 0) },
+          { label: "库存覆盖月数", render: (row) => row.stockMonths === null || row.stockMonths === undefined ? "-" : `${formatNumber(row.stockMonths)} 个月` },
+          { label: "6个月目标库存", render: (row) => formatInteger(row.targetInventory6m || 0) },
+          { label: "建议补货量", render: (row) => formatInteger(row.replenishmentQty || 0) },
+        ],
+        emptyText: "当前没有需要补货的商品。",
+        previewText: `前 ${rows.length} 条 / 共 ${model.replenishmentRows.length} 条`
+      });
+    }
+
+    function renderSlowmovingTab(model) {
+      const rows = model.slowRows.slice(0, PREVIEW_LIMIT);
+      return tableSection({
+        title: "滞销预警",
+        note: "先看库存能卖多久，再看离到期还有多久；库存覆盖期接近或超过剩余保质期，就算滞销风险。",
+        rows,
+        columns: [
+          { label: "品名", render: (row) => escapeHtml(row.productName || "-") },
+          { label: "条码", render: (row) => escapeHtml(row.barcode || row.sku || "-") },
+          { label: "30天销量", render: (row) => formatInteger(row.sales30Qty || 0) },
+          { label: "当前库存", render: (row) => formatInteger(row.inventoryQty || 0) },
+          { label: "库存覆盖天数", render: (row) => row.stockDepthDays === null || row.stockDepthDays === undefined ? "-" : `${formatNumber(row.stockDepthDays)} 天` },
+          { label: "剩余保质期", render: (row) => row.remainingDays === null || row.remainingDays === undefined ? "-" : `${formatInteger(row.remainingDays)} 天` },
+          { label: "风险等级", render: (row) => badge(riskBadgeType(row.slowRisk.level), row.slowRisk.label) },
+        ],
+        emptyText: "当前没有明显的滞销风险商品。",
+        previewText: `前 ${rows.length} 条 / 共 ${model.slowRows.length} 条`
+      });
+    }
+
+    function renderExpiryTab(model) {
+      const rows = model.expiryRows.slice(0, PREVIEW_LIMIT);
+      return tableSection({
+        title: "保质期预警",
+        note: "只提示剩余 2 年以内的批次，方便优先处理临期库存。",
+        rows,
+        columns: [
+          { label: "品名", render: (row) => escapeHtml(row.productName || "-") },
+          { label: "条码", render: (row) => escapeHtml(row.barcode || row.sku || "-") },
+          { label: "仓库/门店库存", render: (row) => formatInteger(row.inventoryQty || 0) },
+          { label: "剩余保质期", render: (row) => row.remainingDays === null || row.remainingDays === undefined ? "-" : `${formatInteger(row.remainingDays)} 天` },
+          { label: "到期日期", render: (row) => escapeHtml(row.expiryDate || "-") },
+          { label: "预警等级", render: (row) => badge(riskBadgeType(row.expiryRisk.level), row.expiryRisk.label) },
+        ],
+        emptyText: "当前没有 2 年内到期的商品。",
+        previewText: `前 ${rows.length} 条 / 共 ${model.expiryRows.length} 条`
+      });
+    }
+
     function renderLinkedTab(model) {
       const rows = model.linkedRows.slice(0, PREVIEW_LIMIT);
       return tableSection({
@@ -1532,6 +1685,15 @@
           break;
         case "storeSales":
           host.innerHTML = renderStoreSalesTab(model);
+          break;
+        case "replenishment":
+          host.innerHTML = renderReplenishmentTab(model);
+          break;
+        case "slowmoving":
+          host.innerHTML = renderSlowmovingTab(model);
+          break;
+        case "expiry":
+          host.innerHTML = renderExpiryTab(model);
           break;
         case "linked":
           host.innerHTML = renderLinkedTab(model);
