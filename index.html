@@ -347,6 +347,69 @@
       background: rgba(255, 255, 255, .55);
     }
 
+    .table-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 0 2px;
+    }
+
+    .table-toolbar .hint {
+      margin: 0;
+    }
+
+    .pager {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .pager select {
+      height: 32px;
+      border-radius: 999px;
+      border: 1px solid rgba(216, 205, 191, .92);
+      background: #fff;
+      color: var(--text);
+      padding: 0 12px;
+      font: inherit;
+    }
+
+    .pager .page-info {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .pager button.sort-active {
+      border-color: rgba(20, 99, 86, .35);
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .pager button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    th.sortable {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    th.sortable:hover {
+      background: rgba(20, 99, 86, .06);
+    }
+
+    .sort-arrow {
+      color: var(--accent);
+      margin-left: 4px;
+      font-size: 11px;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -537,6 +600,7 @@
     const state = {
       activeTab: "overview",
       sources: Object.fromEntries(SOURCE_CONFIGS.map((cfg) => [cfg.key, createEmptySourceState(cfg)])),
+      tableState: {},
     };
 
     function createEmptySourceState(cfg) {
@@ -673,6 +737,69 @@
       if (level === "warn") return "warn";
       if (level === "neutral") return "neutral";
       return "good";
+    }
+
+    function getTableState(tabId) {
+      if (!state.tableState[tabId]) {
+        state.tableState[tabId] = {
+          page: 1,
+          pageSize: 20,
+          sortKey: "",
+          sortDir: "desc",
+        };
+      }
+      return state.tableState[tabId];
+    }
+
+    function updateTableState(tabId, patch) {
+      state.tableState[tabId] = {
+        ...getTableState(tabId),
+        ...patch,
+      };
+    }
+
+    function compareValues(a, b) {
+      const aNull = a === null || a === undefined || a === "";
+      const bNull = b === null || b === undefined || b === "";
+      if (aNull && bNull) return 0;
+      if (aNull) return 1;
+      if (bNull) return -1;
+      if (typeof a === "number" && typeof b === "number") return a - b;
+      const normalizeComparable = (value) => {
+        if (typeof value === "string") {
+          const text = value.replace(/,/g, "").trim();
+          if (/^-?\d+(?:\.\d+)?$/.test(text)) return Number(text);
+          return text;
+        }
+        return value;
+      };
+      const normalizedA = normalizeComparable(a);
+      const normalizedB = normalizeComparable(b);
+      if (typeof normalizedA === "number" && typeof normalizedB === "number") {
+        return normalizedA - normalizedB;
+      }
+      if (typeof normalizedA === "string" && typeof normalizedB === "string") {
+        return normalizedA.localeCompare(normalizedB, "zh-CN");
+      }
+      const aDate = new Date(a);
+      const bDate = new Date(b);
+      const aDateValid = !Number.isNaN(aDate.getTime());
+      const bDateValid = !Number.isNaN(bDate.getTime());
+      if (aDateValid && bDateValid) return aDate - bDate;
+      return String(a).localeCompare(String(b), "zh-CN");
+    }
+
+    function getColumnValue(row, col) {
+      if (typeof col.sortValue === "function") return col.sortValue(row);
+      return col.value ? col.value(row) : col.render(row);
+    }
+
+    function applySorting(rows, columns, sortKey, sortDir) {
+      if (!sortKey) return rows.slice();
+      const column = columns.find((col) => col.key === sortKey);
+      if (!column) return rows.slice();
+      const dir = sortDir === "asc" ? 1 : -1;
+      return rows.slice().sort((a, b) => compareValues(getColumnValue(a, column), getColumnValue(b, column)) * dir);
     }
 
     function keyFrom(...parts) {
@@ -1364,7 +1491,7 @@
       });
     }
 
-    function tableSection({ title, note, rows, columns, emptyText, previewText }) {
+    function tableSection({ tabId, title, note, rows, columns, emptyText, previewText }) {
       if (!rows.length) {
         return `
           <div class="card block">
@@ -1379,11 +1506,28 @@
         `;
       }
 
-      const body = rows.map((row) => `
+      const activeTabId = tabId || state.activeTab || "overview";
+      const tableState = getTableState(activeTabId);
+      const sortKey = tableState.sortKey || "";
+      const sortDir = tableState.sortDir || "desc";
+      const resolvedRows = applySorting(rows, columns, sortKey, sortDir);
+      const pageSize = tableState.pageSize || 20;
+      const totalRows = resolvedRows.length;
+      const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+      const currentPage = Math.min(Math.max(tableState.page || 1, 1), totalPages);
+      const pageRows = resolvedRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+      const body = pageRows.map((row) => `
         <tr>
           ${columns.map((col) => `<td>${col.render(row)}</td>`).join("")}
         </tr>
       `).join("");
+      const header = columns.map((col) => {
+        const key = col.key || col.label;
+        const sortable = col.sortable !== false;
+        const active = sortable && sortKey === key;
+        const arrow = active ? (sortDir === "asc" ? "▲" : "▼") : "";
+        return `<th class="${sortable ? "sortable" : ""}" data-sort-key="${escapeHtml(key || "")}" data-tab-id="${escapeHtml(activeTabId)}">${escapeHtml(col.label)}${arrow ? `<span class="sort-arrow">${arrow}</span>` : ""}</th>`;
+      }).join("");
 
       return `
         <div class="card block">
@@ -1392,20 +1536,28 @@
               <h2>${escapeHtml(title)}</h2>
               <div class="note">${escapeHtml(note)}</div>
             </div>
-            <span class="badge neutral">${escapeHtml(previewText || `展示 ${rows.length} 条`)}</span>
+            <span class="badge neutral">${escapeHtml(previewText || `显示 ${totalRows} 条`)}</span>
+          </div>
+          <div class="table-toolbar">
+            <p class="hint">点击表头可排序，分页会记住当前页。</p>
+            <div class="pager">
+              <select data-page-size data-tab-id="${escapeHtml(activeTabId)}" aria-label="每页条数">
+                ${[20, 50, 100].map((size) => `<option value="${size}" ${pageSize === size ? "selected" : ""}>每页 ${size} 条</option>`).join("")}
+              </select>
+              <button class="ghost" data-page-action="prev" data-tab-id="${escapeHtml(activeTabId)}" ${currentPage <= 1 ? "disabled" : ""}>上一页</button>
+              <span class="page-info">第 ${currentPage} / ${totalPages} 页</span>
+              <button class="ghost" data-page-action="next" data-tab-id="${escapeHtml(activeTabId)}" ${currentPage >= totalPages ? "disabled" : ""}>下一页</button>
+            </div>
           </div>
           <div class="table-wrap">
             <table>
-              <thead>
-                <tr>${columns.map((col) => `<th>${escapeHtml(col.label)}</th>`).join("")}</tr>
-              </thead>
+              <thead><tr>${header}</tr></thead>
               <tbody>${body}</tbody>
             </table>
           </div>
         </div>
       `;
     }
-
     function sourcePreviewRows(source, limit = PREVIEW_LIMIT) {
       return source.rows.slice(0, limit);
     }
@@ -1660,6 +1812,42 @@
       });
     }
 
+    function bindTableInteractions() {
+      const host = document.getElementById("tab-content");
+      if (!host || host.dataset.tableBound === "1") return;
+      host.dataset.tableBound = "1";
+      host.addEventListener("click", (event) => {
+        const pagerButton = event.target.closest("[data-page-action]");
+        if (pagerButton) {
+          const tabId = pagerButton.dataset.tabId || state.activeTab || "overview";
+          const current = getTableState(tabId);
+          const nextPage = pagerButton.dataset.pageAction === "next" ? current.page + 1 : current.page - 1;
+          updateTableState(tabId, { page: Math.max(1, nextPage) });
+          render();
+          return;
+        }
+
+        const th = event.target.closest("th[data-sort-key]");
+        if (th) {
+          const tabId = th.dataset.tabId || state.activeTab || "overview";
+          const key = th.dataset.sortKey || "";
+          const current = getTableState(tabId);
+          const nextDir = current.sortKey === key && current.sortDir === "asc" ? "desc" : "asc";
+          updateTableState(tabId, { sortKey: key, sortDir: nextDir, page: 1 });
+          render();
+        }
+      });
+
+      host.addEventListener("change", (event) => {
+        const pageSizeSelect = event.target.closest("[data-page-size]");
+        if (!pageSizeSelect) return;
+        const tabId = pageSizeSelect.dataset.tabId || state.activeTab || "overview";
+        const nextPageSize = Number(pageSizeSelect.value) || 20;
+        updateTableState(tabId, { pageSize: nextPageSize, page: 1 });
+        render();
+      });
+    }
+
     function renderTabContent(model) {
       const host = document.getElementById("tab-content");
       if (!model.uploadedCount) {
@@ -1702,6 +1890,7 @@
           host.innerHTML = renderOverview(model);
           state.activeTab = "overview";
       }
+      bindTableInteractions();
     }
 
     function renderEmptyState(model) {
