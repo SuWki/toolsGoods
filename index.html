@@ -441,10 +441,41 @@
       background: rgba(20, 99, 86, .52);
     }
 
+    .cell-clip {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .table-tooltip {
+      position: fixed;
+      z-index: 2000;
+      max-width: 320px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(18, 24, 22, .94);
+      color: #fff;
+      font-size: 12px;
+      line-height: 1.45;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, .18);
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity .12s ease, transform .12s ease;
+    }
+
+    .table-tooltip.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
       font-size: 13px;
+      table-layout: fixed;
     }
 
     th,
@@ -454,6 +485,8 @@
       text-align: left;
       vertical-align: top;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     th {
@@ -577,6 +610,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script>
     const PREVIEW_LIMIT = 120;
+    const MIN_COLUMN_WIDTH = 72;
     const SOURCE_CONFIGS = [
       {
         key: "product",
@@ -643,6 +677,10 @@
     const modelCache = {
       signature: "",
       model: null,
+    };
+
+    const tooltipState = {
+      el: null,
     };
 
     function createEmptySourceState(cfg) {
@@ -825,34 +863,85 @@
       };
     }
 
+    function ensureTableTooltip() {
+      if (tooltipState.el) return tooltipState.el;
+      const el = document.createElement("div");
+      el.className = "table-tooltip";
+      el.setAttribute("role", "tooltip");
+      document.body.appendChild(el);
+      tooltipState.el = el;
+      return el;
+    }
+
+    function showTableTooltip(text, x, y) {
+      if (!text) return hideTableTooltip();
+      const el = ensureTableTooltip();
+      el.textContent = text;
+      el.classList.add("visible");
+      const offset = 14;
+      const rect = el.getBoundingClientRect();
+      let left = x + offset;
+      let top = y + offset;
+      if (left + rect.width + 16 > window.innerWidth) {
+        left = Math.max(12, x - rect.width - offset);
+      }
+      if (top + rect.height + 16 > window.innerHeight) {
+        top = Math.max(12, y - rect.height - offset);
+      }
+      el.style.left = `${left}px`;
+      el.style.top = `${top}px`;
+    }
+
+    function hideTableTooltip() {
+      if (!tooltipState.el) return;
+      tooltipState.el.classList.remove("visible");
+    }
+
+    function parseComparable(value) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return { kind: "number", value };
+      }
+      if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        return { kind: "number", value: value.getTime() };
+      }
+      if (typeof value === "string") {
+        const text = value.replace(/,/g, "").trim();
+        if (!text) return { kind: "string", value: "" };
+        const dateLike = text.match(/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/);
+        if (dateLike) {
+          const date = new Date(text);
+          if (!Number.isNaN(date.getTime())) {
+            return { kind: "number", value: date.getTime() };
+          }
+        }
+        const numberLike = text.match(/^[-+]?\d+(?:\.\d+)?/);
+        if (numberLike) {
+          return { kind: "number", value: Number(numberLike[0]) };
+        }
+        return { kind: "string", value: text };
+      }
+      if (value === null || value === undefined) {
+        return { kind: "string", value: "" };
+      }
+      return { kind: "string", value: String(value) };
+    }
+
     function compareValues(a, b) {
       const aNull = a === null || a === undefined || a === "";
       const bNull = b === null || b === undefined || b === "";
       if (aNull && bNull) return 0;
       if (aNull) return 1;
       if (bNull) return -1;
-      if (typeof a === "number" && typeof b === "number") return a - b;
-      const normalizeComparable = (value) => {
-        if (typeof value === "string") {
-          const text = value.replace(/,/g, "").trim();
-          if (/^-?\d+(?:\.\d+)?$/.test(text)) return Number(text);
-          return text;
-        }
-        return value;
-      };
-      const normalizedA = normalizeComparable(a);
-      const normalizedB = normalizeComparable(b);
-      if (typeof normalizedA === "number" && typeof normalizedB === "number") {
-        return normalizedA - normalizedB;
+      const normalizedA = parseComparable(a);
+      const normalizedB = parseComparable(b);
+      if (normalizedA.kind === "number" && normalizedB.kind === "number") {
+        return normalizedA.value - normalizedB.value;
       }
-      if (typeof normalizedA === "string" && typeof normalizedB === "string") {
-        return normalizedA.localeCompare(normalizedB, "zh-CN");
+      if (normalizedA.kind === "number") return -1;
+      if (normalizedB.kind === "number") return 1;
+      if (normalizedA.kind === "string" && normalizedB.kind === "string") {
+        return normalizedA.value.localeCompare(normalizedB.value, "zh-CN");
       }
-      const aDate = new Date(a);
-      const bDate = new Date(b);
-      const aDateValid = !Number.isNaN(aDate.getTime());
-      const bDateValid = !Number.isNaN(bDate.getTime());
-      if (aDateValid && bDateValid) return aDate - bDate;
       return String(a).localeCompare(String(b), "zh-CN");
     }
 
@@ -1641,12 +1730,19 @@
       const colgroup = columns.map((col) => {
         const key = getResizableColumnKey(col);
         const width = columnWidths[key];
-        const style = width ? ` style="width:${width}px"` : "";
+        const style = width ? ` style="width:${Math.max(MIN_COLUMN_WIDTH, width)}px"` : "";
         return `<col${style}>`;
       }).join("");
       const body = pageRows.map((row) => `
         <tr>
-          ${columns.map((col) => `<td>${col.render(row)}</td>`).join("")}
+          ${columns.map((col) => {
+            const cellHtml = col.render(row);
+            if (isProductNameColumn(col)) {
+              const tooltipText = escapeHtml(row.productName || "");
+              return `<td><span class="cell-clip" data-tooltip="${tooltipText}">${cellHtml}</span></td>`;
+            }
+            return `<td>${cellHtml}</td>`;
+          }).join("")}
         </tr>
       `).join("");
       const header = columns.map((col) => {
@@ -1969,6 +2065,22 @@
         }
       });
 
+      host.addEventListener("mousemove", (event) => {
+        const cell = event.target.closest("[data-tooltip]");
+        if (!cell) {
+          hideTableTooltip();
+          return;
+        }
+        const text = cell.dataset.tooltip || "";
+        if (!text || text === "-") {
+          hideTableTooltip();
+          return;
+        }
+        showTableTooltip(text, event.clientX, event.clientY);
+      });
+
+      host.addEventListener("mouseleave", hideTableTooltip);
+
       host.addEventListener("pointerdown", (event) => {
         const handle = event.target.closest("[data-column-resize-handle]");
         if (!handle) return;
@@ -2020,7 +2132,7 @@
       document.addEventListener("pointermove", (event) => {
         const active = columnResizeState.active;
         if (!active) return;
-        const nextWidth = Math.max(120, Math.round(active.startWidth + (event.clientX - active.startX)));
+        const nextWidth = Math.max(MIN_COLUMN_WIDTH, Math.round(active.startWidth + (event.clientX - active.startX)));
         active.pendingWidth = nextWidth;
         if (columnResizeState.rafId) return;
         columnResizeState.rafId = requestAnimationFrame(() => {
@@ -2040,12 +2152,13 @@
           cancelAnimationFrame(columnResizeState.rafId);
           columnResizeState.rafId = 0;
         }
-        const finalWidth = active.pendingWidth || Math.max(120, Math.round(active.colEl.getBoundingClientRect().width));
+        const finalWidth = active.pendingWidth || Math.max(MIN_COLUMN_WIDTH, Math.round(active.colEl.getBoundingClientRect().width));
         updateColumnWidth(active.tabId, active.columnKey, finalWidth);
         active.handle?.classList.remove("is-dragging");
         document.body.style.userSelect = "";
         document.body.style.cursor = "";
         columnResizeState.active = null;
+        render();
       };
 
       document.addEventListener("pointerup", finishResize);
