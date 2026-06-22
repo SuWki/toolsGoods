@@ -636,6 +636,13 @@
 
     const columnResizeState = {
       active: null,
+      rafId: 0,
+      pendingWidth: null,
+    };
+
+    const modelCache = {
+      signature: "",
+      model: null,
     };
 
     function createEmptySourceState(cfg) {
@@ -906,6 +913,33 @@
       return (rows || []).filter((row) => Array.isArray(row) && row.some((cell) => String(cell ?? "").trim() !== ""));
     }
 
+    function getSheetRowCount(sheet) {
+      if (!sheet || !sheet["!ref"]) return 0;
+      try {
+        const range = XLSX.utils.decode_range(sheet["!ref"]);
+        return range.e.r - range.s.r + 1;
+      } catch {
+        return 0;
+      }
+    }
+
+    function getSheetRows(sheet) {
+      return cleanSheetRows(
+        XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: "" })
+      );
+    }
+
+    function findPreferredSheetName(sheetNames, preferredSheets) {
+      const preferred = (preferredSheets || []).map(normalizeText).filter(Boolean);
+      if (!preferred.length) return "";
+      for (const name of sheetNames || []) {
+        const normalizedName = normalizeText(name);
+        if (preferred.includes(normalizedName)) return name;
+        if (preferred.some((sheet) => normalizedName.includes(sheet) || sheet.includes(normalizedName))) return name;
+      }
+      return "";
+    }
+
     function parseCsvText(text) {
       const rows = [];
       let current = "";
@@ -961,27 +995,29 @@
 
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array", cellDates: true, raw: true });
-      const preferred = (preferredSheets || []).map(normalizeText).filter(Boolean);
-      const namedSheets = workbook.SheetNames.map((name) => {
-        const rows = cleanSheetRows(
-          XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, raw: true, defval: "" })
-        );
-        return { name, rows };
-      }).filter((sheet) => sheet.rows.length);
-
-      if (!namedSheets.length) {
+      const sheetNames = workbook.SheetNames || [];
+      if (!sheetNames.length) {
         throw new Error("没有读到有效工作表。");
       }
 
-      if (preferred.length) {
-        const preferredSheet = namedSheets.find((sheet) => preferred.includes(normalizeText(sheet.name)));
-        if (preferredSheet) {
-          return preferredSheet;
-        }
+      const preferredSheetName = findPreferredSheetName(sheetNames, preferredSheets);
+      if (preferredSheetName) {
+        return { sheetName: preferredSheetName, rows: getSheetRows(workbook.Sheets[preferredSheetName]) };
       }
 
-      namedSheets.sort((a, b) => b.rows.length - a.rows.length);
-      return namedSheets[0];
+      let chosenSheetName = "";
+      let chosenSheetCount = 0;
+      for (const name of sheetNames) {
+        const count = getSheetRowCount(workbook.Sheets[name]);
+        if (count > chosenSheetCount) {
+          chosenSheetCount = count;
+          chosenSheetName = name;
+        }
+      }
+      if (!chosenSheetName || !chosenSheetCount) {
+        throw new Error("没有读到有效工作表。");
+      }
+      return { sheetName: chosenSheetName, rows: getSheetRows(workbook.Sheets[chosenSheetName]) };
     }
 
     function parseProductRows(rows) {
@@ -1356,7 +1392,28 @@
       return { level: "good", label: "正常", gapDays: row.remainingDays - row.stockDepthDays };
     }
 
+    function getModelSignature() {
+      return SOURCE_CONFIGS
+        .map((cfg) => {
+          const source = state.sources[cfg.key];
+          return [
+            cfg.key,
+            source.fileName || "",
+            source.sheetName || "",
+            source.importedAt || "",
+            source.rows.length,
+            source.error || "",
+          ].join(":");
+        })
+        .join("|");
+    }
+
     function buildModel() {
+      const signature = getModelSignature();
+      if (modelCache.signature === signature && modelCache.model) {
+        return modelCache.model;
+      }
+
       const product = state.sources.product;
       const warehouse = state.sources.warehouse;
       const storeInventory = state.sources.storeInventory;
@@ -1390,7 +1447,7 @@
         .filter((row) => row.expiryRisk && row.expiryRisk.level !== "good")
         .sort((a, b) => (a.remainingDays ?? 999999) - (b.remainingDays ?? 999999));
 
-      return {
+      const model = {
         sources: state.sources,
         productUnique,
         warehouseQty,
@@ -1407,6 +1464,9 @@
         slowRows,
         expiryRows,
       };
+      modelCache.signature = signature;
+      modelCache.model = model;
+      return model;
     }
 
     function badge(type, text) {
@@ -1918,15 +1978,32 @@
         const tabId = handle.dataset.tabId || state.activeTab || "overview";
         const columnKey = handle.dataset.columnKey || "";
         const th = handle.closest("th");
-        if (!th || !columnKey) return;
+        const table = handle.closest("table");
+        const colgroup = table && table.querySelector("colgroup");
+        const cols = colgroup ? Array.from(colgroup.querySelectorAll("col")) : [];
+        const headerCells = table ? Array.from(table.querySelectorAll("thead th")) : [];
+        const columnIndex = headerCells.indexOf(th);
+        const colEl = columnIndex >= 0 ? cols[columnIndex] : null;
+        if (!th || !columnKey || !colEl) return;
 
         const startWidth = th.getBoundingClientRect().width;
+        if (typeof handle.setPointerCapture === "function") {
+          try {
+            handle.setPointerCapture(event.pointerId);
+          } catch {
+            // ignore capture failures
+          }
+        }
+        document.body.style.userSelect = "none";
+        document.body.style.cursor = "col-resize";
         columnResizeState.active = {
           tabId,
           columnKey,
           startX: event.clientX,
           startWidth,
           handle,
+          colEl,
+          pendingWidth: startWidth,
         };
         handle.classList.add("is-dragging");
       });
@@ -1944,13 +2021,30 @@
         const active = columnResizeState.active;
         if (!active) return;
         const nextWidth = Math.max(120, Math.round(active.startWidth + (event.clientX - active.startX)));
-        updateColumnWidth(active.tabId, active.columnKey, nextWidth);
-        render();
+        active.pendingWidth = nextWidth;
+        if (columnResizeState.rafId) return;
+        columnResizeState.rafId = requestAnimationFrame(() => {
+          columnResizeState.rafId = 0;
+          const current = columnResizeState.active;
+          if (!current || current.pendingWidth === null || current.pendingWidth === undefined) return;
+          const widthText = `${current.pendingWidth}px`;
+          current.colEl.style.width = widthText;
+          current.colEl.style.minWidth = widthText;
+        });
       });
 
       const finishResize = () => {
-        if (!columnResizeState.active) return;
-        columnResizeState.active.handle?.classList.remove("is-dragging");
+        const active = columnResizeState.active;
+        if (!active) return;
+        if (columnResizeState.rafId) {
+          cancelAnimationFrame(columnResizeState.rafId);
+          columnResizeState.rafId = 0;
+        }
+        const finalWidth = active.pendingWidth || Math.max(120, Math.round(active.colEl.getBoundingClientRect().width));
+        updateColumnWidth(active.tabId, active.columnKey, finalWidth);
+        active.handle?.classList.remove("is-dragging");
+        document.body.style.userSelect = "";
+        document.body.style.cursor = "";
         columnResizeState.active = null;
       };
 
