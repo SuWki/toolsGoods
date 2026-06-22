@@ -410,6 +410,37 @@
       font-size: 11px;
     }
 
+    th.resizable {
+      position: relative;
+      padding-right: 20px;
+    }
+
+    .column-resizer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 12px;
+      height: 100%;
+      cursor: col-resize;
+      touch-action: none;
+    }
+
+    .column-resizer::after {
+      content: "";
+      position: absolute;
+      top: 18%;
+      right: 5px;
+      width: 2px;
+      height: 64%;
+      border-radius: 999px;
+      background: rgba(20, 99, 86, .18);
+    }
+
+    .column-resizer:hover::after,
+    .column-resizer.is-dragging::after {
+      background: rgba(20, 99, 86, .52);
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -603,6 +634,10 @@
       tableState: {},
     };
 
+    const columnResizeState = {
+      active: null,
+    };
+
     function createEmptySourceState(cfg) {
       return {
         key: cfg.key,
@@ -746,6 +781,7 @@
           pageSize: 20,
           sortKey: "",
           sortDir: "desc",
+          columnWidths: {},
         };
       }
       return state.tableState[tabId];
@@ -755,6 +791,30 @@
       state.tableState[tabId] = {
         ...getTableState(tabId),
         ...patch,
+      };
+    }
+
+    function getColumnKey(col) {
+      return col.key || col.label;
+    }
+
+    function isProductNameColumn(col) {
+      if (col.key === "productName") return true;
+      return typeof col.render === "function" && String(col.render).includes("row.productName");
+    }
+
+    function getResizableColumnKey(col) {
+      return isProductNameColumn(col) ? "productName" : getColumnKey(col);
+    }
+
+    function updateColumnWidth(tabId, columnKey, width) {
+      const current = getTableState(tabId);
+      state.tableState[tabId] = {
+        ...current,
+        columnWidths: {
+          ...(current.columnWidths || {}),
+          [columnKey]: width,
+        },
       };
     }
 
@@ -791,12 +851,13 @@
 
     function getColumnValue(row, col) {
       if (typeof col.sortValue === "function") return col.sortValue(row);
+      if (isProductNameColumn(col)) return row.productName || "";
       return col.value ? col.value(row) : col.render(row);
     }
 
     function applySorting(rows, columns, sortKey, sortDir) {
       if (!sortKey) return rows.slice();
-      const column = columns.find((col) => col.key === sortKey);
+      const column = columns.find((col) => getColumnKey(col) === sortKey);
       if (!column) return rows.slice();
       const dir = sortDir === "asc" ? 1 : -1;
       return rows.slice().sort((a, b) => compareValues(getColumnValue(a, column), getColumnValue(b, column)) * dir);
@@ -1512,21 +1573,29 @@
       const sortDir = tableState.sortDir || "desc";
       const resolvedRows = applySorting(rows, columns, sortKey, sortDir);
       const pageSize = tableState.pageSize || 20;
+      const columnWidths = tableState.columnWidths || {};
       const totalRows = resolvedRows.length;
       const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
       const currentPage = Math.min(Math.max(tableState.page || 1, 1), totalPages);
       const pageRows = resolvedRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+      const colgroup = columns.map((col) => {
+        const key = getResizableColumnKey(col);
+        const width = columnWidths[key];
+        const style = width ? ` style="width:${width}px"` : "";
+        return `<col${style}>`;
+      }).join("");
       const body = pageRows.map((row) => `
         <tr>
           ${columns.map((col) => `<td>${col.render(row)}</td>`).join("")}
         </tr>
       `).join("");
       const header = columns.map((col) => {
-        const key = col.key || col.label;
+        const key = getColumnKey(col);
         const sortable = col.sortable !== false;
         const active = sortable && sortKey === key;
         const arrow = active ? (sortDir === "asc" ? "▲" : "▼") : "";
-        return `<th class="${sortable ? "sortable" : ""}" data-sort-key="${escapeHtml(key || "")}" data-tab-id="${escapeHtml(activeTabId)}">${escapeHtml(col.label)}${arrow ? `<span class="sort-arrow">${arrow}</span>` : ""}</th>`;
+        const resizable = isProductNameColumn(col);
+        return `<th class="${sortable ? "sortable" : ""}${resizable ? " resizable" : ""}" data-sort-key="${escapeHtml(key || "")}" data-tab-id="${escapeHtml(activeTabId)}">${escapeHtml(col.label)}${arrow ? `<span class="sort-arrow">${arrow}</span>` : ""}${resizable ? `<span class="column-resizer" data-column-resize-handle data-column-key="${escapeHtml(key)}" data-tab-id="${escapeHtml(activeTabId)}" aria-hidden="true"></span>` : ""}</th>`;
       }).join("");
 
       return `
@@ -1551,6 +1620,7 @@
           </div>
           <div class="table-wrap">
             <table>
+              <colgroup>${colgroup}</colgroup>
               <thead><tr>${header}</tr></thead>
               <tbody>${body}</tbody>
             </table>
@@ -1817,6 +1887,7 @@
       if (!host || host.dataset.tableBound === "1") return;
       host.dataset.tableBound = "1";
       host.addEventListener("click", (event) => {
+        if (event.target.closest("[data-column-resize-handle]")) return;
         const pagerButton = event.target.closest("[data-page-action]");
         if (pagerButton) {
           const tabId = pagerButton.dataset.tabId || state.activeTab || "overview";
@@ -1838,6 +1909,28 @@
         }
       });
 
+      host.addEventListener("pointerdown", (event) => {
+        const handle = event.target.closest("[data-column-resize-handle]");
+        if (!handle) return;
+        event.preventDefault();
+        event.stopPropagation();
+
+        const tabId = handle.dataset.tabId || state.activeTab || "overview";
+        const columnKey = handle.dataset.columnKey || "";
+        const th = handle.closest("th");
+        if (!th || !columnKey) return;
+
+        const startWidth = th.getBoundingClientRect().width;
+        columnResizeState.active = {
+          tabId,
+          columnKey,
+          startX: event.clientX,
+          startWidth,
+          handle,
+        };
+        handle.classList.add("is-dragging");
+      });
+
       host.addEventListener("change", (event) => {
         const pageSizeSelect = event.target.closest("[data-page-size]");
         if (!pageSizeSelect) return;
@@ -1846,6 +1939,23 @@
         updateTableState(tabId, { pageSize: nextPageSize, page: 1 });
         render();
       });
+
+      document.addEventListener("pointermove", (event) => {
+        const active = columnResizeState.active;
+        if (!active) return;
+        const nextWidth = Math.max(120, Math.round(active.startWidth + (event.clientX - active.startX)));
+        updateColumnWidth(active.tabId, active.columnKey, nextWidth);
+        render();
+      });
+
+      const finishResize = () => {
+        if (!columnResizeState.active) return;
+        columnResizeState.active.handle?.classList.remove("is-dragging");
+        columnResizeState.active = null;
+      };
+
+      document.addEventListener("pointerup", finishResize);
+      document.addEventListener("pointercancel", finishResize);
     }
 
     function renderTabContent(model) {
