@@ -564,7 +564,10 @@
         <div id="progress-pills" class="pill-row"></div>
       </div>
       <div class="actions">
+        <button id="batch-upload" class="ghost">批量上传文件</button>
         <button id="clear-all" class="ghost">清空全部文件</button>
+        <input id="batch-input" type="file" accept=".xlsx,.xls,.csv" multiple hidden>
+        <div id="batch-note" class="note" style="margin-top:8px;max-width:240px;"></div>
       </div>
     </div>
 
@@ -581,6 +584,7 @@
             <div class="note">1. 商品资料以条码为主键。</div>
             <div class="note">2. 库存文件会保留仓库 / 门店、批次、生产日期和到期日期。</div>
             <div class="note">3. 两个销售文件会分别汇总，后续补货、滞销、保质期预警都会直接复用这些标准化结果。</div>
+            <div class="note">4. 页面会在本地缓存已上传文件，刷新后可自动恢复；也支持批量选择多个文件导入。</div>
           </div>
         </section>
 
@@ -611,6 +615,7 @@
   <script>
     const PREVIEW_LIMIT = 120;
     const MIN_COLUMN_WIDTH = 72;
+    const APP_CACHE_KEY = "toolsGoods.dashboardCache.v1";
     const SOURCE_CONFIGS = [
       {
         key: "product",
@@ -694,6 +699,68 @@
         error: "",
         loading: false,
       };
+    }
+
+    function cloneSourceForCache(source) {
+      return {
+        key: source.key,
+        label: source.label,
+        fileName: source.fileName,
+        sheetName: source.sheetName,
+        importedAt: source.importedAt,
+        rows: source.rows,
+        error: source.error,
+      };
+    }
+
+    function cacheAppState() {
+      try {
+        const payload = {
+          version: 1,
+          activeTab: state.activeTab,
+          tableState: state.tableState,
+          sources: Object.fromEntries(
+            Object.entries(state.sources).map(([key, source]) => [key, cloneSourceForCache(source)])
+          ),
+        };
+        localStorage.setItem(APP_CACHE_KEY, JSON.stringify(payload));
+      } catch {
+        // local cache is best-effort
+      }
+    }
+
+    function restoreAppState() {
+      try {
+        const raw = localStorage.getItem(APP_CACHE_KEY);
+        if (!raw) return;
+        const payload = JSON.parse(raw);
+        if (payload && payload.sources) {
+          for (const cfg of SOURCE_CONFIGS) {
+            const saved = payload.sources[cfg.key];
+            if (!saved || !Array.isArray(saved.rows)) continue;
+            state.sources[cfg.key] = {
+              ...createEmptySourceState(cfg),
+              ...saved,
+              key: cfg.key,
+              label: cfg.label,
+              loading: false,
+            };
+          }
+        }
+        if (payload && payload.tableState && typeof payload.tableState === "object") {
+          state.tableState = payload.tableState;
+        }
+        if (payload && payload.activeTab) {
+          state.activeTab = payload.activeTab;
+        }
+      } catch {
+        // ignore corrupted cache
+      }
+    }
+
+    function setBatchNote(text = "") {
+      const current = document.getElementById("batch-note");
+      if (current) current.textContent = text;
     }
 
     function normalizeText(value) {
@@ -924,6 +991,23 @@
         return { kind: "string", value: "" };
       }
       return { kind: "string", value: String(value) };
+    }
+
+    function inferSourceKeyFromFileName(fileName) {
+      const text = normalizeText(fileName);
+      const rules = [
+        ["storeSales", ["门店销售", "自营门店销售", "门店销售数据"]],
+        ["channelSales", ["渠道销售", "线上销售", "批发销售", "经销商销售"]],
+        ["warehouse", ["仓库库存和保质期", "仓库库存", "保质期数据", "仓库库存数据"]],
+        ["storeInventory", ["门店库存", "店铺库存", "门店库存数据"]],
+        ["product", ["商品资料", "商品资料表", "商品信息", "商品主数据"]],
+      ];
+      for (const [key, keywords] of rules) {
+        if (keywords.some((keyword) => text.includes(normalizeText(keyword)))) {
+          return key;
+        }
+      }
+      return "";
     }
 
     function compareValues(a, b) {
@@ -2244,14 +2328,16 @@
       renderKpis(model);
       renderTabs(model);
       renderTabContent(model);
+      cacheAppState();
     }
 
-    async function handleUpload(key, file) {
+    async function handleUpload(key, file, options = {}) {
+      const { skipInitialRender = false, skipFinalRender = false } = options;
       const source = state.sources[key];
       const cfg = SOURCE_CONFIGS.find((item) => item.key === key);
       source.loading = true;
       source.error = "";
-      render();
+      if (!skipInitialRender) render();
 
       try {
         const fileData = await readRowsFromFile(file, cfg.preferredSheets);
@@ -2275,12 +2361,39 @@
         };
       }
 
+      if (!skipFinalRender) render();
+    }
+
+    async function handleBatchUpload(files) {
+      const list = Array.from(files || []).filter(Boolean);
+      if (!list.length) return;
+
+      const unmatched = [];
+      let matchedCount = 0;
+      for (const file of list) {
+        const key = inferSourceKeyFromFileName(file.name);
+        if (!key) {
+          unmatched.push(file.name);
+          continue;
+        }
+        matchedCount += 1;
+        await handleUpload(key, file, { skipInitialRender: true, skipFinalRender: true });
+      }
+
       render();
+
+      if (unmatched.length) {
+        const message = `已导入 ${matchedCount} 个文件，以下文件暂时没识别出类型：${unmatched.join("、")}`;
+        setBatchNote(message);
+      } else {
+        setBatchNote(`已批量导入 ${matchedCount} 个文件。`);
+      }
     }
 
     function clearSource(key) {
       const cfg = SOURCE_CONFIGS.find((item) => item.key === key);
       state.sources[key] = createEmptySourceState(cfg);
+      setBatchNote("");
       render();
     }
 
@@ -2289,11 +2402,22 @@
         state.sources[cfg.key] = createEmptySourceState(cfg);
       });
       state.activeTab = "overview";
+      setBatchNote("");
       render();
     }
 
     document.getElementById("clear-all").addEventListener("click", clearAll);
+    document.getElementById("batch-upload").addEventListener("click", () => {
+      document.getElementById("batch-input")?.click();
+    });
+    document.getElementById("batch-input").addEventListener("change", async (event) => {
+      const files = event.target.files || [];
+      if (!files.length) return;
+      await handleBatchUpload(files);
+      event.target.value = "";
+    });
 
+    restoreAppState();
     render();
   </script>
 </body>
