@@ -802,11 +802,15 @@
       border: 1px solid var(--line);
       background: var(--panel-strong);
       cursor: pointer;
-      display: grid;
-      place-items: center;
-      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      line-height: 1;
       color: var(--muted);
       transition: all .15s ease;
+      padding: 0;
+      margin: 0;
     }
 
     .big-cell-close:hover {
@@ -832,6 +836,19 @@
 
     .big-cell-content .sku-thumb {
       height: 100px;
+      aspect-ratio: 1 / 1;
+      overflow: hidden;
+      background: #f4efe8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .big-cell-content .sku-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
     }
 
     .big-cell-stats {
@@ -3086,7 +3103,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
               { label: "销售数量", render: (row) => formatInteger(row.salesQty || 0) },
               { label: "即时库存", render: (row) => formatInteger(row.stockQty || 0) },
               { label: "库存月", render: (row) => row.stockMonths === null || row.stockMonths === undefined ? "-" : `${formatNumber(row.stockMonths)} 个月` },
-              { label: "保质期", render: (row) => row.shelfLifeDays === null || row.shelfLifeDays === undefined ? "-" : `${formatInteger(row.shelfLifeDays)} 天` },
+              { label: "加权平均到期日", render: (row) => row.avgExpiryDate ? escapeHtml(row.avgExpiryDate) : "-" },
               { label: "能否卖完", render: (row) => badge(row.canSellBeforeExpiry === false ? "danger" : "good", row.canSellBeforeExpiry === false ? "卖不完" : "可卖完") },
             ],
             emptyText: "当前筛选下没有 SKU。请换个分类或放宽条件。",
