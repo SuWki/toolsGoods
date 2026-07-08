@@ -780,14 +780,45 @@
       .block-head { flex-direction: column; }
       .matrix-axis-label { writing-mode: horizontal-tb; }
     }
+
+    .subtabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .subtab {
+      padding: 6px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel-strong);
+      color: var(--muted);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all .15s ease;
+    }
+
+    .subtab:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .subtab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
   </style>
 </head>
 <body>
   <div class="shell">
     <div class="topbar">
       <div>
-        <h1>香水商品驾驶舱</h1>
-        <p class="subtitle">这个版本以商品资料和销存数据为核心驱动，页面会在你上传后才展示结果；如果后面补充其他库存或销售文件，也能继续联动分析，重新上传同一位置会直接覆盖刷新。</p>
+        <h1>香水商品分析工具</h1>
+        <p class="subtitle">提供两个独立功能：1）驾驶舱 - 需要上传 5 个文件进行综合分析；2）九宫格 SKU - 只需上传单个《总库存情况》文件即可生成九宫格分析图。重新上传同一位置会直接覆盖刷新。</p>
         <div id="progress-pills" class="pill-row"></div>
       </div>
       <div class="actions">
@@ -897,22 +928,27 @@
       },
     ];
 
-    const TABS = [
-      { id: "overview", label: "总览" },
-      { id: "matrix", label: "九宫格看板" },
-      { id: "product", label: "商品资料" },
-      { id: "warehouse", label: "仓库库存" },
-      { id: "storeInventory", label: "门店库存" },
-      { id: "channelSales", label: "渠道销售" },
-      { id: "storeSales", label: "门店销售" },
-      { id: "replenishment", label: "补货预警" },
-      { id: "slowmoving", label: "滞销预警" },
-      { id: "expiry", label: "保质期预警" },
-      { id: "linked", label: "联动总表" },
-    ];
+const TABS = [
+  { id: "cockpit", label: "驾驶舱" },
+  { id: "matrix", label: "九宫格 SKU" },
+];
+
+const COCKPIT_SUBTABS = [
+  { id: "overview", label: "总览" },
+  { id: "product", label: "商品资料" },
+  { id: "warehouse", label: "仓库库存" },
+  { id: "storeInventory", label: "门店库存" },
+  { id: "channelSales", label: "渠道销售" },
+  { id: "storeSales", label: "门店销售" },
+  { id: "replenishment", label: "补货预警" },
+  { id: "slowmoving", label: "滞销预警" },
+  { id: "expiry", label: "保质期预警" },
+  { id: "linked", label: "联动总表" },
+];
 
     const state = {
-      activeTab: "matrix",
+      activeTab: "cockpit",
+      cockpitSubtab: "overview",
       sources: Object.fromEntries(SOURCE_CONFIGS.map((cfg) => [cfg.key, createEmptySourceState(cfg)])),
       tableState: {},
       matrixFocusKey: "",
@@ -2657,13 +2693,29 @@
 
     function renderTabs(model) {
       const host = document.getElementById("tabs");
-      host.innerHTML = TABS.map((tab) => `
+      let html = TABS.map((tab) => `
         <button class="tab ${state.activeTab === tab.id ? "active" : ""}" data-tab="${tab.id}">${escapeHtml(tab.label)}</button>
       `).join("");
+
+      // 如果在驾驶舱 Tab，显示子 Tab
+      if (state.activeTab === "cockpit") {
+        html += `<div class="subtabs">` + COCKPIT_SUBTABS.map((tab) => `
+          <button class="subtab ${state.cockpitSubtab === tab.id ? "active" : ""}" data-subtab="${tab.id}">${escapeHtml(tab.label)}</button>
+        `).join("") + `</div>`;
+      }
+
+      host.innerHTML = html;
 
       host.querySelectorAll(".tab").forEach((button) => {
         button.addEventListener("click", () => {
           state.activeTab = button.dataset.tab;
+          render(model);
+        });
+      });
+
+      host.querySelectorAll(".subtab").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.cockpitSubtab = button.dataset.subtab;
           render(model);
         });
       });
@@ -3430,44 +3482,75 @@
         case "matrix":
           host.innerHTML = renderMatrixTab(model);
           break;
-        case "overview":
-          host.innerHTML = model.uploadedCount ? renderOverview(model) : renderMatrixTab(model);
-          break;
-        case "product":
-          host.innerHTML = model.uploadedCount ? renderProductTab(model) : renderMatrixTab(model);
-          break;
-        case "inventorySales":
-          host.innerHTML = model.uploadedCount ? renderInventorySalesTab(model) : renderMatrixTab(model);
-          break;
-        case "warehouse":
-          host.innerHTML = model.uploadedCount ? renderWarehouseTab(model) : renderMatrixTab(model);
-          break;
-        case "storeInventory":
-          host.innerHTML = model.uploadedCount ? renderStoreInventoryTab(model) : renderMatrixTab(model);
-          break;
-        case "channelSales":
-          host.innerHTML = model.uploadedCount ? renderChannelSalesTab(model) : renderMatrixTab(model);
-          break;
-        case "storeSales":
-          host.innerHTML = model.uploadedCount ? renderStoreSalesTab(model) : renderMatrixTab(model);
-          break;
-        case "replenishment":
-          host.innerHTML = model.uploadedCount ? renderReplenishmentTab(model) : renderMatrixTab(model);
-          break;
-        case "slowmoving":
-          host.innerHTML = model.uploadedCount ? renderSlowmovingTab(model) : renderMatrixTab(model);
-          break;
-        case "expiry":
-          host.innerHTML = model.uploadedCount ? renderExpiryTab(model) : renderMatrixTab(model);
-          break;
-        case "linked":
-          host.innerHTML = model.uploadedCount ? renderLinkedTab(model) : renderMatrixTab(model);
+        case "cockpit":
+          // 驾驶舱 Tab 根据子 Tab 渲染内容
+          switch (state.cockpitSubtab) {
+            case "overview":
+              host.innerHTML = model.uploadedCount ? renderOverview(model) : renderCockpitEmpty();
+              break;
+            case "product":
+              host.innerHTML = model.uploadedCount ? renderProductTab(model) : renderCockpitEmpty();
+              break;
+            case "warehouse":
+              host.innerHTML = model.uploadedCount ? renderWarehouseTab(model) : renderCockpitEmpty();
+              break;
+            case "storeInventory":
+              host.innerHTML = model.uploadedCount ? renderStoreInventoryTab(model) : renderCockpitEmpty();
+              break;
+            case "channelSales":
+              host.innerHTML = model.uploadedCount ? renderChannelSalesTab(model) : renderCockpitEmpty();
+              break;
+            case "storeSales":
+              host.innerHTML = model.uploadedCount ? renderStoreSalesTab(model) : renderCockpitEmpty();
+              break;
+            case "replenishment":
+              host.innerHTML = model.uploadedCount ? renderReplenishmentTab(model) : renderCockpitEmpty();
+              break;
+            case "slowmoving":
+              host.innerHTML = model.uploadedCount ? renderSlowmovingTab(model) : renderCockpitEmpty();
+              break;
+            case "expiry":
+              host.innerHTML = model.uploadedCount ? renderExpiryTab(model) : renderCockpitEmpty();
+              break;
+            case "linked":
+              host.innerHTML = model.uploadedCount ? renderLinkedTab(model) : renderCockpitEmpty();
+              break;
+            default:
+              host.innerHTML = model.uploadedCount ? renderOverview(model) : renderCockpitEmpty();
+          }
           break;
         default:
-          host.innerHTML = renderMatrixTab(model);
-          state.activeTab = "overview";
+          state.activeTab = "cockpit";
+          host.innerHTML = renderCockpitEmpty();
       }
       bindTableInteractions();
+    }
+
+    function renderCockpitEmpty() {
+      return `
+        <div class="panel">
+          <div class="block-head">
+            <div>
+              <h2>驾驶舱数据导入</h2>
+              <div class="note">请先上传以下 5 个文件，系统会自动分析库存、销售和预警数据。</div>
+            </div>
+          </div>
+          <div class="soft-card">
+            <div style="display:grid;gap:12px;">
+              <div class="note">需要上传的文件：</div>
+              <ul style="margin:0;padding-left:20px;color:var(--muted);">
+                <li>商品资料 - 商品基础信息</li>
+                <li>销存数据 - 销售和库存数据</li>
+                <li>仓库库存 - 各仓库库存明细</li>
+                <li>门店库存 - 各门店库存明细</li>
+                <li>渠道销售 - 各渠道销售数据</li>
+                <li>门店销售 - 各门店销售数据</li>
+              </ul>
+              <div class="note" style="margin-top:8px;">上传完成后，驾驶舱会自动展示分析结果。</div>
+            </div>
+          </div>
+        </div>
+      `;
     }
 
     function renderEmptyState(model) {
