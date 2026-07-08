@@ -711,16 +711,16 @@
 
     .sku-strip {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
       align-items: start;
     }
 
     .sku-chip {
       display: grid;
-      gap: 6px;
-      padding: 10px;
-      border-radius: 12px;
+      gap: 4px;
+      padding: 6px;
+      border-radius: 8px;
       border: 1px solid rgba(216, 205, 191, .8);
       background: rgba(255, 255, 255, .84);
       cursor: pointer;
@@ -2208,11 +2208,14 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
       // 收集批次到期日期数据用于加权平均计算
       const collectBatchExpiry = (key, expiryDate, availableQty) => {
-        if (!expiryDate || !availableQty || availableQty <= 0) return;
+        if (!key || !expiryDate || !availableQty || availableQty <= 0) return;
+        // 标准化日期格式
+        const dateStr = String(expiryDate).trim();
+        if (!dateStr) return;
         if (!batchExpiryData.has(key)) {
           batchExpiryData.set(key, []);
         }
-        batchExpiryData.get(key).push({ expiryDate, availableQty });
+        batchExpiryData.get(key).push({ expiryDate: dateStr, availableQty });
       };
 
       // 计算加权平均到期日期
@@ -2409,14 +2412,13 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         })
         .filter((row) => row.productName || row.barcode || row.sku);
 
-      const grouped = new Map();
-      rows.forEach((row) => {
-        const groupKey = normalizeText(row.category || "未分类");
-        if (!grouped.has(groupKey)) grouped.set(groupKey, []);
-        grouped.get(groupKey).push(row);
-      });
-      grouped.forEach((groupRows) => {
-        const sorted = groupRows.slice().sort((a, b) => {
+      // 判断是否有筛选条件
+      const hasFilter = (state.matrixFilters.category && state.matrixFilters.category !== "全部") ||
+                        (state.matrixFilters.isRegularPrice && state.matrixFilters.isRegularPrice !== "全部");
+
+      // 计算销售排名：无筛选时全品类一起排名，有筛选时在筛选分类内排名
+      const calculateRanking = (targetRows) => {
+        const sorted = targetRows.slice().sort((a, b) => {
           const aScore = a.salesQty || 0;
           const bScore = b.salesQty || 0;
           if (bScore !== aScore) return bScore - aScore;
@@ -2429,7 +2431,21 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           row.salesRankPercent = percent;
           row.matrixMeta = getMatrixCellMeta(row);
         });
-      });
+      };
+
+      if (hasFilter) {
+        // 有筛选时：按分类分组排名
+        const grouped = new Map();
+        rows.forEach((row) => {
+          const groupKey = normalizeText(row.category || "未分类");
+          if (!grouped.has(groupKey)) grouped.set(groupKey, []);
+          grouped.get(groupKey).push(row);
+        });
+        grouped.forEach((groupRows) => calculateRanking(groupRows));
+      } else {
+        // 无筛选时：全品类一起排名
+        calculateRanking(rows);
+      }
 
       const categoryOptions = Array.from(new Set(rows.map((row) => row.category || "未分类"))).sort((a, b) => a.localeCompare(b, "zh-CN"));
       const filtered = rows.filter((row) => {
@@ -3133,7 +3149,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
               { label: "销售数量", render: (row) => formatInteger(row.salesQty || 0) },
               { label: "即时库存", render: (row) => formatInteger(row.stockQty || 0) },
               { label: "库存月", render: (row) => row.stockMonths === null || row.stockMonths === undefined ? "-" : `${formatNumber(row.stockMonths)} 个月` },
-              { label: "加权平均到期日", render: (row) => row.avgExpiryDate ? escapeHtml(row.avgExpiryDate) : "-" },
+              { label: "保质期", render: (row) => row.avgExpiryDate ? escapeHtml(row.avgExpiryDate) : "-" },
               { label: "能否卖完", render: (row) => badge(row.canSellBeforeExpiry === false ? "danger" : "good", row.canSellBeforeExpiry === false ? "卖不完" : "可卖完") },
             ],
             emptyText: "当前筛选下没有 SKU。请换个分类或放宽条件。",
