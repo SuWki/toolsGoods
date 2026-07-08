@@ -2795,9 +2795,11 @@ const COCKPIT_SUBTABS = [
 
       const cellHtml = model.matrixCells.map((cell) => {
         const theme = cell.meta.theme || "neutral";
-        const previewRows = cell.rows.slice(0, 4);
+        const itemsPerCell = state.matrixItemsPerCell || 4;
+        const isExpanded = state.matrixExpandedCells[cell.key];
+        const previewRows = isExpanded ? cell.rows : cell.rows.slice(0, itemsPerCell);
         return `
-          <div class="matrix-cell ${theme}">
+          <div class="matrix-cell ${theme}" data-cell-key="${escapeHtml(cell.key)}">
             <div class="matrix-cell-head">
               <div>
                 <h3>${escapeHtml(cell.meta.title)}</h3>
@@ -2890,8 +2892,8 @@ const COCKPIT_SUBTABS = [
             note: "这里展示当前筛选条件下的 SKU 明细，便于从九宫格直接钻到数据源对应行。",
             rows: rows,
             columns: [
-              { label: "品名", render: (row) => escapeHtml(row.productName || "-") },
-              { label: "条码", render: (row) => escapeHtml(row.barcode || row.sku || "-") },
+              { label: "品名", key: "productName", render: (row) => escapeHtml(shortenProductName(row.productName) || "-"), sortValue: (row) => row.productName || "" },
+              { label: "条码", key: "barcode", render: (row) => escapeHtml(row.barcode || row.sku || "-"), sortValue: (row) => row.barcode || row.sku || "" },
               { label: "分类", render: (row) => escapeHtml(row.category || "-") },
               { label: "销售表现", render: (row) => escapeHtml(row.salesBand || "-") },
               { label: "库存健康度", render: (row) => escapeHtml(row.stockHealth || "-") },
@@ -3496,6 +3498,92 @@ const COCKPIT_SUBTABS = [
       }
     }
 
+    // 绑定九宫格特定的事件（销售时间段、分类筛选等）
+    function bindMatrixInteractions() {
+      const host = document.getElementById("tab-content");
+      if (!host) return;
+      
+      // 销售时间段输入
+      const startInput = host.querySelector("[data-matrix-start]");
+      const endInput = host.querySelector("[data-matrix-end]");
+      if (startInput) {
+        startInput.addEventListener("change", (e) => {
+          state.salesPeriod.start = e.target.value || "";
+          render();
+        });
+      }
+      if (endInput) {
+        endInput.addEventListener("change", (e) => {
+          state.salesPeriod.end = e.target.value || "";
+          render();
+        });
+      }
+      
+      // 分类筛选
+      const categorySelect = host.querySelector("[data-matrix-category]");
+      if (categorySelect) {
+        categorySelect.addEventListener("change", (e) => {
+          state.matrixFilters.category = e.target.value || "全部";
+          render();
+        });
+      }
+      
+      // 是否正价筛选
+      const priceSelect = host.querySelector("[data-matrix-price]");
+      if (priceSelect) {
+        priceSelect.addEventListener("change", (e) => {
+          state.matrixFilters.isRegularPrice = e.target.value || "全部";
+          render();
+        });
+      }
+      
+      // 每格显示数量按钮
+      host.querySelectorAll("[data-matrix-items]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const n = parseInt(btn.dataset.matrixItems, 10);
+          if (n && [4, 8, 12].includes(n)) {
+            state.matrixItemsPerCell = n;
+            state.matrixExpandedCells = {};
+            render();
+          }
+        });
+      });
+      
+      // 展开/收起按钮
+      host.querySelectorAll("[data-matrix-expand]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const cellKey = btn.dataset.matrixExpand;
+          state.matrixExpandedCells[cellKey] = true;
+          render();
+        });
+      });
+      host.querySelectorAll("[data-matrix-collapse]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const cellKey = btn.dataset.matrixCollapse;
+          state.matrixExpandedCells[cellKey] = false;
+          render();
+        });
+      });
+      
+      // 重置按钮
+      const resetBtn = host.querySelector("[data-matrix-reset]");
+      if (resetBtn) {
+        resetBtn.addEventListener("click", () => {
+          state.matrixFilters = { category: "全部", isRegularPrice: "全部" };
+          state.salesPeriod = getDefaultSalesPeriod();
+          state.matrixItemsPerCell = 4;
+          state.matrixExpandedCells = {};
+          render();
+        });
+      }
+      
+      // 导出图片按钮
+      const exportBtn = host.querySelector("[data-matrix-export-image]");
+      if (exportBtn) {
+        exportBtn.addEventListener("click", generateMatrixImage);
+      }
+    }
+
     function scrollToFocusedRow() {
       if (!state.matrixFocusKey) return;
       const host = document.getElementById("tab-content");
@@ -3598,6 +3686,7 @@ const COCKPIT_SUBTABS = [
           host.innerHTML = renderCockpitEmpty();
       }
       bindTableInteractions();
+      bindMatrixInteractions();
     }
 
     function renderCockpitEmpty() {
