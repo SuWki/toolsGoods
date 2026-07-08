@@ -535,10 +535,233 @@
       gap: 12px;
     }
 
+    .matrix-panel {
+      display: grid;
+      gap: 16px;
+      padding: 18px;
+      border: 1px solid rgba(20, 99, 86, .12);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, .82), rgba(255, 255, 255, .72)),
+        radial-gradient(circle at top right, rgba(20, 99, 86, .06), transparent 28%);
+    }
+
+    .matrix-toolbar {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .matrix-toolbar label {
+      display: grid;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .matrix-toolbar input,
+    .matrix-toolbar select {
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0 10px;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .matrix-kpis {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .matrix-mini {
+      padding: 14px;
+      border: 1px solid rgba(216, 205, 191, .8);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, .7);
+    }
+
+    .matrix-mini strong {
+      display: block;
+      font-size: 22px;
+      margin-top: 4px;
+    }
+
+    .matrix-grid {
+      display: grid;
+      grid-template-columns: 88px repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .matrix-axis-y {
+      display: grid;
+      grid-template-rows: repeat(3, minmax(180px, 1fr));
+      gap: 10px;
+    }
+
+    .matrix-axis-label {
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      text-align: center;
+      font-weight: 700;
+      border-radius: 12px;
+      border: 1px solid rgba(216, 205, 191, .8);
+      background: rgba(255, 255, 255, .58);
+      color: var(--ink);
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+      letter-spacing: 0;
+      min-height: 100%;
+    }
+
+    .matrix-col-head,
+    .matrix-row-head {
+      display: grid;
+      place-items: center;
+      min-height: 42px;
+      border-radius: 12px;
+      border: 1px solid rgba(216, 205, 191, .8);
+      background: rgba(255, 255, 255, .8);
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .matrix-row-head {
+      writing-mode: horizontal-tb;
+      text-orientation: mixed;
+      min-height: 100%;
+      border-style: dashed;
+    }
+
+    .matrix-cells {
+      display: grid;
+      gap: 10px;
+    }
+
+    .matrix-cell {
+      border: 1px solid rgba(216, 205, 191, .86);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .72);
+      padding: 14px;
+      min-height: 260px;
+      display: grid;
+      gap: 12px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .matrix-cell::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 4px;
+      background: linear-gradient(90deg, rgba(20, 99, 86, .7), rgba(20, 99, 86, .08));
+    }
+
+    .matrix-cell.good { background: linear-gradient(180deg, rgba(76, 122, 31, .08), rgba(255,255,255,.82)); }
+    .matrix-cell.warn { background: linear-gradient(180deg, rgba(217, 119, 6, .08), rgba(255,255,255,.82)); }
+    .matrix-cell.danger { background: linear-gradient(180deg, rgba(185, 35, 24, .08), rgba(255,255,255,.82)); }
+
+    .matrix-cell-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .matrix-cell-head h3 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.3;
+    }
+
+    .matrix-cell-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .sku-strip {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      align-items: start;
+    }
+
+    .sku-chip {
+      display: grid;
+      gap: 6px;
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(216, 205, 191, .8);
+      background: rgba(255, 255, 255, .84);
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .sku-chip:hover {
+      border-color: rgba(20, 99, 86, .35);
+      transform: translateY(-1px);
+    }
+
+    .sku-thumb {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #f4efe8;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .sku-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .sku-chip small {
+      display: block;
+      color: var(--muted);
+      line-height: 1.35;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .matrix-more {
+      display: grid;
+      place-items: center;
+      border: 1px dashed rgba(20, 99, 86, .24);
+      border-radius: 12px;
+      background: rgba(20, 99, 86, .04);
+      color: var(--accent);
+      font-size: 12px;
+      padding: 8px;
+      min-height: 120px;
+    }
+
+    .focus-row td {
+      background: rgba(20, 99, 86, .08);
+    }
+
     @media (max-width: 1200px) {
       .layout,
       .kpis,
-      .summary-grid { grid-template-columns: 1fr 1fr; }
+      .summary-grid,
+      .matrix-kpis,
+      .matrix-toolbar { grid-template-columns: 1fr 1fr; }
       .sidebar { position: static; }
       .topbar { flex-direction: column; }
       .actions { justify-content: flex-start; }
@@ -547,11 +770,15 @@
     @media (max-width: 760px) {
       .layout,
       .kpis,
-      .summary-grid { grid-template-columns: 1fr; }
+      .summary-grid,
+      .matrix-kpis,
+      .matrix-toolbar,
+      .matrix-grid { grid-template-columns: 1fr; }
       .shell { padding: 20px 14px 28px; }
       th, td { white-space: normal; }
       .source-head,
       .block-head { flex-direction: column; }
+      .matrix-axis-label { writing-mode: horizontal-tb; }
     }
   </style>
 </head>
@@ -560,7 +787,7 @@
     <div class="topbar">
       <div>
         <h1>香水商品驾驶舱</h1>
-        <p class="subtitle">这个版本改成五文件驱动：商品资料、仓库库存和保质期、门店库存、渠道销售、门店销售。页面只有在你上传对应文件后才展示数据，重新上传同一个位置会直接覆盖刷新。</p>
+        <p class="subtitle">这个版本以商品资料和销存数据为核心驱动，页面会在你上传后才展示结果；如果后面补充其他库存或销售文件，也能继续联动分析，重新上传同一位置会直接覆盖刷新。</p>
         <div id="progress-pills" class="pill-row"></div>
       </div>
       <div class="actions">
@@ -574,7 +801,7 @@
     <div class="layout">
       <aside class="panel sidebar">
         <section>
-          <h2 class="section-title">五个文件</h2>
+          <h2 class="section-title">核心文件</h2>
           <div id="source-list" class="source-grid"></div>
         </section>
 
@@ -598,7 +825,7 @@
         <section id="empty-state" class="empty-state">
           <h2>先上传文件，再开始展示</h2>
           <p>当前页面没有示例数据。请先上传至少一个文件，系统会按模板自动识别并展示对应内容；如果你换了一版文件，直接重新上传同一位置即可刷新展示。</p>
-          <p>等五张表都补齐后，我们就能在这套标准化数据上继续做补货预警、滞销预警和保质期预警。</p>
+          <p>等核心表都补齐后，我们就能在这套标准化数据上继续做补货预警、滞销预警和保质期预警。</p>
         </section>
 
         <section id="kpi-grid" class="kpis" style="display:none;"></section>
@@ -620,9 +847,16 @@
       {
         key: "product",
         label: "商品资料",
-        hint: "品名 / 条码 / 规格 / 零售价 / 保质期",
+        hint: "图片 / 品名 / 规格 / 条码 / 分类 / 是否正价 / 零售价",
         preferredSheets: ["手动简称！别覆盖！"],
         parser: parseProductRows,
+      },
+      {
+        key: "inventorySales",
+        label: "销存数据",
+        hint: "销售数量 / 即时库存 / 库存保质期",
+        preferredSheets: ["销存数据"],
+        parser: parseInventorySalesRows,
       },
       {
         key: "warehouse",
@@ -656,6 +890,8 @@
 
     const TABS = [
       { id: "overview", label: "总览" },
+      { id: "matrix", label: "九宫格看板" },
+      { id: "inventorySales", label: "销存数据" },
       { id: "product", label: "商品资料" },
       { id: "warehouse", label: "仓库库存" },
       { id: "storeInventory", label: "门店库存" },
@@ -671,6 +907,12 @@
       activeTab: "overview",
       sources: Object.fromEntries(SOURCE_CONFIGS.map((cfg) => [cfg.key, createEmptySourceState(cfg)])),
       tableState: {},
+      matrixFocusKey: "",
+      matrixFilters: {
+        category: "全部",
+        isRegularPrice: "全部",
+      },
+      salesPeriod: getDefaultSalesPeriod(),
     };
 
     const columnResizeState = {
@@ -719,6 +961,9 @@
           version: 1,
           activeTab: state.activeTab,
           tableState: state.tableState,
+          matrixFocusKey: state.matrixFocusKey,
+          matrixFilters: state.matrixFilters,
+          salesPeriod: state.salesPeriod,
           sources: Object.fromEntries(
             Object.entries(state.sources).map(([key, source]) => [key, cloneSourceForCache(source)])
           ),
@@ -749,6 +994,21 @@
         }
         if (payload && payload.tableState && typeof payload.tableState === "object") {
           state.tableState = payload.tableState;
+        }
+        if (payload && payload.matrixFocusKey) {
+          state.matrixFocusKey = payload.matrixFocusKey;
+        }
+        if (payload && payload.matrixFilters && typeof payload.matrixFilters === "object") {
+          state.matrixFilters = {
+            ...state.matrixFilters,
+            ...payload.matrixFilters,
+          };
+        }
+        if (payload && payload.salesPeriod && typeof payload.salesPeriod === "object") {
+          state.salesPeriod = {
+            ...state.salesPeriod,
+            ...payload.salesPeriod,
+          };
         }
         if (payload && payload.activeTab) {
           state.activeTab = payload.activeTab;
@@ -790,6 +1050,14 @@
       return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 }).format(Math.round(Number(value)));
     }
 
+    function stripHtmlTags(value) {
+      return String(value ?? "")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/&nbsp;/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
     function formatDateValue(value) {
       if (!value) return "";
       if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -807,6 +1075,43 @@
         return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       }
       return text;
+    }
+
+    function formatDateInputValue(value) {
+      if (!value) return "";
+      if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        const offset = value.getTimezoneOffset() * 60000;
+        return new Date(value.getTime() - offset).toISOString().slice(0, 10);
+      }
+      const text = String(value).trim();
+      if (!text) return "";
+      const match = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+      if (match) {
+        const [, y, m, d] = match;
+        return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      }
+      return "";
+    }
+
+    function getDefaultSalesPeriod() {
+      const end = new Date();
+      const start = new Date(end.getFullYear(), 0, 1);
+      return {
+        start: formatDateInputValue(start),
+        end: formatDateInputValue(end),
+      };
+    }
+
+    function parseYesNo(value) {
+      const text = normalizeText(value);
+      if (!text) return "";
+      if (["是", "yes", "y", "true", "1", "正价", "在售"].some((item) => text === normalizeText(item) || text.includes(normalizeText(item)))) {
+        return "是";
+      }
+      if (["否", "no", "n", "false", "0", "非正价", "促销"].some((item) => text === normalizeText(item) || text.includes(normalizeText(item)))) {
+        return "否";
+      }
+      return String(value).trim();
     }
 
     function formatDateTime(value) {
@@ -1032,7 +1337,8 @@
     function getColumnValue(row, col) {
       if (typeof col.sortValue === "function") return col.sortValue(row);
       if (isProductNameColumn(col)) return row.productName || "";
-      return col.value ? col.value(row) : col.render(row);
+      const value = col.value ? col.value(row) : col.render(row);
+      return typeof value === "string" ? stripHtmlTags(value) : value;
     }
 
     function applySorting(rows, columns, sortKey, sortDir) {
@@ -1197,21 +1503,24 @@
       const [headers, ...body] = rows;
       const map = headerIndex(headers || []);
       return body.map((row) => {
-        const productName = getCell(row, map, ["货品名称", "商品名称"]);
+        const productName = getCell(row, map, ["货品名称", "商品名称", "品名", "SKU名称", "商品名"]);
         const barcode = getCell(row, map, ["条码", "商品条码", "规格条码"]);
         const sku = getCell(row, map, ["货品编号", "规格编号", "商品编码", "商品/规格编码"]);
         const spec = getCell(row, map, ["规格"]);
+        const imageUrl = getCell(row, map, ["图片", "图片链接", "主图", "SKU图片", "image", "imageUrl"]);
         return {
           key: makeBarcodeKey({ barcode, sku, specCode: sku, productCode: sku, productName, spec }),
           productName,
           barcode,
           sku,
           spec,
+          imageUrl,
           scentFamily: getCell(row, map, ["香型"]),
           category: getCell(row, map, ["分类", "商品类目", "一级分类"]),
           brand: getCell(row, map, ["品牌"]),
           unit: getCell(row, map, ["基础单位", "单位"]),
           retailPrice: maybeNumber(getCell(row, map, ["零售价", "建议零售价(元)", "最新采购单价(元)"])),
+          isRegularPrice: parseYesNo(getCell(row, map, ["是否正价", "是否正价品", "正价", "是否正价商品"])),
           shelfLifeDays: maybeNumber(getCell(row, map, ["保质期"])),
           batchManaged: getCell(row, map, ["批次管理"]),
           owner: getCell(row, map, ["货主"]),
@@ -1357,6 +1666,46 @@
       }).filter((row) => row.qty > 0 && row.status !== "关闭" && row.status !== "取消" && row.status !== "退款成功" && (row.productName || row.barcode || row.specCode) && !isAggregateLabel(row.productName) && !isAggregateLabel(row.barcode));
     }
 
+    function parseInventorySalesRows(rows) {
+      const [headers, ...body] = rows;
+      const map = headerIndex(headers || []);
+      return body.map((row) => {
+        const productName = getCell(row, map, ["品名", "货品名称", "商品名称", "SKU名称"]);
+        const barcode = getCell(row, map, ["条码", "商品条码", "规格条码"]);
+        const sku = getCell(row, map, ["货品编号", "商品编码", "规格编号", "商品/规格编码"]);
+        const spec = getCell(row, map, ["规格"]);
+        const category = getCell(row, map, ["分类", "商品类目", "一级分类"]);
+        const brand = getCell(row, map, ["品牌"]);
+        const imageUrl = getCell(row, map, ["图片", "图片链接", "主图", "SKU图片", "image", "imageUrl"]);
+        const salesQty = parseNumber(getCell(row, map, ["销售数量", "今年销量", "销量", "近90天销量", "销售量"]), 0);
+        const stockQty = parseNumber(getCell(row, map, ["即时库存", "当前库存", "库存数量", "库存"]), 0);
+        const stockAmount = maybeNumber(getCell(row, map, ["库存金额", "库存金额(元)", "库存总金额", "库存货值"]));
+        const remainingDays = maybeNumber(getCell(row, map, ["库存保质期", "保质期", "剩余保质期", "剩余天数"]));
+        const expiryDate = formatDateValue(getCell(row, map, ["到期日期", "有效期至", "截止日期"]));
+        const isRegularPrice = parseYesNo(getCell(row, map, ["是否正价", "是否正价品", "正价", "是否正价商品"]));
+        const retailPrice = maybeNumber(getCell(row, map, ["零售价", "建议零售价(元)", "最新零售价"]));
+        return {
+          key: makeBarcodeKey({ barcode, sku, specCode: sku, productCode: sku, productName, spec }),
+          productName,
+          barcode,
+          sku,
+          spec,
+          category,
+          brand,
+          imageUrl,
+          salesQty,
+          stockQty,
+          stockAmount,
+          remainingDays,
+          shelfLifeDays: remainingDays,
+          expiryDate,
+          isRegularPrice,
+          retailPrice,
+          raw: row,
+        };
+      }).filter((row) => (row.productName || row.barcode || row.sku) && !isAggregateLabel(row.productName) && !isAggregateLabel(row.barcode));
+    }
+
     function aggregateRows(rows, keyFn, buildRow) {
       const map = new Map();
       rows.forEach((row) => {
@@ -1426,6 +1775,7 @@
 
     function buildLinkedRows(sources) {
       const map = new Map();
+      const periodDays = getSalesPeriodDays();
 
       const ensure = (key) => {
         if (!map.has(key)) {
@@ -1525,7 +1875,7 @@
       return Array.from(map.values()).map((item) => {
         item.totalSalesQty = item.channelSalesQty + item.storeSalesQty;
         item.totalInventoryQty = item.warehouseAvailable + item.storeAvailable;
-        item.salesDaily = safeDivide(item.totalSalesQty, 30) || 0;
+        item.salesDaily = safeDivide(item.totalSalesQty, periodDays) || 0;
         item.sales30Qty = item.totalSalesQty;
         item.inventoryQty = item.totalInventoryQty;
         item.stockDepthDays = item.salesDaily > 0 ? item.totalInventoryQty / item.salesDaily : null;
@@ -1542,6 +1892,195 @@
         const bScore = b.totalSalesQty || b.totalInventoryQty || 0;
         return bScore - aScore;
       });
+    }
+
+    function getSalesPeriodDays(period = state.salesPeriod) {
+      const start = period && period.start ? new Date(period.start) : null;
+      const end = period && period.end ? new Date(period.end) : null;
+      if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return 180;
+      }
+      const diff = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+      return Math.max(diff, 1);
+    }
+
+    function makeDomId(prefix, key) {
+      return `${prefix}-${String(key || "").replace(/[^a-zA-Z0-9_-]+/g, "_")}`;
+    }
+
+    function getStockHealthLabel(stockMonths) {
+      if (stockMonths === null || stockMonths === undefined || Number.isNaN(stockMonths)) return "未知";
+      if (stockMonths <= 12) return "健康";
+      if (stockMonths <= 24) return "风险";
+      return "积压";
+    }
+
+    function getSalesBandLabel(percent) {
+      if (percent === null || percent === undefined || Number.isNaN(percent)) return "平销";
+      if (percent <= 0.3) return "畅销";
+      if (percent <= 0.7) return "平销";
+      return "滞销";
+    }
+
+    function getMatrixCellMeta(row) {
+      const stockBand = getStockHealthLabel(row.stockMonths);
+      const salesBand = row.salesBand || "平销";
+      const cellKey = `${stockBand}|${salesBand}`;
+      const metaMap = {
+        "健康|畅销": { title: "核心爆款区", badge: "重点保供", theme: "good" },
+        "健康|平销": { title: "稳定发展区", badge: "持续关注", theme: "warm" },
+        "健康|滞销": { title: "潜力优化区", badge: "优化动销", theme: "warn" },
+        "风险|畅销": { title: "补货关注区", badge: "控制库存", theme: "warm" },
+        "风险|平销": { title: "调整观察区", badge: "动态跟踪", theme: "warn" },
+        "风险|滞销": { title: "预警处理区", badge: "促销去化", theme: "danger" },
+        "积压|畅销": { title: "资金占用区", badge: "谨慎补货", theme: "danger" },
+        "积压|平销": { title: "清理改善区", badge: "制定计划", theme: "danger" },
+        "积压|滞销": { title: "重点清理区", badge: "清仓处理", theme: "danger" },
+      };
+      return metaMap[cellKey] || { title: cellKey, badge: "待判定", theme: "neutral" };
+    }
+
+    function buildMatrixRows(sources) {
+      const productMap = new Map(sources.product.rows.map((row) => [row.key, row]));
+      const stockMap = new Map(sources.inventorySales.rows.map((row) => [row.key, row]));
+      const keys = new Set([...productMap.keys(), ...stockMap.keys()]);
+      const periodDays = getSalesPeriodDays();
+      const periodMonths = periodDays / 30;
+
+      const rows = Array.from(keys).map((key) => {
+        const product = productMap.get(key) || {};
+        const stock = stockMap.get(key) || {};
+        const productName = product.productName || stock.productName || "";
+        const barcode = product.barcode || stock.barcode || "";
+        const sku = product.sku || stock.sku || "";
+        const spec = product.spec || stock.spec || "";
+        const category = product.category || stock.category || "未分类";
+        const brand = product.brand || stock.brand || "";
+        const imageUrl = product.imageUrl || stock.imageUrl || "";
+        const isRegularPrice = product.isRegularPrice || stock.isRegularPrice || "";
+        const retailPrice = maybeNumber(product.retailPrice ?? stock.retailPrice);
+        const salesQty = parseNumber(stock.salesQty, 0);
+        const stockQty = parseNumber(stock.stockQty, 0);
+        const inventoryAmount = maybeNumber(stock.stockAmount);
+        const derivedInventoryAmount = inventoryAmount !== null && inventoryAmount !== undefined
+          ? inventoryAmount
+          : (retailPrice !== null && retailPrice !== undefined ? stockQty * retailPrice : null);
+        const shelfLifeDays = maybeNumber(stock.shelfLifeDays);
+        const expiryDate = stock.expiryDate || "";
+        const currentSellDays = salesQty > 0 ? (stockQty / salesQty) * periodDays : null;
+        const stockMonths = salesQty > 0 ? (stockQty / salesQty) * periodMonths : null;
+        const canSellBeforeExpiry = shelfLifeDays !== null && currentSellDays !== null
+          ? currentSellDays <= shelfLifeDays
+          : null;
+        const salesBand = "";
+        const stockHealth = getStockHealthLabel(stockMonths);
+        return {
+          key,
+          productName,
+          barcode,
+          sku,
+          spec,
+          category,
+          brand,
+          imageUrl,
+          isRegularPrice,
+          retailPrice,
+          salesQty,
+          stockQty,
+          inventoryAmount: derivedInventoryAmount,
+          shelfLifeDays,
+          expiryDate,
+          sellOutDays: currentSellDays,
+          stockMonths,
+          stockHealth,
+          canSellBeforeExpiry,
+          salesBand,
+          rawProduct: product.raw,
+          rawStock: stock.raw,
+        };
+      }).filter((row) => row.productName || row.barcode || row.sku);
+
+      const grouped = new Map();
+      rows.forEach((row) => {
+        const groupKey = normalizeText(row.category || "未分类");
+        if (!grouped.has(groupKey)) grouped.set(groupKey, []);
+        grouped.get(groupKey).push(row);
+      });
+      grouped.forEach((groupRows) => {
+        const sorted = groupRows.slice().sort((a, b) => {
+          const aScore = a.salesQty || 0;
+          const bScore = b.salesQty || 0;
+          if (bScore !== aScore) return bScore - aScore;
+          return compareValues(a.productName, b.productName);
+        });
+        const count = sorted.length;
+        sorted.forEach((row, index) => {
+          const percent = count ? (index + 1) / count : null;
+          row.salesBand = getSalesBandLabel(percent);
+          row.salesRankPercent = percent;
+          row.matrixMeta = getMatrixCellMeta(row);
+        });
+      });
+
+      const categoryOptions = Array.from(new Set(rows.map((row) => row.category || "未分类"))).sort((a, b) => a.localeCompare(b, "zh-CN"));
+      const filtered = rows.filter((row) => {
+        const categoryFilter = state.matrixFilters.category || "全部";
+        const priceFilter = state.matrixFilters.isRegularPrice || "全部";
+        if (categoryFilter !== "全部" && (row.category || "未分类") !== categoryFilter) return false;
+        if (priceFilter !== "全部" && (row.isRegularPrice || "未设置") !== priceFilter) return false;
+        return true;
+      });
+
+      const gridOrder = [
+        ["健康", "畅销"],
+        ["健康", "平销"],
+        ["健康", "滞销"],
+        ["风险", "畅销"],
+        ["风险", "平销"],
+        ["风险", "滞销"],
+        ["积压", "畅销"],
+        ["积压", "平销"],
+        ["积压", "滞销"],
+      ];
+      const cells = gridOrder.map(([health, sales]) => {
+        const cellRows = filtered.filter((row) => row.stockHealth === health && row.salesBand === sales)
+          .sort((a, b) => (b.salesQty || 0) - (a.salesQty || 0));
+        const skuCount = cellRows.length;
+        const inventoryQty = cellRows.reduce((sum, row) => sum + (row.stockQty || 0), 0);
+        const inventoryAmount = cellRows.reduce((sum, row) => sum + (row.inventoryAmount || 0), 0);
+        return {
+          key: `${health}|${sales}`,
+          health,
+          sales,
+          rows: cellRows,
+          skuCount,
+          inventoryQty,
+          inventoryAmount,
+          meta: getMatrixCellMeta({ stockMonths: health === "健康" ? 12 : health === "风险" ? 18 : 36, salesBand: sales }),
+        };
+      });
+
+      const summary = {
+        totalSku: filtered.length,
+        totalInventoryQty: filtered.reduce((sum, row) => sum + (row.stockQty || 0), 0),
+        totalInventoryAmount: filtered.reduce((sum, row) => sum + (row.inventoryAmount || 0), 0),
+        healthyCount: filtered.filter((row) => row.stockHealth === "健康").length,
+        riskCount: filtered.filter((row) => row.stockHealth === "风险").length,
+        backlogCount: filtered.filter((row) => row.stockHealth === "积压").length,
+        selloutSafeCount: filtered.filter((row) => row.canSellBeforeExpiry === true).length,
+        selloutRiskCount: filtered.filter((row) => row.canSellBeforeExpiry === false).length,
+        categoryOptions,
+      };
+
+      return {
+        rows,
+        filteredRows: filtered,
+        cells,
+        summary,
+        periodDays,
+        periodLabel: `${state.salesPeriod.start || "未设定"} ~ ${state.salesPeriod.end || "未设定"}`,
+        categoryOptions,
+      };
     }
 
     function evaluateExpiryRisk(row) {
@@ -1566,7 +2105,7 @@
     }
 
     function getModelSignature() {
-      return SOURCE_CONFIGS
+      const base = SOURCE_CONFIGS
         .map((cfg) => {
           const source = state.sources[cfg.key];
           return [
@@ -1579,6 +2118,12 @@
           ].join(":");
         })
         .join("|");
+      return [
+        base,
+        `period:${state.salesPeriod.start || ""}-${state.salesPeriod.end || ""}`,
+        `filters:${state.matrixFilters.category || ""}-${state.matrixFilters.isRegularPrice || ""}`,
+        `focus:${state.matrixFocusKey || ""}`,
+      ].join("|");
     }
 
     function buildModel() {
@@ -1588,15 +2133,20 @@
       }
 
       const product = state.sources.product;
+      const inventorySales = state.sources.inventorySales;
       const warehouse = state.sources.warehouse;
       const storeInventory = state.sources.storeInventory;
       const channelSales = state.sources.channelSales;
       const storeSales = state.sources.storeSales;
 
+      const matrix = buildMatrixRows(state.sources);
       const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       const storeSalesAgg = summarizeStoreSales(storeSales.rows);
       const linkedRows = buildLinkedRows(state.sources);
       const productUnique = new Set(product.rows.map((row) => row.key)).size;
+      const inventorySalesQty = inventorySales.rows.reduce((sum, row) => sum + (row.salesQty || 0), 0);
+      const inventoryStockQty = inventorySales.rows.reduce((sum, row) => sum + (row.stockQty || 0), 0);
+      const inventoryStockAmount = inventorySales.rows.reduce((sum, row) => sum + (row.stockAmount || 0), 0);
       const warehouseQty = warehouse.rows.reduce((sum, row) => sum + (row.availableQty || 0), 0);
       const storeQty = storeInventory.rows.reduce((sum, row) => sum + (row.availableQty || 0), 0);
       const channelQty = channelSales.rows.reduce((sum, row) => sum + (row.qty || 0), 0);
@@ -1623,10 +2173,20 @@
       const model = {
         sources: state.sources,
         productUnique,
+        inventorySalesQty,
+        inventoryStockQty,
+        inventoryStockAmount,
         warehouseQty,
         storeQty,
         channelQty,
         storeSalesQty,
+        matrixRows: matrix.rows,
+        matrixFilteredRows: matrix.filteredRows,
+        matrixCells: matrix.cells,
+        matrixSummary: matrix.summary,
+        matrixPeriodDays: matrix.periodDays,
+        matrixPeriodLabel: matrix.periodLabel,
+        matrixCategoryOptions: matrix.categoryOptions,
         linkedRows,
         linkedCount,
         uploadedCount,
@@ -1649,7 +2209,7 @@
     function renderProgressPills(model) {
       const host = document.getElementById("progress-pills");
       host.innerHTML = [
-        `<span class="pill">已上传 ${formatInteger(model.uploadedCount)}/5</span>`,
+        `<span class="pill">已上传 ${formatInteger(model.uploadedCount)} 个文件</span>`,
         `<span class="pill">商品条码 ${formatInteger(model.productUnique)}</span>`,
         `<span class="pill">库存数量 ${formatInteger(model.warehouseQty + model.storeQty)}</span>`,
         `<span class="pill">销售数量 ${formatInteger(model.channelQty + model.storeSalesQty)}</span>`,
@@ -1726,6 +2286,7 @@
       const empty = (source) => source.rows.length === 0;
       const items = [
         { label: "商品资料", value: empty(model.sources.product) ? "未上传" : `${formatInteger(model.sources.product.rows.length)} 条` },
+        { label: "销存数据", value: empty(model.sources.inventorySales) ? "未上传" : `${formatInteger(model.sources.inventorySales.rows.length)} 条` },
         { label: "仓库库存", value: empty(model.sources.warehouse) ? "未上传" : `${formatInteger(model.sources.warehouse.rows.length)} 条` },
         { label: "门店库存", value: empty(model.sources.storeInventory) ? "未上传" : `${formatInteger(model.sources.storeInventory.rows.length)} 条` },
         { label: "渠道销售", value: empty(model.sources.channelSales) ? "未上传" : `${formatInteger(model.sources.channelSales.rows.length)} 条` },
@@ -1746,7 +2307,7 @@
         <div class="panel kpi good">
           <small>已上传文件</small>
           <strong>${formatInteger(model.uploadedCount)}</strong>
-          <p>五个模板都上传后，联动总表会更完整。</p>
+          <p>核心文件都上传后，联动总表会更完整。</p>
         </div>
         <div class="panel kpi">
           <small>商品条码</small>
@@ -1785,7 +2346,135 @@
       });
     }
 
-    function tableSection({ tabId, title, note, rows, columns, emptyText, previewText }) {
+    function renderMatrixTab(model) {
+      const rows = model.matrixFilteredRows;
+      const categoryOptions = ["全部", ...model.matrixCategoryOptions];
+      const priceOptions = ["全部", "是", "否", "未设置"];
+      const chipRows = (cellRows, cellKey) => {
+        const topRows = cellRows.slice(0, 4);
+        const extra = Math.max(0, cellRows.length - topRows.length);
+        return `
+          <div class="sku-strip">
+            ${topRows.map((row) => `
+              <button type="button" class="sku-chip" data-matrix-jump="${escapeHtml(row.key)}" title="点击跳转到联动总表：${escapeHtml(row.productName || "")}">
+                <div class="sku-thumb">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(row.productName || "")}" onerror="this.remove();this.parentElement.textContent='无图';">` : "无图"}</div>
+                <small>${escapeHtml(row.productName || "-")}</small>
+                <small>${escapeHtml(row.barcode || row.sku || "-")}</small>
+              </button>
+            `).join("")}
+            ${extra > 0 ? `<div class="matrix-more">还有 ${extra} 个 SKU</div>` : ""}
+          </div>
+        `;
+      };
+
+      const cellHtml = model.matrixCells.map((cell) => {
+        const theme = cell.meta.theme || "neutral";
+        const previewRows = cell.rows.slice(0, 4);
+        return `
+          <div class="matrix-cell ${theme}">
+            <div class="matrix-cell-head">
+              <div>
+                <h3>${escapeHtml(cell.meta.title)}</h3>
+                <div class="matrix-cell-stats">
+                  <span>SKU ${formatInteger(cell.skuCount)}</span>
+                  <span>库存 ${formatInteger(cell.inventoryQty)} 件</span>
+                  <span>金额 ${cell.inventoryAmount === null || cell.inventoryAmount === undefined ? "-" : formatNumber(cell.inventoryAmount)}</span>
+                </div>
+              </div>
+              ${badge(theme === "good" ? "good" : theme === "danger" ? "danger" : "warn", cell.meta.badge)}
+            </div>
+            ${chipRows(previewRows, cell.key)}
+          </div>
+        `;
+      });
+
+      return `
+        <div class="panel matrix-panel">
+          <div class="block-head">
+            <div>
+              <h2>SKU 库存健康 × 销售表现九宫格分析</h2>
+              <div class="note">时间范围：${escapeHtml(model.matrixPeriodLabel)}，销售表现按同分类内前 30% / 中间 40% / 后 30% 划分，点击 SKU 图片会跳到联动总表对应行。</div>
+            </div>
+            <span class="badge neutral">共 ${formatInteger(model.matrixSummary.totalSku)} 个 SKU</span>
+          </div>
+
+          <div class="matrix-toolbar">
+            <label>
+              销售时间段
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <input type="date" data-matrix-start value="${escapeHtml(state.salesPeriod.start || "")}">
+                <input type="date" data-matrix-end value="${escapeHtml(state.salesPeriod.end || "")}">
+              </div>
+            </label>
+            <label>
+              分类
+              <select data-matrix-category>
+                ${categoryOptions.map((item) => `<option value="${escapeHtml(item)}" ${state.matrixFilters.category === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}
+              </select>
+            </label>
+            <label>
+              是否正价
+              <select data-matrix-price>
+                ${priceOptions.map((item) => `<option value="${escapeHtml(item)}" ${state.matrixFilters.isRegularPrice === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}
+              </select>
+            </label>
+            <button class="ghost" data-matrix-reset>重置</button>
+          </div>
+
+          <div class="matrix-kpis">
+            <div class="matrix-mini"><small>总 SKU</small><strong>${formatInteger(model.matrixSummary.totalSku)}</strong></div>
+            <div class="matrix-mini"><small>健康</small><strong>${formatInteger(model.matrixSummary.healthyCount)}</strong></div>
+            <div class="matrix-mini"><small>风险</small><strong>${formatInteger(model.matrixSummary.riskCount)}</strong></div>
+            <div class="matrix-mini"><small>积压</small><strong>${formatInteger(model.matrixSummary.backlogCount)}</strong></div>
+            <div class="matrix-mini"><small>可卖完</small><strong>${formatInteger(model.matrixSummary.selloutSafeCount)}</strong></div>
+            <div class="matrix-mini"><small>卖不完风险</small><strong>${formatInteger(model.matrixSummary.selloutRiskCount)}</strong></div>
+          </div>
+
+          <div class="soft-card">
+            <div class="note" style="margin-bottom:10px;font-weight:700;color:var(--ink);">销售表现（X轴）</div>
+            <div class="matrix-grid" style="grid-template-columns:88px repeat(3, minmax(0, 1fr));">
+              <div></div>
+              <div class="matrix-col-head">畅销（前30%）</div>
+              <div class="matrix-col-head">平销（30%-70%）</div>
+              <div class="matrix-col-head">滞销（后30%）</div>
+              <div class="matrix-row-head">健康<br>(≤12个月)</div>
+              ${cellHtml.slice(0, 3).join("")}
+              <div class="matrix-row-head">风险<br>(12~24个月)</div>
+              ${cellHtml.slice(3, 6).join("")}
+              <div class="matrix-row-head">积压<br>(≥24个月)</div>
+              ${cellHtml.slice(6, 9).join("")}
+            </div>
+          </div>
+
+          <div class="table-toolbar">
+            <p class="hint">点击任意 SKU 图片会跳到联动总表并高亮对应行。</p>
+          </div>
+          ${tableSection({
+            tabId: "linked",
+            title: "联动总表（九宫格命中结果）",
+            note: "这里展示当前筛选条件下的 SKU 明细，便于从九宫格直接钻到数据源对应行。",
+            rows: rows,
+            columns: [
+              { label: "品名", render: (row) => escapeHtml(row.productName || "-") },
+              { label: "条码", render: (row) => escapeHtml(row.barcode || row.sku || "-") },
+              { label: "分类", render: (row) => escapeHtml(row.category || "-") },
+              { label: "销售表现", render: (row) => escapeHtml(row.salesBand || "-") },
+              { label: "库存健康度", render: (row) => escapeHtml(row.stockHealth || "-") },
+              { label: "销售数量", render: (row) => formatInteger(row.salesQty || 0) },
+              { label: "即时库存", render: (row) => formatInteger(row.stockQty || 0) },
+              { label: "库存月", render: (row) => row.stockMonths === null || row.stockMonths === undefined ? "-" : `${formatNumber(row.stockMonths)} 个月` },
+              { label: "保质期", render: (row) => row.shelfLifeDays === null || row.shelfLifeDays === undefined ? "-" : `${formatInteger(row.shelfLifeDays)} 天` },
+              { label: "能否卖完", render: (row) => badge(row.canSellBeforeExpiry === false ? "danger" : "good", row.canSellBeforeExpiry === false ? "卖不完" : "可卖完") },
+            ],
+            emptyText: "当前筛选下没有 SKU。请换个分类或放宽条件。",
+            previewText: `当前筛选 ${formatInteger(rows.length)} 条`,
+            rowClassName: (row) => row.key === state.matrixFocusKey ? "focus-row" : "",
+          })}
+        </div>
+      `;
+    }
+
+    function tableSection({ tabId, title, note, rows, columns, emptyText, previewText, rowClassName }) {
       if (!rows.length) {
         return `
           <div class="card block">
@@ -1818,7 +2507,7 @@
         return `<col${style}>`;
       }).join("");
       const body = pageRows.map((row) => `
-        <tr>
+        <tr${row.key ? ` data-row-key="${escapeHtml(row.key)}"` : ""}${rowClassName ? ` class="${escapeHtml(rowClassName(row))}"` : ""}>
           ${columns.map((col) => {
             const cellHtml = col.render(row);
             if (isProductNameColumn(col)) {
@@ -2040,6 +2729,45 @@
       });
     }
 
+    function renderInventorySalesTab(model) {
+      const source = model.sources.inventorySales;
+      const rows = sourcePreviewRows(source);
+      const periodDays = getSalesPeriodDays();
+      const periodMonths = periodDays / 30;
+      return tableSection({
+        title: "销存数据",
+        note: "这是九宫格和库存月判断的核心输入，销售数量用于算动销速度，即时库存和保质期用于算库存健康与临期风险。",
+        rows,
+        columns: [
+          { label: "品名", render: (row) => escapeHtml(row.productName || "-") },
+          { label: "条码", render: (row) => escapeHtml(row.barcode || row.sku || "-") },
+          { label: "规格", render: (row) => escapeHtml(row.spec || "-") },
+          { label: "分类", render: (row) => escapeHtml(row.category || "-") },
+          { label: "零售价", render: (row) => row.retailPrice === null || row.retailPrice === undefined ? "-" : formatNumber(row.retailPrice) },
+          { label: "是否正价", render: (row) => escapeHtml(row.isRegularPrice || "-") },
+          { label: "销售数量", render: (row) => formatInteger(row.salesQty || 0), sortValue: (row) => row.salesQty || 0 },
+          { label: "即时库存", render: (row) => formatInteger(row.stockQty || 0), sortValue: (row) => row.stockQty || 0 },
+          { label: "库存月", render: (row) => {
+            if (!row.salesQty) return "-";
+            return `${formatNumber((row.stockQty / row.salesQty) * periodMonths)} 个月`;
+          }, sortValue: (row) => row.salesQty ? (row.stockQty / row.salesQty) * periodMonths : null },
+          { label: "库存健康度", render: (row) => {
+            if (!row.salesQty) return "未计算";
+            const stockMonths = (row.stockQty / row.salesQty) * periodMonths;
+            return getStockHealthLabel(stockMonths);
+          }, sortValue: (row) => row.salesQty ? (row.stockQty / row.salesQty) * periodMonths : null },
+          { label: "库存保质期", render: (row) => row.remainingDays === null || row.remainingDays === undefined ? "-" : `${formatInteger(row.remainingDays)} 天`, sortValue: (row) => row.remainingDays ?? null },
+          { label: "到期前能否卖完", render: (row) => {
+            if (!row.salesQty || row.remainingDays === null || row.remainingDays === undefined) return "未计算";
+            const sellDays = (row.stockQty / row.salesQty) * periodDays;
+            return sellDays <= row.remainingDays ? "可卖完" : "卖不完";
+          } },
+        ],
+        emptyText: "请先上传销存数据文件。",
+        previewText: `前 ${rows.length} 条 / 共 ${source.rows.length} 条`
+      });
+    }
+
     function renderReplenishmentTab(model) {
       const rows = model.replenishmentRows.slice(0, PREVIEW_LIMIT);
       return tableSection({
@@ -2100,7 +2828,7 @@
     }
 
     function renderLinkedTab(model) {
-      const rows = model.linkedRows.slice(0, PREVIEW_LIMIT);
+      const rows = model.linkedRows;
       return tableSection({
         title: "联动总表",
         note: "这张表把商品、库存和销售先串起来。后续补货、滞销和保质期预警都会直接基于它继续往下做。",
@@ -2117,8 +2845,8 @@
           { label: "保质期天数", render: (row) => row.remainingDays === null || row.remainingDays === undefined ? "-" : `${formatInteger(row.remainingDays)} 天` },
           { label: "数据覆盖", render: (row) => formatInteger(row.sourceCount || 0) },
         ],
-        emptyText: "请先上传文件，系统会先把五张表联动起来。",
-        previewText: `前 ${rows.length} 条 / 共 ${model.linkedRows.length} 条`
+        emptyText: "请先上传文件，系统会先把核心表联动起来。",
+        previewText: `共 ${model.linkedRows.length} 条`
       });
     }
 
@@ -2128,6 +2856,20 @@
       host.dataset.tableBound = "1";
       host.addEventListener("click", (event) => {
         if (event.target.closest("[data-column-resize-handle]")) return;
+        const matrixJump = event.target.closest("[data-matrix-jump]");
+        if (matrixJump) {
+          jumpToLinkedRow(matrixJump.dataset.matrixJump || "");
+          return;
+        }
+        const matrixReset = event.target.closest("[data-matrix-reset]");
+        if (matrixReset) {
+          state.matrixFocusKey = "";
+          state.matrixFilters = { category: "全部", isRegularPrice: "全部" };
+          state.salesPeriod = getDefaultSalesPeriod();
+          updateTableState("linked", { page: 1, sortKey: "", sortDir: "desc" });
+          render();
+          return;
+        }
         const pagerButton = event.target.closest("[data-page-action]");
         if (pagerButton) {
           const tabId = pagerButton.dataset.tabId || state.activeTab || "overview";
@@ -2206,10 +2948,29 @@
 
       host.addEventListener("change", (event) => {
         const pageSizeSelect = event.target.closest("[data-page-size]");
-        if (!pageSizeSelect) return;
-        const tabId = pageSizeSelect.dataset.tabId || state.activeTab || "overview";
-        const nextPageSize = Number(pageSizeSelect.value) || 20;
-        updateTableState(tabId, { pageSize: nextPageSize, page: 1 });
+        if (pageSizeSelect) {
+          const tabId = pageSizeSelect.dataset.tabId || state.activeTab || "overview";
+          const nextPageSize = Number(pageSizeSelect.value) || 20;
+          updateTableState(tabId, { pageSize: nextPageSize, page: 1 });
+          render();
+          return;
+        }
+
+        const categorySelect = event.target.closest("[data-matrix-category]");
+        const priceSelect = event.target.closest("[data-matrix-price]");
+        if (categorySelect || priceSelect) {
+          if (categorySelect) state.matrixFilters.category = categorySelect.value || "全部";
+          if (priceSelect) state.matrixFilters.isRegularPrice = priceSelect.value || "全部";
+          render();
+        }
+      });
+
+      host.addEventListener("input", (event) => {
+        const startInput = event.target.closest("[data-matrix-start]");
+        const endInput = event.target.closest("[data-matrix-end]");
+        if (!startInput && !endInput) return;
+        if (startInput) state.salesPeriod.start = startInput.value || "";
+        if (endInput) state.salesPeriod.end = endInput.value || "";
         render();
       });
 
@@ -2249,6 +3010,29 @@
       document.addEventListener("pointercancel", finishResize);
     }
 
+    function jumpToLinkedRow(key) {
+      if (!key) return;
+      state.matrixFocusKey = key;
+      state.activeTab = "linked";
+      const model = buildModel();
+      const pageSize = getTableState("linked").pageSize || 20;
+      const index = model.linkedRows.findIndex((row) => row.key === key);
+      const page = index >= 0 ? Math.floor(index / pageSize) + 1 : 1;
+      updateTableState("linked", { page, sortKey: "", sortDir: "desc" });
+      render();
+      requestAnimationFrame(scrollToFocusedRow);
+    }
+
+    function scrollToFocusedRow() {
+      if (!state.matrixFocusKey) return;
+      const host = document.getElementById("tab-content");
+      if (!host) return;
+      const row = Array.from(host.querySelectorAll("tr[data-row-key]")).find((item) => item.dataset.rowKey === state.matrixFocusKey);
+      if (row && typeof row.scrollIntoView === "function") {
+        row.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    }
+
     function renderTabContent(model) {
       const host = document.getElementById("tab-content");
       if (!model.uploadedCount) {
@@ -2262,6 +3046,9 @@
           break;
         case "product":
           host.innerHTML = renderProductTab(model);
+          break;
+        case "inventorySales":
+          host.innerHTML = renderInventorySalesTab(model);
           break;
         case "warehouse":
           host.innerHTML = renderWarehouseTab(model);
@@ -2302,7 +3089,7 @@
         empty.innerHTML = `
           <h2>${anyLoading ? "正在解析文件" : "先上传文件，再开始展示"}</h2>
           <p>${anyLoading ? "文件正在读取中，等它解析完成后，这里就会自动切换成数据视图。" : "当前页面没有示例数据。请先上传至少一个文件，系统会按模板自动识别并展示对应内容；如果你换了一版文件，直接重新上传同一位置即可刷新展示。"}</p>
-          <p>等五张表都补齐后，我们就能在这套标准化数据上继续做补货预警、滞销预警和保质期预警。</p>
+          <p>等关键文件补齐后，我们就能在这套标准化数据上继续做补货预警、滞销预警和保质期预警。</p>
         `;
       }
     }
@@ -2329,6 +3116,9 @@
       renderTabs(model);
       renderTabContent(model);
       cacheAppState();
+      if (state.activeTab === "linked" && state.matrixFocusKey) {
+        requestAnimationFrame(scrollToFocusedRow);
+      }
     }
 
     async function handleUpload(key, file, options = {}) {
