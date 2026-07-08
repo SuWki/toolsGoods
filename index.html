@@ -727,8 +727,9 @@
     .sku-thumb img {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
       display: block;
+      background: #f4efe8;
     }
 
     .sku-chip small {
@@ -957,6 +958,8 @@ const COCKPIT_SUBTABS = [
         isRegularPrice: "全部",
       },
       salesPeriod: getDefaultSalesPeriod(),
+      matrixExpandedCells: {}, // 记录哪些格子展开
+      matrixItemsPerCell: 4, // 每个格子显示商品数量
     };
 
     const columnResizeState = {
@@ -1090,6 +1093,14 @@ const COCKPIT_SUBTABS = [
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
+    }
+
+    // 缩短香水名称，省略 BLACK PAW 黑爪
+    function shortenProductName(name) {
+      if (!name) return name;
+      return String(name)
+        .replace(/BLACK\s*PAW\s*黑爪/gi, "")
+        .replace(/^\s+|\s+$/g, "");
     }
 
     function formatNumber(value) {
@@ -2577,9 +2588,20 @@ const COCKPIT_SUBTABS = [
       ].join("");
     }
 
+    // 根据当前Tab获取需要显示的文件配置
+    function getVisibleSourceConfigs() {
+      if (state.activeTab === "matrix") {
+        // 九宫格Tab只显示九宫格文件
+        return SOURCE_CONFIGS.filter(cfg => cfg.key === "matrixWorkbook");
+      }
+      // 驾驶舱Tab显示除九宫格外的所有文件
+      return SOURCE_CONFIGS.filter(cfg => cfg.key !== "matrixWorkbook");
+    }
+
     function renderSourceList(model) {
       const host = document.getElementById("source-list");
-      host.innerHTML = SOURCE_CONFIGS.map((cfg) => {
+      const visibleConfigs = getVisibleSourceConfigs();
+      host.innerHTML = visibleConfigs.map((cfg) => {
         const source = model.sources[cfg.key];
         const ready = source.rows.length > 0;
         const statusType = source.error ? "danger" : source.loading ? "busy" : ready ? "good" : "neutral";
@@ -2643,14 +2665,24 @@ const COCKPIT_SUBTABS = [
     function renderDataQuality(model) {
       const host = document.getElementById("data-quality");
       const empty = (source) => source.rows.length === 0;
-      const items = [
-        { label: "商品资料", value: empty(model.sources.product) ? "未上传" : `${formatInteger(model.sources.product.rows.length)} 条` },
-        { label: "销存数据", value: empty(model.sources.inventorySales) ? "未上传" : `${formatInteger(model.sources.inventorySales.rows.length)} 条` },
-        { label: "仓库库存", value: empty(model.sources.warehouse) ? "未上传" : `${formatInteger(model.sources.warehouse.rows.length)} 条` },
-        { label: "门店库存", value: empty(model.sources.storeInventory) ? "未上传" : `${formatInteger(model.sources.storeInventory.rows.length)} 条` },
-        { label: "渠道销售", value: empty(model.sources.channelSales) ? "未上传" : `${formatInteger(model.sources.channelSales.rows.length)} 条` },
-        { label: "门店销售", value: empty(model.sources.storeSales) ? "未上传" : `${formatInteger(model.sources.storeSales.rows.length)} 条` },
-      ];
+      let items = [];
+      
+      if (state.activeTab === "matrix") {
+        // 九宫格Tab只显示九宫格文件状态
+        items = [
+          { label: "九宫格文件", value: empty(model.sources.matrixWorkbook) ? "未上传" : `${formatInteger(model.sources.matrixWorkbook.rows.length)} 条` },
+        ];
+      } else {
+        // 驾驶舱Tab显示驾驶舱相关文件状态
+        items = [
+          { label: "商品资料", value: empty(model.sources.product) ? "未上传" : `${formatInteger(model.sources.product.rows.length)} 条` },
+          { label: "销存数据", value: empty(model.sources.inventorySales) ? "未上传" : `${formatInteger(model.sources.inventorySales.rows.length)} 条` },
+          { label: "仓库库存", value: empty(model.sources.warehouse) ? "未上传" : `${formatInteger(model.sources.warehouse.rows.length)} 条` },
+          { label: "门店库存", value: empty(model.sources.storeInventory) ? "未上传" : `${formatInteger(model.sources.storeInventory.rows.length)} 条` },
+          { label: "渠道销售", value: empty(model.sources.channelSales) ? "未上传" : `${formatInteger(model.sources.channelSales.rows.length)} 条` },
+          { label: "门店销售", value: empty(model.sources.storeSales) ? "未上传" : `${formatInteger(model.sources.storeSales.rows.length)} 条` },
+        ];
+      }
 
       host.innerHTML = items.map((item) => `
         <div class="status-item">
@@ -2742,18 +2774,21 @@ const COCKPIT_SUBTABS = [
         `;
       }
       const chipRows = (cellRows, cellKey) => {
-        const topRows = cellRows.slice(0, 4);
-        const extra = Math.max(0, cellRows.length - topRows.length);
+        const isExpanded = state.matrixExpandedCells[cellKey];
+        const itemsPerCell = state.matrixItemsPerCell || 4;
+        const displayRows = isExpanded ? cellRows : cellRows.slice(0, itemsPerCell);
+        const extra = Math.max(0, cellRows.length - displayRows.length);
         return `
           <div class="sku-strip">
-            ${topRows.map((row) => `
+            ${displayRows.map((row) => `
               <button type="button" class="sku-chip" data-matrix-jump="${escapeHtml(row.key)}" title="点击跳转到联动总表：${escapeHtml(row.productName || "")}">
-                <div class="sku-thumb">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(row.productName || "")}" onerror="this.remove();this.parentElement.textContent='无图';">` : "无图"}</div>
-                <small>${escapeHtml(row.productName || "-")}</small>
+                <div class="sku-thumb">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(shortenProductName(row.productName) || "")}" onerror="this.remove();this.parentElement.textContent='无图';">` : "无图"}</div>
+                <small>${escapeHtml(shortenProductName(row.productName) || "-")}</small>
                 <small>${escapeHtml(row.barcode || row.sku || "-")}</small>
               </button>
             `).join("")}
-            ${extra > 0 ? `<div class="matrix-more">还有 ${extra} 个 SKU</div>` : ""}
+            ${extra > 0 ? `<div class="matrix-more" data-matrix-expand="${escapeHtml(cellKey)}">还有 ${extra} 个 SKU，点击展开</div>` : ""}
+            ${isExpanded ? `<div class="matrix-more" data-matrix-collapse="${escapeHtml(cellKey)}">点击收起</div>` : ""}
           </div>
         `;
       };
@@ -2811,6 +2846,12 @@ const COCKPIT_SUBTABS = [
               <select data-matrix-price>
                 ${priceOptions.map((item) => `<option value="${escapeHtml(item)}" ${state.matrixFilters.isRegularPrice === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}
               </select>
+            </label>
+            <label>
+              每格显示
+              <div style="display:flex;gap:4px;">
+                ${[4, 8, 12].map(n => `<button type="button" class="${state.matrixItemsPerCell === n ? 'primary' : 'ghost'}" data-matrix-items="${n}" style="padding:6px 12px;font-size:12px;">${n}</button>`).join('')}
+              </div>
             </label>
             <button class="ghost" data-matrix-reset>重置</button>
           </div>
@@ -2921,8 +2962,9 @@ const COCKPIT_SUBTABS = [
         return `<th class="${sortable ? "sortable" : ""}${resizable ? " resizable" : ""}" data-sort-key="${escapeHtml(key || "")}" data-tab-id="${escapeHtml(activeTabId)}">${escapeHtml(col.label)}${arrow ? `<span class="sort-arrow">${arrow}</span>` : ""}${resizable ? `<span class="column-resizer" data-column-resize-handle data-column-key="${escapeHtml(key)}" data-tab-id="${escapeHtml(activeTabId)}" aria-hidden="true"></span>` : ""}</th>`;
       }).join("");
 
+      const isLinkedTable = tabId === "linked" || title.includes("联动总表");
       return `
-        <div class="card block">
+        <div class="card block" ${isLinkedTable ? 'data-linked-table="true"' : ''}>
           <div class="block-head">
             <div>
               <h2>${escapeHtml(title)}</h2>
@@ -3269,6 +3311,31 @@ const COCKPIT_SUBTABS = [
           generateMatrixImage();
           return;
         }
+        const matrixExpand = event.target.closest("[data-matrix-expand]");
+        if (matrixExpand) {
+          const cellKey = matrixExpand.dataset.matrixExpand;
+          state.matrixExpandedCells[cellKey] = true;
+          render();
+          return;
+        }
+        const matrixCollapse = event.target.closest("[data-matrix-collapse]");
+        if (matrixCollapse) {
+          const cellKey = matrixCollapse.dataset.matrixCollapse;
+          state.matrixExpandedCells[cellKey] = false;
+          render();
+          return;
+        }
+        const matrixItemsBtn = event.target.closest("[data-matrix-items]");
+        if (matrixItemsBtn) {
+          const n = parseInt(matrixItemsBtn.dataset.matrixItems, 10);
+          if (n && [4, 8, 12].includes(n)) {
+            state.matrixItemsPerCell = n;
+            // 重置所有展开状态
+            state.matrixExpandedCells = {};
+            render();
+          }
+          return;
+        }
         const pagerButton = event.target.closest("[data-page-action]");
         if (pagerButton) {
           const tabId = pagerButton.dataset.tabId || state.activeTab || "overview";
@@ -3412,14 +3479,21 @@ const COCKPIT_SUBTABS = [
     function jumpToLinkedRow(key) {
       if (!key) return;
       state.matrixFocusKey = key;
-      state.activeTab = "linked";
-      const model = buildModel();
-      const pageSize = getTableState("linked").pageSize || 20;
-      const index = model.linkedRows.findIndex((row) => row.key === key);
-      const page = index >= 0 ? Math.floor(index / pageSize) + 1 : 1;
-      updateTableState("linked", { page, sortKey: "", sortDir: "desc" });
+      // 保持在当前 Tab，只滚动到联动总表
       render();
-      requestAnimationFrame(scrollToFocusedRow);
+      requestAnimationFrame(() => {
+        scrollToLinkedTable();
+        scrollToFocusedRow();
+      });
+    }
+
+    function scrollToLinkedTable() {
+      const host = document.getElementById("tab-content");
+      if (!host) return;
+      const linkedTable = host.querySelector("[data-linked-table]");
+      if (linkedTable && typeof linkedTable.scrollIntoView === "function") {
+        linkedTable.scrollIntoView({ block: "start", behavior: "smooth" });
+      }
     }
 
     function scrollToFocusedRow() {
