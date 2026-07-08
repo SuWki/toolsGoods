@@ -757,6 +757,108 @@
       background: rgba(20, 99, 86, .08);
     }
 
+    /* 大宫格弹窗样式 */
+    .big-cell-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(45, 36, 29, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+
+    .big-cell-modal {
+      background: var(--panel-strong);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      width: 100%;
+      max-width: 900px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .big-cell-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .big-cell-header h3 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .big-cell-close {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      background: var(--panel-strong);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      color: var(--muted);
+      transition: all .15s ease;
+    }
+
+    .big-cell-close:hover {
+      background: var(--danger-soft);
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+
+    .big-cell-content {
+      padding: 24px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .big-cell-content .sku-strip {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .big-cell-content .sku-chip {
+      padding: 12px;
+    }
+
+    .big-cell-content .sku-thumb {
+      height: 100px;
+    }
+
+    .big-cell-stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      padding: 16px;
+      background: var(--bg);
+      border-radius: 10px;
+    }
+
+    .big-cell-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .big-cell-stat small {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .big-cell-stat strong {
+      font-size: 18px;
+      color: var(--ink);
+    }
+
     @media (max-width: 1200px) {
       .layout,
       .kpis,
@@ -958,8 +1060,9 @@ const COCKPIT_SUBTABS = [
         isRegularPrice: "全部",
       },
       salesPeriod: getDefaultSalesPeriod(),
-      matrixExpandedCells: {}, // 记录哪些格子展开
-      matrixItemsPerCell: 4, // 每个格子显示商品数量
+matrixExpandedCells: {}, // 记录哪些格子展开
+matrixItemsPerCell: 4, // 每个格子显示商品数量
+matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
     };
 
     const columnResizeState = {
@@ -2021,6 +2124,8 @@ const COCKPIT_SUBTABS = [
     function buildLinkedRows(sources) {
       const map = new Map();
       const periodDays = getSalesPeriodDays();
+      // 用于计算加权平均到期日期的批次数据收集
+      const batchExpiryData = new Map(); // key -> [{expiryDate, availableQty}]
 
       const ensure = (key) => {
         if (!map.has(key)) {
@@ -2044,6 +2149,7 @@ const COCKPIT_SUBTABS = [
             remainingDays: null,
             productionDate: "",
             expiryDate: "",
+            avgExpiryDate: "", // 加权平均到期日期
             sourceCount: 0,
             sourceFlags: {
               product: false,
@@ -2055,6 +2161,36 @@ const COCKPIT_SUBTABS = [
           });
         }
         return map.get(key);
+      };
+
+      // 收集批次到期日期数据用于加权平均计算
+      const collectBatchExpiry = (key, expiryDate, availableQty) => {
+        if (!expiryDate || !availableQty || availableQty <= 0) return;
+        if (!batchExpiryData.has(key)) {
+          batchExpiryData.set(key, []);
+        }
+        batchExpiryData.get(key).push({ expiryDate, availableQty });
+      };
+
+      // 计算加权平均到期日期
+      const calculateWeightedAvgExpiry = (key) => {
+        const batches = batchExpiryData.get(key);
+        if (!batches || batches.length === 0) return null;
+        
+        let totalWeight = 0;
+        let weightedTimestamp = 0;
+        
+        for (const batch of batches) {
+          const date = new Date(batch.expiryDate);
+          if (Number.isNaN(date.getTime())) continue;
+          totalWeight += batch.availableQty;
+          weightedTimestamp += date.getTime() * batch.availableQty;
+        }
+        
+        if (totalWeight === 0) return null;
+        
+        const avgDate = new Date(Math.round(weightedTimestamp / totalWeight));
+        return avgDate.toISOString().split('T')[0]; // 返回 YYYY-MM-DD 格式
       };
 
       const mergeIdentity = (target, row) => {
@@ -2087,6 +2223,8 @@ const COCKPIT_SUBTABS = [
         }
         item.productionDate = item.productionDate || row.productionDate || "";
         item.expiryDate = item.expiryDate || row.expiryDate || "";
+        // 收集批次到期日期数据用于加权平均计算（可用库存 > 0）
+        collectBatchExpiry(row.key, row.expiryDate, row.availableQty);
       });
 
       sources.storeInventory.rows.forEach((row) => {
@@ -2101,6 +2239,8 @@ const COCKPIT_SUBTABS = [
         }
         item.productionDate = item.productionDate || row.productionDate || "";
         item.expiryDate = item.expiryDate || row.expiryDate || "";
+        // 收集批次到期日期数据用于加权平均计算（可用库存 > 0）
+        collectBatchExpiry(row.key, row.expiryDate, row.availableQty);
       });
 
       sources.channelSales.rows.forEach((row) => {
@@ -2131,6 +2271,8 @@ const COCKPIT_SUBTABS = [
         item.slowRisk = evaluateSlowRisk(item);
         item.expiryRisk = evaluateExpiryRisk(item);
         item.sourceCount = Object.values(item.sourceFlags).filter(Boolean).length;
+        // 计算加权平均到期日期
+        item.avgExpiryDate = calculateWeightedAvgExpiry(item.key) || "";
         return item;
       }).sort((a, b) => {
         const aScore = a.totalSalesQty || a.totalInventoryQty || 0;
@@ -2799,7 +2941,7 @@ const COCKPIT_SUBTABS = [
         const isExpanded = state.matrixExpandedCells[cell.key];
         const previewRows = isExpanded ? cell.rows : cell.rows.slice(0, itemsPerCell);
         return `
-          <div class="matrix-cell ${theme}" data-cell-key="${escapeHtml(cell.key)}">
+          <div class="matrix-cell ${theme}" data-cell-key="${escapeHtml(cell.key)}" data-matrix-big-cell="${escapeHtml(cell.key)}" style="cursor:pointer;" title="点击查看大宫格">
             <div class="matrix-cell-head">
               <div>
                 <h3>${escapeHtml(cell.meta.title)}</h3>
@@ -2815,6 +2957,50 @@ const COCKPIT_SUBTABS = [
           </div>
         `;
       });
+
+      // 渲染大宫格弹窗
+      const renderBigCellModal = () => {
+        if (!state.matrixBigCell) return "";
+        const cell = model.matrixCells.find(c => c.key === state.matrixBigCell.cellKey);
+        if (!cell) return "";
+        const theme = cell.meta.theme || "neutral";
+        const totalAmount = cell.rows.reduce((sum, row) => sum + (row.inventoryAmount || 0), 0);
+        return `
+          <div class="big-cell-overlay" data-big-cell-overlay>
+            <div class="big-cell-modal">
+              <div class="big-cell-header">
+                <h3>${escapeHtml(cell.meta.title)} <span style="font-size:14px;font-weight:normal;color:var(--muted);">(${escapeHtml(cell.meta.badge)})</span></h3>
+                <button class="big-cell-close" data-big-cell-close title="关闭">&times;</button>
+              </div>
+              <div class="big-cell-content">
+                <div class="big-cell-stats">
+                  <div class="big-cell-stat">
+                    <small>商品数量</small>
+                    <strong>${formatInteger(cell.skuCount)}</strong>
+                  </div>
+                  <div class="big-cell-stat">
+                    <small>总库存</small>
+                    <strong>${formatInteger(cell.inventoryQty)} 件</strong>
+                  </div>
+                  <div class="big-cell-stat">
+                    <small>总金额</small>
+                    <strong>${formatNumber(totalAmount)}</strong>
+                  </div>
+                </div>
+                <div class="sku-strip">
+                  ${cell.rows.map((row) => `
+                    <button type="button" class="sku-chip" data-matrix-jump="${escapeHtml(row.key)}" title="点击跳转到联动总表：${escapeHtml(row.productName || "")}">
+                      <div class="sku-thumb">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(shortenProductName(row.productName) || "")}" onerror="this.remove();this.parentElement.textContent='无图';">` : "无图"}</div>
+                      <small>${escapeHtml(shortenProductName(row.productName) || "-")}</small>
+                      <small>${escapeHtml(row.barcode || row.sku || "-")}</small>
+                    </button>
+                  `).join("")}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      };
 
       return `
         <div class="panel matrix-panel" id="matrix-panel">
@@ -2907,6 +3093,7 @@ const COCKPIT_SUBTABS = [
             previewText: `当前筛选 ${formatInteger(rows.length)} 条`,
             rowClassName: (row) => row.key === state.matrixFocusKey ? "focus-row" : "",
           })}
+          ${renderBigCellModal()}
         </div>
       `;
     }
@@ -3581,6 +3768,51 @@ const COCKPIT_SUBTABS = [
       const exportBtn = host.querySelector("[data-matrix-export-image]");
       if (exportBtn) {
         exportBtn.addEventListener("click", generateMatrixImage);
+      }
+      
+      // 大宫格点击展开
+      host.querySelectorAll("[data-matrix-big-cell]").forEach((cell) => {
+        cell.addEventListener("click", (e) => {
+          // 如果点击的是商品芯片或展开按钮，不触发大宫格
+          if (e.target.closest("[data-matrix-jump]") || e.target.closest("[data-matrix-expand]") || e.target.closest("[data-matrix-collapse]")) {
+            return;
+          }
+          const cellKey = cell.dataset.matrixBigCell;
+          state.matrixBigCell = { cellKey };
+          render();
+        });
+      });
+      
+      // 大宫格关闭按钮
+      const bigCellClose = host.querySelector("[data-big-cell-close]");
+      if (bigCellClose) {
+        bigCellClose.addEventListener("click", () => {
+          state.matrixBigCell = null;
+          render();
+        });
+      }
+      
+      // 大宫格遮罩层点击关闭
+      const bigCellOverlay = host.querySelector("[data-big-cell-overlay]");
+      if (bigCellOverlay) {
+        bigCellOverlay.addEventListener("click", (e) => {
+          if (e.target === bigCellOverlay) {
+            state.matrixBigCell = null;
+            render();
+          }
+        });
+      }
+      
+      // ESC 键关闭大宫格
+      if (state.matrixBigCell) {
+        const escHandler = (e) => {
+          if (e.key === "Escape") {
+            state.matrixBigCell = null;
+            render();
+            document.removeEventListener("keydown", escHandler);
+          }
+        };
+        document.addEventListener("keydown", escHandler);
       }
     }
 
