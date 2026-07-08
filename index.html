@@ -838,12 +838,21 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script>
     const PREVIEW_LIMIT = 120;
     const MIN_COLUMN_WIDTH = 72;
     const APP_CACHE_KEY = "toolsGoods.dashboardCache.v1";
     const SOURCE_CONFIGS = [
+      {
+        key: "matrixWorkbook",
+        label: "九宫格文件",
+        hint: "商品资料 + 销存数据，一张表直接生成九宫格",
+        preferredSheets: ["总库存情况"],
+        parser: parseMatrixWorkbookRows,
+      },
       {
         key: "product",
         label: "商品资料",
@@ -891,7 +900,6 @@
     const TABS = [
       { id: "overview", label: "总览" },
       { id: "matrix", label: "九宫格看板" },
-      { id: "inventorySales", label: "销存数据" },
       { id: "product", label: "商品资料" },
       { id: "warehouse", label: "仓库库存" },
       { id: "storeInventory", label: "门店库存" },
@@ -904,7 +912,7 @@
     ];
 
     const state = {
-      activeTab: "overview",
+      activeTab: "matrix",
       sources: Object.fromEntries(SOURCE_CONFIGS.map((cfg) => [cfg.key, createEmptySourceState(cfg)])),
       tableState: {},
       matrixFocusKey: "",
@@ -938,6 +946,7 @@
         sheetName: "",
         importedAt: "",
         rows: [],
+        imageDataByTarget: {},
         error: "",
         loading: false,
       };
@@ -950,7 +959,13 @@
         fileName: source.fileName,
         sheetName: source.sheetName,
         importedAt: source.importedAt,
-        rows: source.rows,
+        rows: Array.isArray(source.rows)
+          ? source.rows.map((row) => {
+              if (source.key !== "matrixWorkbook") return row;
+              const { imageDataByTarget, imageUrl, ...safeRow } = row || {};
+              return safeRow;
+            })
+          : [],
         error: source.error,
       };
     }
@@ -983,15 +998,16 @@
           for (const cfg of SOURCE_CONFIGS) {
             const saved = payload.sources[cfg.key];
             if (!saved || !Array.isArray(saved.rows)) continue;
-            state.sources[cfg.key] = {
-              ...createEmptySourceState(cfg),
-              ...saved,
-              key: cfg.key,
-              label: cfg.label,
-              loading: false,
-            };
+              state.sources[cfg.key] = {
+                ...createEmptySourceState(cfg),
+                ...saved,
+                key: cfg.key,
+                label: cfg.label,
+                imageDataByTarget: saved.imageDataByTarget || {},
+                loading: false,
+              };
+            }
           }
-        }
         if (payload && payload.tableState && typeof payload.tableState === "object") {
           state.tableState = payload.tableState;
         }
@@ -1499,6 +1515,188 @@
       return { sheetName: chosenSheetName, rows: getSheetRows(workbook.Sheets[chosenSheetName]) };
     }
 
+    const MATRIX_IMAGE_MIME = {
+      png: "image/png",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      webp: "image/webp",
+      gif: "image/gif",
+      bmp: "image/bmp",
+      tif: "image/tiff",
+      tiff: "image/tiff",
+    };
+
+    function getSheetCell(sheet, rowNumber, colNumber) {
+      const cell = sheet?.[XLSX.utils.encode_cell({ r: rowNumber - 1, c: colNumber - 1 })];
+      return cell || null;
+    }
+
+    function getSheetCellValue(sheet, rowNumber, colNumber) {
+      const cell = getSheetCell(sheet, rowNumber, colNumber);
+      if (!cell) return "";
+      const value = cell.v;
+      return value === null || value === undefined ? "" : value;
+    }
+
+    function getSheetCellText(sheet, rowNumber, colNumber) {
+      const value = getSheetCellValue(sheet, rowNumber, colNumber);
+      return String(value ?? "").trim();
+    }
+
+    function extractDispImgId(cell) {
+      const text = String(cell?.f || cell?.v || cell?.w || "").trim();
+      const match = text.match(/ID_[0-9A-F]+/i);
+      return match ? match[0] : "";
+    }
+
+    function getMimeFromTarget(target) {
+      const ext = String(target || "").split(".").pop().toLowerCase();
+      return MATRIX_IMAGE_MIME[ext] || "image/png";
+    }
+
+    function parseXmlDocument(xmlText) {
+      const parser = new DOMParser();
+      return parser.parseFromString(xmlText, "application/xml");
+    }
+
+    async function buildMatrixImageLookup(zip) {
+      const imageIdToTarget = new Map();
+      const relText = await zip.file("xl/_rels/cellimages.xml.rels")?.async("string");
+      const xmlText = await zip.file("xl/cellimages.xml")?.async("string");
+      if (!relText || !xmlText) return imageIdToTarget;
+
+      const relDoc = parseXmlDocument(relText);
+      const xmlDoc = parseXmlDocument(xmlText);
+      const relNodes = Array.from(relDoc.getElementsByTagName("Relationship"));
+      const targetByRelId = new Map(relNodes.map((node) => [node.getAttribute("Id") || "", node.getAttribute("Target") || ""]));
+      const cellImages = Array.from(xmlDoc.getElementsByTagNameNS("*", "cellImage"));
+
+      cellImages.forEach((cellImage) => {
+        const cNvPr = cellImage.getElementsByTagNameNS("*", "cNvPr")[0];
+        const blip = cellImage.getElementsByTagNameNS("*", "blip")[0];
+        const imageId = cNvPr?.getAttribute("name") || "";
+        const relId = blip?.getAttribute("r:embed") || blip?.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "embed") || "";
+        const target = targetByRelId.get(relId) || "";
+        if (imageId && target) {
+          imageIdToTarget.set(imageId, target);
+        }
+      });
+
+      return imageIdToTarget;
+    }
+
+    async function buildMatrixImageData(zip, target) {
+      if (!target) return "";
+      const normalizedTarget = target.startsWith("xl/") ? target : `xl/${target}`;
+      const file = zip.file(normalizedTarget);
+      if (!file) return "";
+      const base64 = await file.async("base64");
+      return `data:${getMimeFromTarget(target)};base64,${base64}`;
+    }
+
+    async function parseMatrixWorkbookRowsFromFile(file) {
+      const buffer = await file.arrayBuffer();
+      const zip = await JSZip.loadAsync(buffer);
+      const workbook = XLSX.read(buffer, { type: "array", cellDates: true, raw: false });
+      const sheetName = findPreferredSheetName(workbook.SheetNames || [], ["总库存情况"]) || workbook.SheetNames?.[0] || "";
+      if (!sheetName) {
+        throw new Error("未找到总库存情况工作表");
+      }
+
+      const sheet = workbook.Sheets[sheetName];
+      if (!sheet || !sheet["!ref"]) {
+        throw new Error("九宫格文件没有可读取的数据");
+      }
+
+      const imageLookup = await buildMatrixImageLookup(zip);
+      const imageTargets = new Map();
+      const range = XLSX.utils.decode_range(sheet["!ref"]);
+      const maxRow = range.e.r + 1;
+      const rows = [];
+
+      for (let rowNumber = 4; rowNumber <= maxRow; rowNumber += 1) {
+        const productName = getSheetCellText(sheet, rowNumber, 4);
+        const barcode = getSheetCellText(sheet, rowNumber, 1);
+        const sku = getSheetCellText(sheet, rowNumber, 10);
+        const spec = getSheetCellText(sheet, rowNumber, 5);
+        const category = getSheetCellText(sheet, rowNumber, 6);
+        const productionNote = getSheetCellText(sheet, rowNumber, 7);
+        const isRegularPrice = parseYesNo(getSheetCellValue(sheet, rowNumber, 8));
+        const retailPrice = maybeNumber(getSheetCellValue(sheet, rowNumber, 9));
+        const currentStock = parseNumber(getSheetCellValue(sheet, rowNumber, 11), 0);
+        const stockMonths = maybeNumber(getSheetCellValue(sheet, rowNumber, 12));
+        const remainingDays = maybeNumber(getSheetCellValue(sheet, rowNumber, 13));
+        const salesBand = getSheetCellText(sheet, rowNumber, 14);
+        const stockHealth = getSheetCellText(sheet, rowNumber, 15) || getStockHealthLabel(stockMonths);
+        const salesTrend = getSheetCellText(sheet, rowNumber, 16);
+        const salesMonthValues = [];
+        for (let col = 24; col <= 30; col += 1) {
+          salesMonthValues.push(parseNumber(getSheetCellValue(sheet, rowNumber, col), 0));
+        }
+        const salesQty = salesMonthValues.reduce((sum, value) => sum + value, 0);
+        const monthlyAverage = salesQty > 0 ? salesQty / salesMonthValues.length : 0;
+        const derivedStockMonths = stockMonths !== null && stockMonths !== undefined
+          ? stockMonths
+          : (monthlyAverage > 0 ? currentStock / monthlyAverage : null);
+        const sellOutDays = salesQty > 0 ? (currentStock / salesQty) * (salesMonthValues.length * 30) : null;
+        const canSellBeforeExpiry = sellOutDays !== null && remainingDays !== null ? sellOutDays <= remainingDays : null;
+        const imageCell = getSheetCell(sheet, rowNumber, 3);
+        const imageId = extractDispImgId(imageCell);
+        const imageTarget = imageLookup.get(imageId) || "";
+        if (imageId && imageTarget) {
+          imageTargets.set(imageId, imageTarget);
+        }
+
+        if (!productName && !barcode && !sku) continue;
+
+        rows.push({
+          key: makeBarcodeKey({ barcode, sku, specCode: sku, productCode: sku, productName, spec }),
+          barcode,
+          id: getSheetCellText(sheet, rowNumber, 2),
+          imageId,
+          imageTarget,
+          productName,
+          spec,
+          category,
+          productionNote,
+          isRegularPrice,
+          retailPrice,
+          sku,
+          stockQty: currentStock,
+          stockMonths: derivedStockMonths,
+          remainingDays,
+          salesBand: salesBand || "",
+          stockHealth,
+          salesTrend,
+          salesQty,
+          monthlyAverageSales: monthlyAverage,
+          sellOutDays,
+          canSellBeforeExpiry,
+          raw: Array.from({ length: 30 }, (_, idx) => getSheetCellValue(sheet, rowNumber, idx + 1)),
+        });
+      }
+
+      const uniqueTargets = Array.from(new Set(Array.from(imageTargets.values())));
+      const imageDataByTarget = {};
+      await Promise.all(uniqueTargets.map(async (target) => {
+        imageDataByTarget[target] = await buildMatrixImageData(zip, target);
+      }));
+
+      rows.forEach((row) => {
+        row.imageUrl = row.imageTarget ? imageDataByTarget[row.imageTarget] || "" : "";
+      });
+
+      return {
+        sheetName,
+        rows,
+        imageDataByTarget,
+      };
+    }
+
+    function parseMatrixWorkbookRows(rows) {
+      return Array.isArray(rows) ? rows : [];
+    }
+
     function parseProductRows(rows) {
       const [headers, ...body] = rows;
       const map = headerIndex(headers || []);
@@ -1940,6 +2138,128 @@
       return metaMap[cellKey] || { title: cellKey, badge: "待判定", theme: "neutral" };
     }
 
+    function buildMatrixRowsFromWorkbook(source) {
+      const periodMonths = 7;
+      const periodDays = periodMonths * 30;
+      const baseRows = Array.isArray(source?.rows) ? source.rows.slice() : [];
+      const rows = baseRows
+        .map((row) => {
+          const salesQty = parseNumber(row.salesQty, 0);
+          const stockQty = parseNumber(row.stockQty, 0);
+          const retailPrice = maybeNumber(row.retailPrice);
+          const inventoryAmount = maybeNumber(row.inventoryAmount);
+          const stockMonths = maybeNumber(row.stockMonths);
+          const remainingDays = maybeNumber(row.remainingDays);
+          const sellOutDays = row.sellOutDays !== null && row.sellOutDays !== undefined
+            ? row.sellOutDays
+            : (salesQty > 0 ? (stockQty / salesQty) * periodDays : null);
+          const derivedStockMonths = stockMonths !== null && stockMonths !== undefined
+            ? stockMonths
+            : (salesQty > 0 ? (stockQty / salesQty) * periodMonths : null);
+          const canSellBeforeExpiry = row.canSellBeforeExpiry !== null && row.canSellBeforeExpiry !== undefined
+            ? row.canSellBeforeExpiry
+            : (remainingDays !== null && sellOutDays !== null ? sellOutDays <= remainingDays : null);
+
+          return {
+            ...row,
+            salesQty,
+            stockQty,
+            retailPrice,
+            inventoryAmount: inventoryAmount !== null && inventoryAmount !== undefined
+              ? inventoryAmount
+              : (retailPrice !== null && retailPrice !== undefined ? stockQty * retailPrice : null),
+            stockMonths: derivedStockMonths,
+            sellOutDays,
+            canSellBeforeExpiry,
+            stockHealth: row.stockHealth || getStockHealthLabel(derivedStockMonths),
+            salesBand: row.salesBand || "",
+          };
+        })
+        .filter((row) => row.productName || row.barcode || row.sku);
+
+      const grouped = new Map();
+      rows.forEach((row) => {
+        const groupKey = normalizeText(row.category || "未分类");
+        if (!grouped.has(groupKey)) grouped.set(groupKey, []);
+        grouped.get(groupKey).push(row);
+      });
+      grouped.forEach((groupRows) => {
+        const sorted = groupRows.slice().sort((a, b) => {
+          const aScore = a.salesQty || 0;
+          const bScore = b.salesQty || 0;
+          if (bScore !== aScore) return bScore - aScore;
+          return compareValues(a.productName, b.productName);
+        });
+        const count = sorted.length;
+        sorted.forEach((row, index) => {
+          const percent = count ? (index + 1) / count : null;
+          row.salesBand = row.salesBand || getSalesBandLabel(percent);
+          row.salesRankPercent = percent;
+          row.matrixMeta = getMatrixCellMeta(row);
+        });
+      });
+
+      const categoryOptions = Array.from(new Set(rows.map((row) => row.category || "未分类"))).sort((a, b) => a.localeCompare(b, "zh-CN"));
+      const filtered = rows.filter((row) => {
+        const categoryFilter = state.matrixFilters.category || "全部";
+        const priceFilter = state.matrixFilters.isRegularPrice || "全部";
+        if (categoryFilter !== "全部" && (row.category || "未分类") !== categoryFilter) return false;
+        if (priceFilter !== "全部" && (row.isRegularPrice || "未设置") !== priceFilter) return false;
+        return true;
+      });
+
+      const gridOrder = [
+        ["健康", "畅销"],
+        ["健康", "平销"],
+        ["健康", "滞销"],
+        ["风险", "畅销"],
+        ["风险", "平销"],
+        ["风险", "滞销"],
+        ["积压", "畅销"],
+        ["积压", "平销"],
+        ["积压", "滞销"],
+      ];
+      const cells = gridOrder.map(([health, sales]) => {
+        const cellRows = filtered.filter((row) => row.stockHealth === health && row.salesBand === sales)
+          .sort((a, b) => (b.salesQty || 0) - (a.salesQty || 0));
+        const skuCount = cellRows.length;
+        const inventoryQty = cellRows.reduce((sum, row) => sum + (row.stockQty || 0), 0);
+        const inventoryAmount = cellRows.reduce((sum, row) => sum + (row.inventoryAmount || 0), 0);
+        return {
+          key: `${health}|${sales}`,
+          health,
+          sales,
+          rows: cellRows,
+          skuCount,
+          inventoryQty,
+          inventoryAmount,
+          meta: getMatrixCellMeta({ stockMonths: health === "健康" ? 12 : health === "风险" ? 18 : 36, salesBand: sales }),
+        };
+      });
+
+      const summary = {
+        totalSku: filtered.length,
+        totalInventoryQty: filtered.reduce((sum, row) => sum + (row.stockQty || 0), 0),
+        totalInventoryAmount: filtered.reduce((sum, row) => sum + (row.inventoryAmount || 0), 0),
+        healthyCount: filtered.filter((row) => row.stockHealth === "健康").length,
+        riskCount: filtered.filter((row) => row.stockHealth === "风险").length,
+        backlogCount: filtered.filter((row) => row.stockHealth === "积压").length,
+        selloutSafeCount: filtered.filter((row) => row.canSellBeforeExpiry === true).length,
+        selloutRiskCount: filtered.filter((row) => row.canSellBeforeExpiry === false).length,
+        categoryOptions,
+      };
+
+      return {
+        rows,
+        filteredRows: filtered,
+        cells,
+        summary,
+        periodDays,
+        periodLabel: "最近 7 个月净出库",
+        categoryOptions,
+      };
+    }
+
     function buildMatrixRows(sources) {
       const productMap = new Map(sources.product.rows.map((row) => [row.key, row]));
       const stockMap = new Map(sources.inventorySales.rows.map((row) => [row.key, row]));
@@ -2132,6 +2452,7 @@
         return modelCache.model;
       }
 
+      const matrixWorkbook = state.sources.matrixWorkbook;
       const product = state.sources.product;
       const inventorySales = state.sources.inventorySales;
       const warehouse = state.sources.warehouse;
@@ -2139,7 +2460,9 @@
       const channelSales = state.sources.channelSales;
       const storeSales = state.sources.storeSales;
 
-      const matrix = buildMatrixRows(state.sources);
+      const matrix = matrixWorkbook.rows.length
+        ? buildMatrixRowsFromWorkbook(matrixWorkbook)
+        : buildMatrixRows(state.sources);
       const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       const storeSalesAgg = summarizeStoreSales(storeSales.rows);
       const linkedRows = buildLinkedRows(state.sources);
@@ -2350,6 +2673,22 @@
       const rows = model.matrixFilteredRows;
       const categoryOptions = ["全部", ...model.matrixCategoryOptions];
       const priceOptions = ["全部", "是", "否", "未设置"];
+      if (!rows.length) {
+        return `
+          <div class="panel matrix-panel">
+            <div class="block-head">
+              <div>
+                <h2>九宫格看板</h2>
+                <div class="note">请先上传单文件《总库存情况》九宫格模板，系统会直接读取商品资料、库存、净出库和图片。</div>
+              </div>
+              <button class="primary" data-open-source="matrixWorkbook">上传九宫格文件</button>
+            </div>
+            <div class="soft-card">
+              <div class="note">上传后，这里会按“健康 / 风险 / 积压 × 畅销 / 平销 / 滞销”自动生成九宫格，并保留点击商品图片跳转明细的能力。</div>
+            </div>
+          </div>
+        `;
+      }
       const chipRows = (cellRows, cellKey) => {
         const topRows = cellRows.slice(0, 4);
         const extra = Math.max(0, cellRows.length - topRows.length);
@@ -2376,7 +2715,7 @@
               <div>
                 <h3>${escapeHtml(cell.meta.title)}</h3>
                 <div class="matrix-cell-stats">
-                  <span>SKU ${formatInteger(cell.skuCount)}</span>
+                  <span>商品 ${formatInteger(cell.skuCount)}</span>
                   <span>库存 ${formatInteger(cell.inventoryQty)} 件</span>
                   <span>金额 ${cell.inventoryAmount === null || cell.inventoryAmount === undefined ? "-" : formatNumber(cell.inventoryAmount)}</span>
                 </div>
@@ -2389,13 +2728,16 @@
       });
 
       return `
-        <div class="panel matrix-panel">
+        <div class="panel matrix-panel" id="matrix-panel">
           <div class="block-head">
             <div>
-              <h2>SKU 库存健康 × 销售表现九宫格分析</h2>
-              <div class="note">时间范围：${escapeHtml(model.matrixPeriodLabel)}，销售表现按同分类内前 30% / 中间 40% / 后 30% 划分，点击 SKU 图片会跳到联动总表对应行。</div>
+              <h2>商品库存健康 × 销售表现九宫格分析</h2>
+              <div class="note">时间范围：${escapeHtml(model.matrixPeriodLabel)}，销售表现按同分类内前 30% / 中间 40% / 后 30% 划分，点击商品图片会跳到联动总表对应行。</div>
             </div>
-            <span class="badge neutral">共 ${formatInteger(model.matrixSummary.totalSku)} 个 SKU</span>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <span class="badge neutral">共 ${formatInteger(model.matrixSummary.totalSku)} 个商品</span>
+              <button class="primary" data-matrix-export-image>导出图片</button>
+            </div>
           </div>
 
           <div class="matrix-toolbar">
@@ -2431,7 +2773,7 @@
           </div>
 
           <div class="soft-card">
-            <div class="note" style="margin-bottom:10px;font-weight:700;color:var(--ink);">销售表现（X轴）</div>
+              <div class="note" style="margin-bottom:10px;font-weight:700;color:var(--ink);">销售表现（横轴）</div>
             <div class="matrix-grid" style="grid-template-columns:88px repeat(3, minmax(0, 1fr));">
               <div></div>
               <div class="matrix-col-head">畅销（前30%）</div>
@@ -2447,7 +2789,7 @@
           </div>
 
           <div class="table-toolbar">
-            <p class="hint">点击任意 SKU 图片会跳到联动总表并高亮对应行。</p>
+            <p class="hint">点击任意商品图片会跳到联动总表并高亮对应行。</p>
           </div>
           ${tableSection({
             tabId: "linked",
@@ -2870,6 +3212,11 @@
           render();
           return;
         }
+        const matrixExportImage = event.target.closest("[data-matrix-export-image]");
+        if (matrixExportImage) {
+          generateMatrixImage();
+          return;
+        }
         const pagerButton = event.target.closest("[data-page-action]");
         if (pagerButton) {
           const tabId = pagerButton.dataset.tabId || state.activeTab || "overview";
@@ -3033,49 +3380,91 @@
       }
     }
 
-    function renderTabContent(model) {
-      const host = document.getElementById("tab-content");
-      if (!model.uploadedCount) {
-        host.innerHTML = "";
+    async function generateMatrixImage() {
+      const panel = document.getElementById("matrix-panel");
+      if (!panel) {
+        alert("未找到九宫格面板，请确保已上传文件并切换到九宫格看板");
         return;
       }
+      const exportBtn = panel.querySelector("[data-matrix-export-image]");
+      if (exportBtn) exportBtn.textContent = "生成中...";
+      try {
+        const canvas = await html2canvas(panel, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: "#fbf8f2",
+          logging: false,
+          foreignObjectRendering: false,
+          onclone: (clonedDoc) => {
+            const clonedPanel = clonedDoc.getElementById("matrix-panel");
+            if (clonedPanel) {
+              clonedPanel.style.boxShadow = "none";
+              clonedPanel.style.border = "1px solid #d8cdbf";
+              clonedPanel.style.fontFamily = '"Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Noto Sans CJK SC", "WenQuanYi Micro Hei", sans-serif';
+            }
+            const allElements = clonedDoc.querySelectorAll("*");
+            allElements.forEach((el) => {
+              if (el.style) {
+                el.style.fontFamily = '"Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Noto Sans CJK SC", "WenQuanYi Micro Hei", sans-serif';
+              }
+            });
+          }
+        });
+        const link = document.createElement("a");
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
+        link.download = `九宫格库存分析_${timestamp}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+      } catch (err) {
+        console.error("生成图片失败:", err);
+        alert("生成图片失败: " + (err.message || "未知错误"));
+      } finally {
+        if (exportBtn) exportBtn.textContent = "导出图片";
+      }
+    }
 
+    function renderTabContent(model) {
+      const host = document.getElementById("tab-content");
       switch (state.activeTab) {
+        case "matrix":
+          host.innerHTML = renderMatrixTab(model);
+          break;
         case "overview":
-          host.innerHTML = renderOverview(model);
+          host.innerHTML = model.uploadedCount ? renderOverview(model) : renderMatrixTab(model);
           break;
         case "product":
-          host.innerHTML = renderProductTab(model);
+          host.innerHTML = model.uploadedCount ? renderProductTab(model) : renderMatrixTab(model);
           break;
         case "inventorySales":
-          host.innerHTML = renderInventorySalesTab(model);
+          host.innerHTML = model.uploadedCount ? renderInventorySalesTab(model) : renderMatrixTab(model);
           break;
         case "warehouse":
-          host.innerHTML = renderWarehouseTab(model);
+          host.innerHTML = model.uploadedCount ? renderWarehouseTab(model) : renderMatrixTab(model);
           break;
         case "storeInventory":
-          host.innerHTML = renderStoreInventoryTab(model);
+          host.innerHTML = model.uploadedCount ? renderStoreInventoryTab(model) : renderMatrixTab(model);
           break;
         case "channelSales":
-          host.innerHTML = renderChannelSalesTab(model);
+          host.innerHTML = model.uploadedCount ? renderChannelSalesTab(model) : renderMatrixTab(model);
           break;
         case "storeSales":
-          host.innerHTML = renderStoreSalesTab(model);
+          host.innerHTML = model.uploadedCount ? renderStoreSalesTab(model) : renderMatrixTab(model);
           break;
         case "replenishment":
-          host.innerHTML = renderReplenishmentTab(model);
+          host.innerHTML = model.uploadedCount ? renderReplenishmentTab(model) : renderMatrixTab(model);
           break;
         case "slowmoving":
-          host.innerHTML = renderSlowmovingTab(model);
+          host.innerHTML = model.uploadedCount ? renderSlowmovingTab(model) : renderMatrixTab(model);
           break;
         case "expiry":
-          host.innerHTML = renderExpiryTab(model);
+          host.innerHTML = model.uploadedCount ? renderExpiryTab(model) : renderMatrixTab(model);
           break;
         case "linked":
-          host.innerHTML = renderLinkedTab(model);
+          host.innerHTML = model.uploadedCount ? renderLinkedTab(model) : renderMatrixTab(model);
           break;
         default:
-          host.innerHTML = renderOverview(model);
+          host.innerHTML = renderMatrixTab(model);
           state.activeTab = "overview";
       }
       bindTableInteractions();
@@ -3110,9 +3499,11 @@
         return;
       }
 
-      kpiGrid.style.display = "grid";
+      kpiGrid.style.display = model.uploadedCount ? "grid" : "none";
       tabsPanel.style.display = "block";
-      renderKpis(model);
+      if (model.uploadedCount) {
+        renderKpis(model);
+      }
       renderTabs(model);
       renderTabContent(model);
       cacheAppState();
@@ -3130,19 +3521,35 @@
       if (!skipInitialRender) render();
 
       try {
-        const fileData = await readRowsFromFile(file, cfg.preferredSheets);
-        const parsed = cfg.parser(fileData.rows);
-        state.sources[key] = {
-          ...createEmptySourceState(cfg),
-          key,
-          label: cfg.label,
-          fileName: file.name,
-          sheetName: fileData.sheetName,
-          importedAt: new Date().toISOString(),
-          rows: parsed,
-          loading: false,
-          error: "",
-        };
+        if (key === "matrixWorkbook") {
+          const fileData = await parseMatrixWorkbookRowsFromFile(file);
+          state.sources[key] = {
+            ...createEmptySourceState(cfg),
+            key,
+            label: cfg.label,
+            fileName: file.name,
+            sheetName: fileData.sheetName,
+            importedAt: new Date().toISOString(),
+            rows: fileData.rows,
+            imageDataByTarget: fileData.imageDataByTarget || {},
+            loading: false,
+            error: "",
+          };
+        } else {
+          const fileData = await readRowsFromFile(file, cfg.preferredSheets);
+          const parsed = cfg.parser(fileData.rows);
+          state.sources[key] = {
+            ...createEmptySourceState(cfg),
+            key,
+            label: cfg.label,
+            fileName: file.name,
+            sheetName: fileData.sheetName,
+            importedAt: new Date().toISOString(),
+            rows: parsed,
+            loading: false,
+            error: "",
+          };
+        }
       } catch (error) {
         state.sources[key] = {
           ...state.sources[key],
