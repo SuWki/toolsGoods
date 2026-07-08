@@ -1862,6 +1862,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           stockHealth,
           salesTrend,
           salesQty,
+          salesMonthValues: salesMonthValues.slice(), // 保存7个月的原始销售数据
           monthlyAverageSales: monthlyAverage,
           sellOutDays,
           canSellBeforeExpiry,
