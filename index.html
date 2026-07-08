@@ -1233,6 +1233,11 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 }).format(Math.round(Number(value)));
     }
 
+    function formatCurrency(value) {
+      if (value === null || value === undefined || value === "") return "-";
+      return "¥" + new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(Number(value));
+    }
+
     function stripHtmlTags(value) {
       return String(value ?? "")
         .replace(/<[^>]*>/g, " ")
@@ -2407,6 +2412,8 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
       const categoryOptions = Array.from(new Set(rows.map((row) => row.category || "未分类"))).sort((a, b) => a.localeCompare(b, "zh-CN"));
       const filtered = rows.filter((row) => {
+        // 即时库存为0的商品暂不计入统计
+        if ((row.stockQty || 0) === 0) return false;
         const categoryFilter = state.matrixFilters.category || "全部";
         const priceFilter = state.matrixFilters.isRegularPrice || "全部";
         if (categoryFilter !== "全部" && (row.category || "未分类") !== categoryFilter) return false;
@@ -2550,6 +2557,8 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
       const categoryOptions = Array.from(new Set(rows.map((row) => row.category || "未分类"))).sort((a, b) => a.localeCompare(b, "zh-CN"));
       const filtered = rows.filter((row) => {
+        // 即时库存为0的商品暂不计入统计
+        if ((row.stockQty || 0) === 0) return false;
         const categoryFilter = state.matrixFilters.category || "全部";
         const priceFilter = state.matrixFilters.isRegularPrice || "全部";
         if (categoryFilter !== "全部" && (row.category || "未分类") !== categoryFilter) return false;
@@ -2965,7 +2974,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
                 <div class="matrix-cell-stats">
                   <span>商品 ${formatInteger(cell.skuCount)}</span>
                   <span>库存 ${formatInteger(cell.inventoryQty)} 件</span>
-                  <span>金额 ${cell.inventoryAmount === null || cell.inventoryAmount === undefined ? "-" : formatNumber(cell.inventoryAmount)}</span>
+                  <span>金额 ${cell.inventoryAmount === null || cell.inventoryAmount === undefined ? "-" : formatCurrency(cell.inventoryAmount)}</span>
                 </div>
               </div>
               ${badge(theme === "good" ? "good" : theme === "danger" ? "danger" : "warn", cell.meta.badge)}
@@ -3001,7 +3010,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
                   </div>
                   <div class="big-cell-stat">
                     <small>总金额</small>
-                    <strong>${formatNumber(totalAmount)}</strong>
+                    <strong>${formatCurrency(totalAmount)}</strong>
                   </div>
                 </div>
                 <div class="sku-strip">
@@ -3232,7 +3241,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         { label: "品名", render: (row) => escapeHtml(row.productName || "-") },
         { label: "条码", render: (row) => escapeHtml(row.barcode || row.sku || "-") },
         { label: "规格", render: (row) => escapeHtml(row.spec || "-") },
-        { label: "零售价", render: (row) => row.retailPrice === null || row.retailPrice === undefined ? "-" : formatNumber(row.retailPrice) },
+        { label: "零售价", render: (row) => row.retailPrice === null || row.retailPrice === undefined ? "-" : formatCurrency(row.retailPrice) },
         { label: "仓库库存", render: (row) => formatInteger(row.warehouseAvailable || 0) },
         { label: "门店库存", render: (row) => formatInteger(row.storeAvailable || 0) },
         { label: "销售数量", render: (row) => formatInteger(row.totalSalesQty || 0) },
@@ -3270,7 +3279,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           { label: "品名", render: (row) => escapeHtml(row.productName || "-") },
           { label: "条码", render: (row) => escapeHtml(row.barcode || row.sku || "-") },
           { label: "规格", render: (row) => escapeHtml(row.spec || "-") },
-          { label: "零售价", render: (row) => row.retailPrice === null || row.retailPrice === undefined ? "-" : formatNumber(row.retailPrice) },
+          { label: "零售价", render: (row) => row.retailPrice === null || row.retailPrice === undefined ? "-" : formatCurrency(row.retailPrice) },
           { label: "保质期", render: (row) => row.shelfLifeDays === null || row.shelfLifeDays === undefined ? "-" : `${formatInteger(row.shelfLifeDays)} 天` },
           { label: "品牌", render: (row) => escapeHtml(row.brand || "-") },
           { label: "分类", render: (row) => escapeHtml(row.category || "-") },
@@ -3361,8 +3370,8 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           { label: "条码", render: (row) => escapeHtml(row.barcode || row.specCode || row.productCode || "-") },
           { label: "规格", render: (row) => escapeHtml(row.spec || "-") },
           { label: "销售数量", render: (row) => formatInteger(row.qty || 0) },
-          { label: "商品单价", render: (row) => row.unitPrice === null || row.unitPrice === undefined ? "-" : formatNumber(row.unitPrice) },
-          { label: "成交价", render: (row) => row.finalPrice === null || row.finalPrice === undefined ? "-" : formatNumber(row.finalPrice) },
+          { label: "商品单价", render: (row) => row.unitPrice === null || row.unitPrice === undefined ? "-" : formatCurrency(row.unitPrice) },
+          { label: "成交价", render: (row) => row.finalPrice === null || row.finalPrice === undefined ? "-" : formatCurrency(row.finalPrice) },
           { label: "记录数", render: (row) => formatInteger(row.orderCount || 0) },
           { label: "订单状态", render: (row) => escapeHtml(row.status || "-") },
         ],
@@ -3385,7 +3394,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           { label: "条码", render: (row) => escapeHtml(row.barcode || row.sku || "-") },
           { label: "规格", render: (row) => escapeHtml(row.spec || "-") },
           { label: "分类", render: (row) => escapeHtml(row.category || "-") },
-          { label: "零售价", render: (row) => row.retailPrice === null || row.retailPrice === undefined ? "-" : formatNumber(row.retailPrice) },
+          { label: "零售价", render: (row) => row.retailPrice === null || row.retailPrice === undefined ? "-" : formatCurrency(row.retailPrice) },
           { label: "是否正价", render: (row) => escapeHtml(row.isRegularPrice || "-") },
           { label: "销售数量", render: (row) => formatInteger(row.salesQty || 0), sortValue: (row) => row.salesQty || 0 },
           { label: "即时库存", render: (row) => formatInteger(row.stockQty || 0), sortValue: (row) => row.stockQty || 0 },
@@ -3479,12 +3488,12 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           { label: "品名", render: (row) => escapeHtml(row.productName || "-") },
           { label: "条码", render: (row) => escapeHtml(row.barcode || row.sku || "-") },
           { label: "规格", render: (row) => escapeHtml(row.spec || "-") },
-          { label: "零售价", render: (row) => row.retailPrice === null || row.retailPrice === undefined ? "-" : formatNumber(row.retailPrice) },
+          { label: "零售价", render: (row) => row.retailPrice === null || row.retailPrice === undefined ? "-" : formatCurrency(row.retailPrice) },
           { label: "仓库库存", render: (row) => formatInteger(row.warehouseAvailable || 0) },
           { label: "门店库存", render: (row) => formatInteger(row.storeAvailable || 0) },
           { label: "销售数量", render: (row) => formatInteger(row.totalSalesQty || 0) },
           { label: "库存深度", render: (row) => row.stockDepthDays === null || row.stockDepthDays === undefined ? "-" : `${formatNumber(row.stockDepthDays)} 天` },
-          { label: "保质期天数", render: (row) => row.remainingDays === null || row.remainingDays === undefined ? "-" : `${formatInteger(row.remainingDays)} 天` },
+          { label: "保质期", render: (row) => row.avgExpiryDate ? escapeHtml(row.avgExpiryDate) : "-" },
           { label: "数据覆盖", render: (row) => formatInteger(row.sourceCount || 0) },
         ],
         emptyText: "请先上传文件，系统会先把核心表联动起来。",
