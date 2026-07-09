@@ -3869,7 +3869,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           updateTableState(tabId, { sortKey: key, sortDir: nextDir, page: 1 });
           render();
         }
-      });
+      };
 
       host.addEventListener("mousemove", (event) => {
         const cell = event.target.closest("[data-tooltip]");
