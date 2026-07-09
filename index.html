@@ -49,31 +49,77 @@
     .topbar {
       display: flex;
       justify-content: space-between;
-      gap: 20px;
+      gap: 24px;
       align-items: flex-start;
-      margin-bottom: 18px;
+      margin-bottom: 22px;
+      flex-wrap: wrap;
+    }
+
+    .topbar-left {
+      flex: 1;
+      min-width: 300px;
+    }
+
+    .topbar-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 12px;
     }
 
     h1 {
       margin: 0;
-      font-size: 32px;
+      font-size: 28px;
       line-height: 1.15;
       letter-spacing: 0.2px;
     }
 
     .subtitle {
-      margin: 10px 0 0;
+      margin: 8px 0 0;
       max-width: 1040px;
       color: var(--muted);
       line-height: 1.65;
-      font-size: 14px;
+      font-size: 13px;
     }
 
     .pill-row {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin-top: 14px;
+      margin-top: 12px;
+    }
+
+    .mode-switch {
+      display: inline-flex;
+      gap: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px;
+      box-shadow: 0 2px 8px rgba(45, 36, 29, 0.06);
+    }
+
+    .mode-btn {
+      padding: 9px 22px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all .2s ease;
+      white-space: nowrap;
+    }
+
+    .mode-btn:hover {
+      color: var(--accent);
+    }
+
+    .mode-btn.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 2px 10px rgba(20, 99, 86, 0.28);
     }
 
     .actions {
@@ -127,8 +173,8 @@
 
     .layout {
       display: grid;
-      grid-template-columns: 380px minmax(0, 1fr);
-      gap: 18px;
+      grid-template-columns: 340px minmax(0, 1fr);
+      gap: 20px;
       align-items: start;
     }
 
@@ -148,12 +194,17 @@
       padding: 18px;
       display: grid;
       gap: 18px;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
     }
 
     .section-title {
       margin: 0 0 12px;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .source-grid {
@@ -245,7 +296,12 @@
 
     .main {
       display: grid;
-      gap: 14px;
+      gap: 16px;
+    }
+
+    .view-section {
+      display: grid;
+      gap: 16px;
     }
 
     .empty-state {
@@ -312,6 +368,16 @@
       padding: 14px;
       border-bottom: 1px solid rgba(216, 205, 191, .85);
       background: rgba(255, 255, 255, .36);
+    }
+
+    .tabs .tab-label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      align-self: center;
+      margin-right: 4px;
     }
 
     .tab {
@@ -943,8 +1009,9 @@
       .summary-grid,
       .matrix-kpis,
       .matrix-toolbar { grid-template-columns: 1fr 1fr; }
-      .sidebar { position: static; }
+      .sidebar { position: static; max-height: none; }
       .topbar { flex-direction: column; }
+      .topbar-right { align-items: flex-start; flex-direction: row; flex-wrap: wrap; gap: 12px; }
       .actions { justify-content: flex-start; }
     }
 
@@ -965,14 +1032,14 @@
     .subtabs {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid var(--line);
+      gap: 6px;
+      padding-top: 0;
+      border-top: none;
+      align-items: center;
     }
 
     .subtab {
-      padding: 6px 12px;
+      padding: 7px 14px;
       border: 1px solid var(--line);
       border-radius: 999px;
       background: var(--panel-strong);
@@ -997,34 +1064,35 @@
 <body>
   <div class="shell">
     <div class="topbar">
-      <div>
+      <div class="topbar-left">
         <h1>香水商品分析工具</h1>
-        <p class="subtitle">提供两个独立功能：1）驾驶舱 - 需要上传 5 个文件进行综合分析；2）九宫格 SKU - 只需上传单个《总库存情况》文件即可生成九宫格分析图。重新上传同一位置会直接覆盖刷新。</p>
+        <p class="subtitle" id="page-subtitle">选择上方模式开始分析：驾驶舱需要上传多个文件进行综合分析；九宫格只需上传单个《总库存情况》文件即可生成九宫格分析图。重新上传同一位置会直接覆盖刷新。</p>
         <div id="progress-pills" class="pill-row"></div>
       </div>
-      <div class="actions">
-        <button id="batch-upload" class="ghost">批量上传文件</button>
-        <button id="clear-all" class="ghost">清空全部文件</button>
-        <input id="batch-input" type="file" accept=".xlsx,.xls,.csv" multiple hidden>
-        <div id="batch-note" class="note" style="margin-top:8px;max-width:240px;"></div>
+      <div class="topbar-right">
+        <div class="mode-switch" id="mode-switch">
+          <button class="mode-btn active" data-mode="cockpit">驾驶舱</button>
+          <button class="mode-btn" data-mode="matrix">九宫格</button>
+        </div>
+        <div class="actions">
+          <button id="batch-upload" class="ghost">批量上传</button>
+          <button id="clear-all" class="ghost">清空全部</button>
+          <input id="batch-input" type="file" accept=".xlsx,.xls,.csv" multiple hidden>
+          <div id="batch-note" class="note" style="margin-top:4px;max-width:240px;text-align:right;"></div>
+        </div>
       </div>
     </div>
 
     <div class="layout">
       <aside class="panel sidebar">
         <section>
-          <h2 class="section-title">核心文件</h2>
+          <h2 class="section-title" id="sidebar-file-title">驾驶舱文件</h2>
           <div id="source-list" class="source-grid"></div>
         </section>
 
         <section>
           <h2 class="section-title">处理说明</h2>
-          <div class="soft-card">
-            <div class="note">1. 商品资料以条码为主键。</div>
-            <div class="note">2. 库存文件会保留仓库 / 门店、批次、生产日期和到期日期。</div>
-            <div class="note">3. 两个销售文件会分别汇总，后续补货、滞销、保质期预警都会直接复用这些标准化结果。</div>
-            <div class="note">4. 页面会在本地缓存已上传文件，刷新后可自动恢复；也支持批量选择多个文件导入。</div>
-          </div>
+          <div class="soft-card" id="sidebar-notes"></div>
         </section>
 
         <section>
@@ -1195,6 +1263,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         const payload = {
           version: 1,
           activeTab: state.activeTab,
+          cockpitSubtab: state.cockpitSubtab,
           tableState: state.tableState,
           matrixFocusKey: state.matrixFocusKey,
           matrixFilters: state.matrixFilters,
@@ -1248,6 +1317,9 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         }
         if (payload && payload.activeTab) {
           state.activeTab = payload.activeTab;
+        }
+        if (payload && payload.cockpitSubtab) {
+          state.cockpitSubtab = payload.cockpitSubtab;
         }
       } catch {
         // ignore corrupted cache
@@ -3038,28 +3110,24 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       `;
     }
 
-    function renderTabs(model) {
-      const host = document.getElementById("tabs");
-      console.log('renderTabs() 被调用, TABS:', TABS, '当前activeTab:', state.activeTab);
-      let html = TABS.map((tab) => `
-        <button class="tab ${state.activeTab === tab.id ? "active" : ""}" data-tab="${tab.id}">${escapeHtml(tab.label)}</button>
-      `).join("");
+    function renderModeSwitch(model) {
+      const host = document.getElementById("mode-switch");
+      if (!host) return;
+      host.querySelectorAll(".mode-btn").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.mode === state.activeTab);
+      });
+    }
 
-      // 如果在驾驶舱 Tab，显示子 Tab
-      if (state.activeTab === "cockpit") {
-        html += `<div class="subtabs">` + COCKPIT_SUBTABS.map((tab) => `
-          <button class="subtab ${state.cockpitSubtab === tab.id ? "active" : ""}" data-subtab="${tab.id}">${escapeHtml(tab.label)}</button>
-        `).join("") + `</div>`;
-      }
+    function renderCockpitSubtabs(model) {
+      const host = document.getElementById("tabs");
+      if (!host) return;
+      // 驾驶舱模式下显示子标签
+      let html = `<span class="tab-label">分析维度</span>`;
+      html += `<div class="subtabs">` + COCKPIT_SUBTABS.map((tab) => `
+        <button class="subtab ${state.cockpitSubtab === tab.id ? "active" : ""}" data-subtab="${tab.id}">${escapeHtml(tab.label)}</button>
+      `).join("") + `</div>`;
 
       host.innerHTML = html;
-
-      host.querySelectorAll(".tab").forEach((button) => {
-        button.addEventListener("click", () => {
-          state.activeTab = button.dataset.tab;
-          render(model);
-        });
-      });
 
       host.querySelectorAll(".subtab").forEach((button) => {
         button.addEventListener("click", () => {
@@ -3067,6 +3135,34 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           render(model);
         });
       });
+    }
+
+    function renderSidebarInfo(model) {
+      const titleEl = document.getElementById("sidebar-file-title");
+      const notesEl = document.getElementById("sidebar-notes");
+      const subtitleEl = document.getElementById("page-subtitle");
+      if (!titleEl || !notesEl) return;
+
+      if (state.activeTab === "matrix") {
+        titleEl.textContent = "九宫格文件";
+        subtitleEl.textContent = "九宫格模式：只需上传单个《总库存情况》文件，系统会自动读取商品资料、库存、净出库和图片，生成健康×销售九宫格分析图。";
+        notesEl.innerHTML = `
+          <div class="note">1. 仅需上传一个 Excel 文件，包含《总库存情况》工作表。</div>
+          <div class="note">2. 系统会自动读取条码、品名、库存数量、销售数据和商品图片。</div>
+          <div class="note">3. 九宫格按"健康 / 风险 / 积压 × 畅销 / 平销 / 滞销"自动划分。</div>
+          <div class="note">4. 点击商品图片可跳转到联动总表查看明细。</div>
+          <div class="note">5. 页面会在本地缓存已上传文件，刷新后可自动恢复。</div>
+        `;
+      } else {
+        titleEl.textContent = "驾驶舱文件";
+        subtitleEl.textContent = "驾驶舱模式：需要上传多个文件进行综合分析，包括商品资料、销存数据、仓库库存、门店库存和销售数据，支持补货、滞销和保质期预警。";
+        notesEl.innerHTML = `
+          <div class="note">1. 商品资料以条码为主键。</div>
+          <div class="note">2. 库存文件会保留仓库 / 门店、批次、生产日期和到期日期。</div>
+          <div class="note">3. 两个销售文件会分别汇总，后续补货、滞销、保质期预警都会直接复用这些标准化结果。</div>
+          <div class="note">4. 页面会在本地缓存已上传文件，刷新后可自动恢复；也支持批量选择多个文件导入。</div>
+        `;
+      }
     }
 
     function renderMatrixTab(model) {
@@ -3687,6 +3783,14 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           }
           return;
         }
+        // 九宫格空状态上传按钮
+        const openSource = event.target.closest("[data-open-source]");
+        if (openSource) {
+          const sourceKey = openSource.dataset.openSource;
+          const input = document.getElementById(`input-${sourceKey}`);
+          if (input) input.click();
+          return;
+        }
         const matrixReset = event.target.closest("[data-matrix-reset]");
         if (matrixReset) {
           state.matrixFocusKey = "";
@@ -4209,18 +4313,19 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
     function renderEmptyState(model) {
       const empty = document.getElementById("empty-state");
       const anyLoading = SOURCE_CONFIGS.some((cfg) => model.sources[cfg.key].loading);
-      empty.style.display = model.uploadedCount ? "none" : "grid";
-      if (!model.uploadedCount) {
+      // 只在文件加载中时显示通用加载提示，空状态由 tab-content 中的模式专属提示处理
+      empty.style.display = (!model.uploadedCount && anyLoading) ? "grid" : "none";
+      if (!model.uploadedCount && anyLoading) {
         empty.innerHTML = `
-          <h2>${anyLoading ? "正在解析文件" : "先上传文件，再开始展示"}</h2>
-          <p>${anyLoading ? "文件正在读取中，等它解析完成后，这里就会自动切换成数据视图。" : "当前页面没有示例数据。请先上传至少一个文件，系统会按模板自动识别并展示对应内容；如果你换了一版文件，直接重新上传同一位置即可刷新展示。"}</p>
-          <p>等关键文件补齐后，我们就能在这套标准化数据上继续做补货预警、滞销预警和保质期预警。</p>
+          <h2>正在解析文件</h2>
+          <p>文件正在读取中，等它解析完成后，这里就会自动切换成数据视图。</p>
         `;
       }
     }
 
     function render(model = buildModel()) {
-      console.log('render() 被调用, uploadedCount:', model.uploadedCount);
+      renderModeSwitch(model);
+      renderSidebarInfo(model);
       renderProgressPills(model);
       renderSourceList(model);
       renderDataQuality(model);
@@ -4228,10 +4333,19 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
       const kpiGrid = document.getElementById("kpi-grid");
       const tabsPanel = document.getElementById("tabs-panel");
+      const tabsBar = document.getElementById("tabs");
 
-      // 始终显示 Tab 栏，让用户可以在驾驶舱和九宫格之间切换
+      // 始终显示内容面板
       tabsPanel.style.display = "block";
-      renderTabs(model);
+
+      if (state.activeTab === "cockpit") {
+        // 驾驶舱模式：显示子标签栏
+        tabsBar.style.display = "flex";
+        renderCockpitSubtabs(model);
+      } else {
+        // 九宫格模式：隐藏子标签栏
+        tabsBar.style.display = "none";
+      }
 
       if (!model.uploadedCount) {
         kpiGrid.style.display = "none";
@@ -4257,11 +4371,19 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         return;
       }
 
-      kpiGrid.style.display = "grid";
-      renderKpis(model);
+      // 驾驶舱模式才显示 KPI
+      if (state.activeTab === "cockpit") {
+        kpiGrid.style.display = "grid";
+        renderKpis(model);
+      } else {
+        kpiGrid.style.display = "none";
+      }
+
       renderTabContent(model);
       cacheAppState();
-      if (state.activeTab === "linked" && state.matrixFocusKey) {
+      // 联动总表滚动定位（驾驶舱联动子标签 或 九宫格模式内的联动表）
+      if ((state.activeTab === "cockpit" && state.cockpitSubtab === "linked" && state.matrixFocusKey) ||
+          (state.activeTab === "matrix" && state.matrixFocusKey)) {
         requestAnimationFrame(scrollToFocusedRow);
       }
     }
@@ -4360,10 +4482,23 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       SOURCE_CONFIGS.forEach((cfg) => {
         state.sources[cfg.key] = createEmptySourceState(cfg);
       });
-      state.activeTab = "overview";
+      state.activeTab = "cockpit";
+      state.cockpitSubtab = "overview";
+      state.matrixFocusKey = "";
+      state.matrixExpandedCells = {};
       setBatchNote("");
       render();
     }
+
+    // 模式切换事件
+    document.getElementById("mode-switch").addEventListener("click", (event) => {
+      const btn = event.target.closest(".mode-btn");
+      if (!btn) return;
+      const mode = btn.dataset.mode;
+      if (mode === state.activeTab) return;
+      state.activeTab = mode;
+      render();
+    });
 
     document.getElementById("clear-all").addEventListener("click", clearAll);
     document.getElementById("batch-upload").addEventListener("click", () => {
@@ -4384,14 +4519,8 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       alert('页面加载出错: ' + (e.error?.message || '未知错误'));
     });
 
-    // 调试信息
-    console.log('页面版本: v2, 初始化时间:', new Date().toISOString());
-    console.log('TABS:', TABS);
-    console.log('初始状态:', state);
-
     try {
       render();
-      console.log('渲染成功');
     } catch (err) {
       console.error('渲染失败:', err);
       alert('页面渲染失败: ' + err.message);
