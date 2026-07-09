@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>香水商品驾驶舱</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>香水商品驾驶舱 v2</title>
   <link rel="icon" href="data:,">
   <style>
     :root {
@@ -2931,6 +2934,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
     function renderTabs(model) {
       const host = document.getElementById("tabs");
+      console.log('renderTabs() 被调用, TABS:', TABS, '当前activeTab:', state.activeTab);
       let html = TABS.map((tab) => `
         <button class="tab ${state.activeTab === tab.id ? "active" : ""}" data-tab="${tab.id}">${escapeHtml(tab.label)}</button>
       `).join("");
@@ -4026,6 +4030,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
     }
 
     function render(model = buildModel()) {
+      console.log('render() 被调用, uploadedCount:', model.uploadedCount);
       renderProgressPills(model);
       renderSourceList(model);
       renderDataQuality(model);
@@ -4157,7 +4162,25 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
     });
 
     restoreAppState();
-    render();
+
+    // 全局错误处理
+    window.addEventListener('error', (e) => {
+      console.error('全局错误:', e.error);
+      alert('页面加载出错: ' + (e.error?.message || '未知错误'));
+    });
+
+    // 调试信息
+    console.log('页面版本: v2, 初始化时间:', new Date().toISOString());
+    console.log('TABS:', TABS);
+    console.log('初始状态:', state);
+
+    try {
+      render();
+      console.log('渲染成功');
+    } catch (err) {
+      console.error('渲染失败:', err);
+      alert('页面渲染失败: ' + err.message);
+    }
   </script>
 </body>
 </html>
