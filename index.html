@@ -767,6 +767,22 @@
     .matrix-cell.warn { background: linear-gradient(180deg, rgba(217, 119, 6, .08), rgba(255,255,255,.82)); }
     .matrix-cell.danger { background: linear-gradient(180deg, rgba(185, 35, 24, .08), rgba(255,255,255,.82)); }
 
+    /* 联动总表跳回九宫格时的高亮效果 */
+    .matrix-cell.cell-flash {
+      animation: cell-flash-anim 2s ease-out;
+    }
+    @keyframes cell-flash-anim {
+      0%   { box-shadow: 0 0 0 4px rgba(20, 99, 86, .9), 0 0 24px rgba(20, 99, 86, .6); }
+      100% { box-shadow: var(--shadow); }
+    }
+    .sku-chip.chip-flash {
+      animation: chip-flash-anim 2s ease-out;
+    }
+    @keyframes chip-flash-anim {
+      0%   { box-shadow: 0 0 0 3px rgba(20, 99, 86, .9); transform: scale(1.15); }
+      100% { box-shadow: none; transform: scale(1); }
+    }
+
     .matrix-cell-head {
       display: flex;
       justify-content: space-between;
@@ -3807,15 +3823,42 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
             // 标记滚动目标为九宫格（避免渲染时滚动到联动总表行）
             state.matrixScrollTarget = "grid";
             if (state.activeTab !== "matrix") {
-              // 驾驶舱模式：切换到九宫格
               state.activeTab = "matrix";
             }
             render();
-            // 滚动到九宫格顶部
+            // 找到包含该商品的九宫格格子，滚动并高亮
             requestAnimationFrame(() => {
-              const matrixPanel = document.getElementById("matrix-panel");
-              if (matrixPanel) {
-                matrixPanel.scrollIntoView({ block: "start", behavior: "smooth" });
+              const cells = document.querySelectorAll("[data-matrix-big-cell]");
+              let targetCell = null;
+              let targetChip = null;
+              cells.forEach((cell) => {
+                const chip = cell.querySelector(`[data-matrix-jump="${key}"]`);
+                if (chip) {
+                  targetCell = cell;
+                  targetChip = chip;
+                }
+              });
+              if (targetCell) {
+                targetCell.scrollIntoView({ block: "center", behavior: "smooth" });
+                targetCell.classList.remove("cell-flash");
+                void targetCell.offsetWidth; // 强制重排以重启动画
+                targetCell.classList.add("cell-flash");
+                if (targetChip) {
+                  targetChip.classList.remove("chip-flash");
+                  void targetChip.offsetWidth;
+                  targetChip.classList.add("chip-flash");
+                  // 2秒后移除高亮类
+                  setTimeout(() => {
+                    targetCell.classList.remove("cell-flash");
+                    targetChip.classList.remove("chip-flash");
+                  }, 2000);
+                }
+              } else {
+                // 未找到对应格子，回退到滚动到九宫格顶部
+                const matrixPanel = document.getElementById("matrix-panel");
+                if (matrixPanel) {
+                  matrixPanel.scrollIntoView({ block: "start", behavior: "smooth" });
+                }
               }
             });
           }
