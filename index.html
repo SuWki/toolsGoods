@@ -1736,8 +1736,8 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
     }
 
     function makeBarcodeKey(row) {
-      return keyFrom(
-        row.barcode,
+      // 以条码为唯一主键
+      return normalizeText(row.barcode) || keyFrom(
         row.sku,
         row.specCode,
         row.productCode,
@@ -3405,7 +3405,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
               { label: "库存健康度", render: (row) => escapeHtml(row.stockHealth || "-") },
               { label: "销售数量", render: (row) => formatInteger(row.salesQty || 0) },
               { label: "即时库存", render: (row) => formatInteger(row.stockQty || 0) },
-              { label: "库存月", render: (row) => row.stockMonths === null || row.stockMonths === undefined ? "-" : `${formatNumber(row.stockMonths)} 个月` },
+              { label: "库存月", render: (row) => row.stockMonths === null || row.stockMonths === undefined ? "-" : `${Math.round(row.stockMonths)} 个月` },
               { label: "生产备注", render: (row) => escapeHtml(row.productionNote || "-") },
               { label: "保质期", render: (row) => row.avgExpiryDate ? `${escapeHtml(row.avgExpiryDate)} 年` : "-" },
               { label: "能否卖完", render: (row) => badge(row.canSellBeforeExpiry === false ? "danger" : "good", row.canSellBeforeExpiry === false ? "卖不完" : "可卖完") },
@@ -3695,7 +3695,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           { label: "即时库存", render: (row) => formatInteger(row.stockQty || 0), sortValue: (row) => row.stockQty || 0 },
           { label: "库存月", render: (row) => {
             if (!row.salesQty) return "-";
-            return `${formatNumber((row.stockQty / row.salesQty) * periodMonths)} 个月`;
+            return `${Math.round((row.stockQty / row.salesQty) * periodMonths)} 个月`;
           }, sortValue: (row) => row.salesQty ? (row.stockQty / row.salesQty) * periodMonths : null },
           { label: "库存健康度", render: (row) => {
             if (!row.salesQty) return "未计算";
@@ -3725,7 +3725,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           { label: "条码", render: (row) => escapeHtml(row.barcode || row.sku || "-") },
           { label: "30天销量", render: (row) => formatInteger(row.sales30Qty || 0) },
           { label: "当前库存", render: (row) => formatInteger(row.inventoryQty || 0) },
-          { label: "库存覆盖月数", render: (row) => row.stockMonths === null || row.stockMonths === undefined ? "-" : `${formatNumber(row.stockMonths)} 个月` },
+          { label: "库存覆盖月数", render: (row) => row.stockMonths === null || row.stockMonths === undefined ? "-" : `${Math.round(row.stockMonths)} 个月` },
           { label: "6个月目标库存", render: (row) => formatInteger(row.targetInventory6m || 0) },
           { label: "建议补货量", render: (row) => formatInteger(row.replenishmentQty || 0) },
         ],
