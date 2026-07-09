@@ -3995,7 +3995,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           <div class="block-head">
             <div>
               <h2>驾驶舱数据导入</h2>
-              <div class="note">请先上传以下 5 个文件，系统会自动分析库存、销售和预警数据。</div>
+              <div class="note">请先上传以下文件，系统会自动分析库存、销售和预警数据。</div>
             </div>
           </div>
           <div class="soft-card">
@@ -4014,6 +4014,39 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           </div>
         </div>
       `;
+    }
+
+    function renderMatrixEmpty() {
+      return `
+        <div class="panel matrix-panel">
+          <div class="block-head">
+            <div>
+              <h2>九宫格 SKU 分析</h2>
+              <div class="note">请先上传《总库存情况》九宫格模板文件，系统会直接读取商品资料、库存、净出库和图片。</div>
+            </div>
+            <button class="primary" data-open-source="matrixWorkbook">上传九宫格文件</button>
+          </div>
+          <div class="soft-card">
+            <div style="display:grid;gap:12px;">
+              <div class="note">文件要求：</div>
+              <ul style="margin:0;padding-left:20px;color:var(--muted);">
+                <li>文件格式：Excel (.xlsx) 包含图片</li>
+                <li>工作表：总库存情况</li>
+                <li>包含字段：条码、品名、规格、分类、库存数量、7个月销售数据等</li>
+              </ul>
+              <div class="note" style="margin-top:8px;">上传后，这里会按"健康 / 风险 / 积压 × 畅销 / 平销 / 滞销"自动生成九宫格。</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderEmptyTabContent() {
+      // 根据当前选中的 Tab 显示对应的空状态
+      if (state.activeTab === "matrix") {
+        return renderMatrixEmpty();
+      }
+      return renderCockpitEmpty();
     }
 
     function renderEmptyState(model) {
@@ -4039,19 +4072,19 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       const kpiGrid = document.getElementById("kpi-grid");
       const tabsPanel = document.getElementById("tabs-panel");
 
+      // 始终显示 Tab 栏，让用户可以在驾驶舱和九宫格之间切换
+      tabsPanel.style.display = "block";
+      renderTabs(model);
+
       if (!model.uploadedCount) {
         kpiGrid.style.display = "none";
-        tabsPanel.style.display = "none";
-        document.getElementById("tab-content").innerHTML = "";
+        // 显示空状态提示
+        document.getElementById("tab-content").innerHTML = renderEmptyTabContent();
         return;
       }
 
-      kpiGrid.style.display = model.uploadedCount ? "grid" : "none";
-      tabsPanel.style.display = "block";
-      if (model.uploadedCount) {
-        renderKpis(model);
-      }
-      renderTabs(model);
+      kpiGrid.style.display = "grid";
+      renderKpis(model);
       renderTabContent(model);
       cacheAppState();
       if (state.activeTab === "linked" && state.matrixFocusKey) {
