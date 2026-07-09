@@ -4398,6 +4398,9 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
       try {
         if (key === "matrixWorkbook") {
+          // 上传新文件时清除旧的聚焦和展开状态，避免渲染后触发 scrollIntoView 导致页面跳动
+          state.matrixFocusKey = "";
+          state.matrixExpandedCells = {};
           const fileData = await parseMatrixWorkbookRowsFromFile(file);
           state.sources[key] = {
             ...createEmptySourceState(cfg),
