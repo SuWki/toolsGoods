@@ -1998,6 +1998,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           shelfLifeDays: maybeNumber(getCell(row, map, ["保质期"])),
           batchManaged: getCell(row, map, ["批次管理"]),
           owner: getCell(row, map, ["货主"]),
+          productionNote: getCell(row, map, ["生产情况", "生产备注", "生产状态"]),
           raw: row,
         };
       }).filter((row) => (row.productName || row.barcode || row.sku) && !isAggregateLabel(row.productName) && !isAggregateLabel(row.barcode));
@@ -2651,6 +2652,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           : null;
         const salesBand = "";
         const stockHealth = getStockHealthLabel(stockMonths);
+        const productionNote = product.productionNote || stock.productionNote || "";
         return {
           key,
           productName,
@@ -2672,6 +2674,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           stockHealth,
           canSellBeforeExpiry,
           salesBand,
+          productionNote,
           rawProduct: product.raw,
           rawStock: stock.raw,
         };
