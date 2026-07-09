@@ -189,6 +189,16 @@
       line-height: 1.55;
     }
 
+    .link-to-matrix {
+      color: var(--accent);
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    .link-to-matrix:hover {
+      color: #0d3b33;
+    }
+
     .source-actions {
       display: flex;
       gap: 8px;
@@ -748,6 +758,20 @@
       color: var(--muted);
       font-size: 13px;
       font-weight: 700;
+      border: 3px solid #333; /* 默认黑色边框 */
+      box-sizing: border-box;
+    }
+
+    .sku-thumb.production-normal {
+      border-color: #28a745; /* 正常 - 绿色 */
+    }
+
+    .sku-thumb.production-stopped {
+      border-color: #dc3545; /* 停产 - 红色 */
+    }
+
+    .sku-thumb.production-other {
+      border-color: #ffc107; /* 其他 - 黄色 */
     }
 
     .sku-thumb img {
@@ -763,10 +787,15 @@
     .sku-chip small {
       display: block;
       color: var(--muted);
-      line-height: 1.35;
+      font-size: 11px;
+      line-height: 1.4;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      white-space: normal;
+      max-height: 2.8em;
     }
 
     .matrix-more {
@@ -1250,7 +1279,9 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       if (!name) return name;
       return String(name)
         .replace(/BLACK\s*PAW\s*黑爪/gi, "")
-        .replace(/^\s+|\s+$/g, "");
+        .replace(/\d{6,}/g, "") // 移除6位以上的数字（条码）
+        .replace(/^\s+|\s+$/g, "")
+        .replace(/\s+/g, " "); // 合并多个空格
     }
 
     function formatNumber(value) {
@@ -1317,6 +1348,46 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       return {
         start: formatDateInputValue(start),
         end: formatDateInputValue(end),
+      };
+    }
+
+    // 从销售数据中自动读取时间范围
+    function getSalesPeriodFromData(sources) {
+      const dates = [];
+
+      // 从渠道销售数据读取时间
+      if (sources.channelSales && sources.channelSales.rows) {
+        sources.channelSales.rows.forEach(row => {
+          if (row.time) {
+            const date = new Date(row.time);
+            if (!Number.isNaN(date.getTime())) {
+              dates.push(date);
+            }
+          }
+        });
+      }
+
+      // 从门店销售数据读取时间（需要添加时间字段）
+      if (sources.storeSales && sources.storeSales.rows) {
+        sources.storeSales.rows.forEach(row => {
+          if (row.time) {
+            const date = new Date(row.time);
+            if (!Number.isNaN(date.getTime())) {
+              dates.push(date);
+            }
+          }
+        });
+      }
+
+      if (dates.length === 0) return null;
+
+      // 找出最早和最晚的日期
+      const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+      const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+
+      return {
+        start: formatDateInputValue(minDate),
+        end: formatDateInputValue(maxDate),
       };
     }
 
@@ -2047,6 +2118,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         return {
           key: makeBarcodeKey({ barcode, sku: specCode || productCode, specCode, productCode, productName, spec }),
           orderNo: getCell(row, map, ["订单号"]),
+          time: formatDateValue(getCell(row, map, ["订单创建时间", "下单时间", "成交时间", "支付时间"])),
           brand: getCell(row, map, ["商品品牌"]),
           status,
           productName,
@@ -2203,6 +2275,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
             productionDate: "",
             expiryDate: "",
             avgExpiryDate: "", // 加权平均到期日期
+            productionNote: "", // 生产备注
             sourceCount: 0,
             sourceFlags: {
               product: false,
@@ -2228,25 +2301,28 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         batchExpiryData.get(key).push({ expiryDate: dateStr, availableQty });
       };
 
-      // 计算加权平均到期日期
-      const calculateWeightedAvgExpiry = (key) => {
+      // 计算加权平均剩余有效期（年）
+      const calculateWeightedAvgRemainingYears = (key) => {
         const batches = batchExpiryData.get(key);
         if (!batches || batches.length === 0) return null;
-        
+
+        const now = new Date();
         let totalWeight = 0;
-        let weightedTimestamp = 0;
-        
+        let weightedDays = 0;
+
         for (const batch of batches) {
-          const date = new Date(batch.expiryDate);
-          if (Number.isNaN(date.getTime())) continue;
+          const expiryDate = new Date(batch.expiryDate);
+          if (Number.isNaN(expiryDate.getTime())) continue;
+          const remainingDays = Math.max(0, Math.round((expiryDate.getTime() - now.getTime()) / 86400000));
           totalWeight += batch.availableQty;
-          weightedTimestamp += date.getTime() * batch.availableQty;
+          weightedDays += remainingDays * batch.availableQty;
         }
-        
+
         if (totalWeight === 0) return null;
-        
-        const avgDate = new Date(Math.round(weightedTimestamp / totalWeight));
-        return avgDate.toISOString().split('T')[0]; // 返回 YYYY-MM-DD 格式
+
+        const avgDays = weightedDays / totalWeight;
+        const years = (avgDays / 365).toFixed(1); // 保留1位小数
+        return years;
       };
 
       const mergeIdentity = (target, row) => {
@@ -2256,6 +2332,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         target.spec = target.spec || row.spec || "";
         target.brand = target.brand || row.brand || "";
         target.category = target.category || row.category || row.firstCategory || "";
+        target.productionNote = target.productionNote || row.productionNote || "";
         if (target.retailPrice === null && row.retailPrice !== undefined && row.retailPrice !== null) {
           target.retailPrice = row.retailPrice;
         }
@@ -2328,7 +2405,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         item.expiryRisk = evaluateExpiryRisk(item);
         item.sourceCount = Object.values(item.sourceFlags).filter(Boolean).length;
         // 计算加权平均到期日期
-        item.avgExpiryDate = calculateWeightedAvgExpiry(item.key) || "";
+        item.avgExpiryDate = calculateWeightedAvgRemainingYears(item.key) || "";
         return item;
       }).sort((a, b) => {
         const aScore = a.totalSalesQty || a.totalInventoryQty || 0;
@@ -2989,6 +3066,15 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           </div>
         `;
       }
+      // 根据生产情况获取边框样式类
+      const getProductionBorderClass = (productionNote) => {
+        if (!productionNote) return "";
+        const note = String(productionNote).toLowerCase();
+        if (note.includes("正常")) return "production-normal";
+        if (note.includes("停产")) return "production-stopped";
+        return "production-other";
+      };
+
       const chipRows = (cellRows, cellKey) => {
         const isExpanded = state.matrixExpandedCells[cellKey];
         const itemsPerCell = state.matrixItemsPerCell || 4;
@@ -2998,9 +3084,8 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           <div class="sku-strip">
             ${displayRows.map((row) => `
               <button type="button" class="sku-chip" data-matrix-jump="${escapeHtml(row.key)}" title="点击跳转到联动总表：${escapeHtml(row.productName || "")}">
-                <div class="sku-thumb">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(shortenProductName(row.productName) || "")}" onerror="this.remove();this.parentElement.textContent='无图';">` : "无图"}</div>
+                <div class="sku-thumb ${getProductionBorderClass(row.productionNote)}">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(shortenProductName(row.productName) || "")}" onerror="this.remove();this.parentElement.textContent='无图';">` : "无图"}</div>
                 <small>${escapeHtml(shortenProductName(row.productName) || "-")}</small>
-                <small>${escapeHtml(row.barcode || row.sku || "-")}</small>
               </button>
             `).join("")}
             ${extra > 0 ? `<div class="matrix-more" data-matrix-expand="${escapeHtml(cellKey)}">还有 ${extra} 个 SKU，点击展开</div>` : ""}
@@ -3085,6 +3170,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
             </div>
             <div style="display:flex;gap:10px;align-items:center;">
               <span class="badge neutral">共 ${formatInteger(model.matrixSummary.totalSku)} 个商品</span>
+              <button class="ghost" data-matrix-fit-screen>适应屏幕</button>
               <button class="primary" data-matrix-export-image>导出图片</button>
             </div>
           </div>
@@ -3160,7 +3246,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
               { label: "销售数量", render: (row) => formatInteger(row.salesQty || 0) },
               { label: "即时库存", render: (row) => formatInteger(row.stockQty || 0) },
               { label: "库存月", render: (row) => row.stockMonths === null || row.stockMonths === undefined ? "-" : `${formatNumber(row.stockMonths)} 个月` },
-              { label: "保质期", render: (row) => row.avgExpiryDate ? escapeHtml(row.avgExpiryDate) : "-" },
+              { label: "保质期", render: (row) => row.avgExpiryDate ? `${escapeHtml(row.avgExpiryDate)} 年` : "-" },
               { label: "能否卖完", render: (row) => badge(row.canSellBeforeExpiry === false ? "danger" : "good", row.canSellBeforeExpiry === false ? "卖不完" : "可卖完") },
             ],
             emptyText: "当前筛选下没有 SKU。请换个分类或放宽条件。",
@@ -3530,10 +3616,10 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       const rows = model.linkedRows;
       return tableSection({
         title: "联动总表",
-        note: "这张表把商品、库存和销售先串起来。后续补货、滞销和保质期预警都会直接基于它继续往下做。",
+        note: "这张表把商品、库存和销售先串起来。后续补货、滞销和保质期预警都会直接基于它继续往下做。点击品名可跳转到九宫格对应商品。",
         rows,
         columns: [
-          { label: "品名", render: (row) => escapeHtml(row.productName || "-") },
+          { label: "品名", render: (row) => `<a href="#" class="link-to-matrix" data-link-key="${escapeHtml(row.key)}" title="点击跳转到九宫格">${escapeHtml(row.productName || "-")}</a>` },
           { label: "条码", render: (row) => escapeHtml(row.barcode || row.sku || "-") },
           { label: "规格", render: (row) => escapeHtml(row.spec || "-") },
           { label: "零售价", render: (row) => row.retailPrice === null || row.retailPrice === undefined ? "-" : formatCurrency(row.retailPrice) },
@@ -3541,7 +3627,8 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           { label: "门店库存", render: (row) => formatInteger(row.storeAvailable || 0) },
           { label: "销售数量", render: (row) => formatInteger(row.totalSalesQty || 0) },
           { label: "库存深度", render: (row) => row.stockDepthDays === null || row.stockDepthDays === undefined ? "-" : `${formatNumber(row.stockDepthDays)} 天` },
-          { label: "保质期", render: (row) => row.avgExpiryDate ? escapeHtml(row.avgExpiryDate) : "-" },
+          { label: "生产备注", render: (row) => escapeHtml(row.productionNote || "-") },
+          { label: "保质期", render: (row) => row.avgExpiryDate ? `${escapeHtml(row.avgExpiryDate)} 年` : "-" },
           { label: "数据覆盖", render: (row) => formatInteger(row.sourceCount || 0) },
         ],
         emptyText: "请先上传文件，系统会先把核心表联动起来。",
@@ -3560,6 +3647,20 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           jumpToLinkedRow(matrixJump.dataset.matrixJump || "");
           return;
         }
+        // 联动总表点击品名跳转到九宫格
+        const linkToMatrix = event.target.closest(".link-to-matrix");
+        if (linkToMatrix) {
+          event.preventDefault();
+          const key = linkToMatrix.dataset.linkKey;
+          if (key) {
+            // 切换到九宫格 Tab
+            state.activeTab = "matrix";
+            // 设置聚焦的商品
+            state.matrixFocusKey = key;
+            render();
+          }
+          return;
+        }
         const matrixReset = event.target.closest("[data-matrix-reset]");
         if (matrixReset) {
           state.matrixFocusKey = "";
@@ -3572,6 +3673,26 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         const matrixExportImage = event.target.closest("[data-matrix-export-image]");
         if (matrixExportImage) {
           generateMatrixImage();
+          return;
+        }
+        const matrixFitScreen = event.target.closest("[data-matrix-fit-screen]");
+        if (matrixFitScreen) {
+          const panel = document.getElementById("matrix-panel");
+          if (panel) {
+            panel.classList.toggle("fit-screen");
+            const isFit = panel.classList.contains("fit-screen");
+            matrixFitScreen.textContent = isFit ? "退出适应" : "适应屏幕";
+            if (isFit) {
+              // 计算缩放比例以适应屏幕
+              const viewportHeight = window.innerHeight;
+              const panelRect = panel.getBoundingClientRect();
+              const scale = Math.min(1, (viewportHeight - 100) / panelRect.height);
+              panel.style.transform = `scale(${scale})`;
+              panel.style.transformOrigin = "top center";
+            } else {
+              panel.style.transform = "";
+            }
+          }
           return;
         }
         const matrixExpand = event.target.closest("[data-matrix-expand]");
@@ -4160,6 +4281,14 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           loading: false,
           error: error && error.message ? error.message : "文件解析失败",
         };
+      }
+
+      // 如果是销售数据上传，自动更新销售时间段
+      if (key === "channelSales" || key === "storeSales") {
+        const periodFromData = getSalesPeriodFromData(state.sources);
+        if (periodFromData) {
+          state.salesPeriod = periodFromData;
+        }
       }
 
       if (!skipFinalRender) render();
