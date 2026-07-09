@@ -2392,6 +2392,24 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         item.storeSalesQty += row.qty || 0;
       });
 
+      // 处理九宫格文件数据（matrixWorkbook），获取规格、生产备注、图片等
+      sources.matrixWorkbook.rows.forEach((row) => {
+        const item = ensure(row.key);
+        mergeIdentity(item, row);
+        // 从matrixWorkbook获取特有的字段
+        if (row.spec) item.spec = row.spec;
+        if (row.productionNote) item.productionNote = row.productionNote;
+        if (row.imageUrl) item.imageUrl = row.imageUrl;
+        if (row.imageTarget) item.imageTarget = row.imageTarget;
+        if (row.salesBand) item.salesBand = row.salesBand;
+        if (row.stockHealth) item.stockHealth = row.stockHealth;
+        if (row.salesTrend) item.salesTrend = row.salesTrend;
+        // 如果matrixWorkbook中有库存数据，也合并
+        if (row.stockQty && row.stockQty > 0) {
+          item.warehouseAvailable = item.warehouseAvailable || row.stockQty;
+        }
+      });
+
       return Array.from(map.values()).map((item) => {
         item.totalSalesQty = item.channelSalesQty + item.storeSalesQty;
         item.totalInventoryQty = item.warehouseAvailable + item.storeAvailable;
@@ -3151,9 +3169,8 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
                 <div class="sku-strip">
                   ${cell.rows.map((row) => `
                     <button type="button" class="sku-chip" data-matrix-jump="${escapeHtml(row.key)}" title="点击跳转到联动总表：${escapeHtml(row.productName || "")}">
-                      <div class="sku-thumb">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(shortenProductName(row.productName) || "")}" onerror="this.remove();this.parentElement.textContent='无图';">` : "无图"}</div>
+                      <div class="sku-thumb ${getProductionBorderClass(row.productionNote)}">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(shortenProductName(row.productName) || "")}" onerror="this.remove();this.parentElement.textContent='无图';">` : "无图"}</div>
                       <small>${escapeHtml(shortenProductName(row.productName) || "-")}</small>
-                      <small>${escapeHtml(row.barcode || row.sku || "-")}</small>
                     </button>
                   `).join("")}
                 </div>
@@ -3640,9 +3657,13 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
     function bindTableInteractions() {
       const host = document.getElementById("tab-content");
-      if (!host || host.dataset.tableBound === "1") return;
-      host.dataset.tableBound = "1";
-      host.addEventListener("click", (event) => {
+      if (!host) return;
+      // 移除旧的事件监听器（如果存在）
+      if (host._tableClickHandler) {
+        host.removeEventListener("click", host._tableClickHandler);
+      }
+      // 创建新的事件处理器
+      host._tableClickHandler = (event) => {
         if (event.target.closest("[data-column-resize-handle]")) return;
         const matrixJump = event.target.closest("[data-matrix-jump]");
         if (matrixJump) {
@@ -3825,6 +3846,9 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         if (endInput) state.salesPeriod.end = endInput.value || "";
         render();
       });
+
+      // 绑定点击事件处理器
+      host.addEventListener("click", host._tableClickHandler);
 
       document.addEventListener("pointermove", (event) => {
         const active = columnResizeState.active;
