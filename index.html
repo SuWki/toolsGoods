@@ -737,20 +737,24 @@
 
     .sku-thumb {
       width: 100%;
-      aspect-ratio: 1 / 1;
+      min-height: 80px;
+      max-height: 120px;
       border-radius: 10px;
       overflow: hidden;
       background: #f4efe8;
-      display: grid;
-      place-items: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       color: var(--muted);
       font-size: 13px;
       font-weight: 700;
     }
 
     .sku-thumb img {
-      width: 100%;
-      height: 100%;
+      max-width: 100%;
+      max-height: 120px;
+      width: auto;
+      height: auto;
       object-fit: contain;
       display: block;
       background: #f4efe8;
@@ -869,8 +873,10 @@
     }
 
     .big-cell-content .sku-thumb img {
-      width: 100%;
-      height: 100%;
+      max-width: 100%;
+      max-height: 150px;
+      width: auto;
+      height: auto;
       object-fit: contain;
       display: block;
     }
@@ -4018,13 +4024,13 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
     function renderMatrixEmpty() {
       return `
-        <div class="panel matrix-panel">
+        <div class="panel matrix-panel" id="matrix-empty-panel">
           <div class="block-head">
             <div>
               <h2>九宫格 SKU 分析</h2>
               <div class="note">请先上传《总库存情况》九宫格模板文件，系统会直接读取商品资料、库存、净出库和图片。</div>
             </div>
-            <button class="primary" data-open-source="matrixWorkbook">上传九宫格文件</button>
+            <button class="primary" id="matrix-upload-btn">上传九宫格文件</button>
           </div>
           <div class="soft-card">
             <div style="display:grid;gap:12px;">
@@ -4037,6 +4043,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
               <div class="note" style="margin-top:8px;">上传后，这里会按"健康 / 风险 / 积压 × 畅销 / 平销 / 滞销"自动生成九宫格。</div>
             </div>
           </div>
+          <input id="matrix-empty-input" type="file" accept=".xlsx,.xls,.csv" hidden>
         </div>
       `;
     }
@@ -4080,6 +4087,23 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         kpiGrid.style.display = "none";
         // 显示空状态提示
         document.getElementById("tab-content").innerHTML = renderEmptyTabContent();
+
+        // 绑定九宫格空状态的上传按钮事件
+        if (state.activeTab === "matrix") {
+          const uploadBtn = document.getElementById("matrix-upload-btn");
+          const fileInput = document.getElementById("matrix-empty-input");
+          if (uploadBtn && fileInput) {
+            uploadBtn.addEventListener("click", () => {
+              fileInput.click();
+            });
+            fileInput.addEventListener("change", async () => {
+              const file = fileInput.files && fileInput.files[0];
+              if (!file) return;
+              await handleUpload("matrixWorkbook", file);
+              fileInput.value = "";
+            });
+          }
+        }
         return;
       }
 
