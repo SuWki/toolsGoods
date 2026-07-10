@@ -6,8 +6,8 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>香水商品驾驶舱 v2</title>
-  <link rel="icon" href="data:,">
+  <title>黑爪商品驾驶舱 v2.1</title>
+  <link rel="icon" href="blackpaw-icon.png">
   <style>
     :root {
       --bg: #f4f1ea;
@@ -680,6 +680,16 @@
       border: 1px solid rgba(216, 205, 191, .8);
       border-radius: 10px;
       background: rgba(255, 255, 255, .7);
+      transition: all 0.2s ease;
+    }
+    .matrix-mini:hover {
+      background: rgba(255, 255, 255, .9);
+      border-color: var(--accent);
+      box-shadow: 0 4px 12px rgba(20, 99, 86, 0.15);
+    }
+    .matrix-mini.active {
+      background: var(--accent-soft);
+      border-color: var(--accent);
     }
 
     .matrix-mini strong {
@@ -746,7 +756,8 @@
       border-radius: 14px;
       background: rgba(255, 255, 255, .72);
       padding: 14px;
-      min-height: 260px;
+      aspect-ratio: 1 / 1;
+      min-height: 0;
       display: grid;
       gap: 12px;
       box-shadow: var(--shadow);
@@ -1220,6 +1231,7 @@ const COCKPIT_SUBTABS = [
       matrixFilters: {
         category: "全部",
         isRegularPrice: "全部",
+        kpiFilter: "all", // all, healthy, risk, backlog, selloutSafe, selloutRisk
       },
       salesPeriod: getDefaultSalesPeriod(),
 matrixExpandedCells: {}, // 记录哪些格子展开
@@ -2675,8 +2687,17 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         if ((row.stockQty || 0) === 0) return false;
         const categoryFilter = state.matrixFilters.category || "全部";
         const priceFilter = state.matrixFilters.isRegularPrice || "全部";
+        const kpiFilter = state.matrixFilters.kpiFilter || "all";
         if (categoryFilter !== "全部" && (row.category || "未分类") !== categoryFilter) return false;
         if (priceFilter !== "全部" && (row.isRegularPrice || "未设置") !== priceFilter) return false;
+        // KPI筛选
+        if (kpiFilter !== "all") {
+          if (kpiFilter === "healthy" && row.stockHealth !== "健康") return false;
+          if (kpiFilter === "risk" && row.stockHealth !== "风险") return false;
+          if (kpiFilter === "backlog" && row.stockHealth !== "积压") return false;
+          if (kpiFilter === "selloutSafe" && row.canSellBeforeExpiry !== true) return false;
+          if (kpiFilter === "selloutRisk" && row.canSellBeforeExpiry !== false) return false;
+        }
         return true;
       });
 
@@ -3244,9 +3265,9 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         return `
           <div class="sku-strip">
             ${displayRows.map((row) => `
-              <button type="button" class="sku-chip" data-matrix-jump="${escapeHtml(row.key)}" title="点击跳转到联动总表：${escapeHtml(row.productName || "")}">
+              <button type="button" class="sku-chip ${row.canSellBeforeExpiry === false ? 'sellout-risk' : ''}" data-matrix-jump="${escapeHtml(row.key)}" title="点击跳转到联动总表：${escapeHtml(row.productName || "")}">
                 <div class="sku-thumb ${getProductionBorderClass(row.productionNote)}">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(shortenProductName(row.productName) || "")}" onerror="this.remove();this.parentElement.textContent='无图';">` : "无图"}</div>
-                <small>${escapeHtml(shortenProductName(row.productName) || "-")}</small>
+                <small style="${row.canSellBeforeExpiry === false ? 'color: var(--danger); font-weight: 600;' : ''}">${escapeHtml(shortenProductName(row.productName) || "-")}</small>
               </button>
             `).join("")}
             ${extra > 0 ? `<div class="matrix-more" data-matrix-expand="${escapeHtml(cellKey)}">还有 ${extra} 个 SKU，点击展开</div>` : ""}
@@ -3309,9 +3330,9 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
                 </div>
                 <div class="sku-strip">
                   ${cell.rows.map((row) => `
-                    <button type="button" class="sku-chip" data-matrix-jump="${escapeHtml(row.key)}" title="点击跳转到联动总表：${escapeHtml(row.productName || "")}">
+                    <button type="button" class="sku-chip ${row.canSellBeforeExpiry === false ? 'sellout-risk' : ''}" data-matrix-jump="${escapeHtml(row.key)}" title="点击跳转到联动总表：${escapeHtml(row.productName || "")}">
                       <div class="sku-thumb ${getProductionBorderClass(row.productionNote)}">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(shortenProductName(row.productName) || "")}" onerror="this.remove();this.parentElement.textContent='无图';">` : "无图"}</div>
-                      <small>${escapeHtml(shortenProductName(row.productName) || "-")}</small>
+                      <small style="${row.canSellBeforeExpiry === false ? 'color: var(--danger); font-weight: 600;' : ''}">${escapeHtml(shortenProductName(row.productName) || "-")}</small>
                     </button>
                   `).join("")}
                 </div>
@@ -3364,26 +3385,26 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           </div>
 
           <div class="matrix-kpis">
-            <div class="matrix-mini"><small>总 SKU</small><strong>${formatInteger(model.matrixSummary.totalSku)}</strong></div>
-            <div class="matrix-mini"><small>健康</small><strong>${formatInteger(model.matrixSummary.healthyCount)}</strong></div>
-            <div class="matrix-mini"><small>风险</small><strong>${formatInteger(model.matrixSummary.riskCount)}</strong></div>
-            <div class="matrix-mini"><small>积压</small><strong>${formatInteger(model.matrixSummary.backlogCount)}</strong></div>
-            <div class="matrix-mini"><small>可卖完</small><strong>${formatInteger(model.matrixSummary.selloutSafeCount)}</strong></div>
-            <div class="matrix-mini"><small>卖不完风险</small><strong>${formatInteger(model.matrixSummary.selloutRiskCount)}</strong></div>
+            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'all' ? 'active' : ''}" data-kpi-filter="all" style="cursor:pointer;" title="点击查看全部"><small>总 SKU</small><strong>${formatInteger(model.matrixSummary.totalSku)}</strong></div>
+            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'healthy' ? 'active' : ''}" data-kpi-filter="healthy" style="cursor:pointer;" title="点击筛选健康商品"><small>健康</small><strong>${formatInteger(model.matrixSummary.healthyCount)}</strong></div>
+            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'risk' ? 'active' : ''}" data-kpi-filter="risk" style="cursor:pointer;" title="点击筛选风险商品"><small>风险</small><strong>${formatInteger(model.matrixSummary.riskCount)}</strong></div>
+            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'backlog' ? 'active' : ''}" data-kpi-filter="backlog" style="cursor:pointer;" title="点击筛选积压商品"><small>积压</small><strong>${formatInteger(model.matrixSummary.backlogCount)}</strong></div>
+            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'selloutSafe' ? 'active' : ''}" data-kpi-filter="selloutSafe" style="cursor:pointer;" title="点击筛选可卖完商品"><small>可卖完</small><strong>${formatInteger(model.matrixSummary.selloutSafeCount)}</strong></div>
+            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'selloutRisk' ? 'active' : ''}" data-kpi-filter="selloutRisk" style="cursor:pointer;" title="点击筛选卖不完风险商品"><small>卖不完风险</small><strong>${formatInteger(model.matrixSummary.selloutRiskCount)}</strong></div>
           </div>
 
           <div class="soft-card">
               <div class="note" style="margin-bottom:10px;font-weight:700;color:var(--ink);">销售表现（横轴）</div>
-            <div class="matrix-grid" style="grid-template-columns:88px repeat(3, minmax(0, 1fr));">
+            <div class="matrix-grid" id="matrix-grid" style="grid-template-columns:88px repeat(3, minmax(0, 1fr));">
               <div></div>
               <div class="matrix-col-head">畅销（前30%）</div>
               <div class="matrix-col-head">平销（30%-70%）</div>
               <div class="matrix-col-head">滞销（后30%）</div>
-              <div class="matrix-row-head">健康<br>(≤12个月)</div>
+              <div class="matrix-row-head">库存深度<br>健康(≤12个月)</div>
               ${cellHtml.slice(0, 3).join("")}
-              <div class="matrix-row-head">风险<br>(12~24个月)</div>
+              <div class="matrix-row-head">库存深度<br>风险(12~24个月)</div>
               ${cellHtml.slice(3, 6).join("")}
-              <div class="matrix-row-head">积压<br>(≥24个月)</div>
+              <div class="matrix-row-head">库存深度<br>积压(≥24个月)</div>
               ${cellHtml.slice(6, 9).join("")}
             </div>
           </div>
@@ -3889,19 +3910,23 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         const matrixFitScreen = event.target.closest("[data-matrix-fit-screen]");
         if (matrixFitScreen) {
           const panel = document.getElementById("matrix-panel");
-          if (panel) {
+          const grid = document.getElementById("matrix-grid");
+          if (panel && grid) {
             panel.classList.toggle("fit-screen");
             const isFit = panel.classList.contains("fit-screen");
             matrixFitScreen.textContent = isFit ? "退出适应" : "适应屏幕";
             if (isFit) {
-              // 拉伸九宫格按比例填满屏幕：根据面板高度和视口高度计算缩放比例
+              // 先滚动到网格顶部，让网格获得整个视口空间
+              const gridTop = grid.getBoundingClientRect().top + window.scrollY;
+              window.scrollTo({ top: gridTop - 10, behavior: "instant" });
+              // 缩放网格填满整个视口
               const viewportHeight = window.innerHeight;
-              const panelRect = panel.getBoundingClientRect();
-              const scale = (viewportHeight - 80) / panelRect.height;
-              panel.style.transform = `scale(${scale})`;
-              panel.style.transformOrigin = "top center";
+              const gridHeight = grid.getBoundingClientRect().height;
+              const scale = (viewportHeight - 20) / gridHeight;
+              grid.style.transform = `scale(${scale})`;
+              grid.style.transformOrigin = "top center";
             } else {
-              panel.style.transform = "";
+              grid.style.transform = "";
             }
           }
           return;
@@ -4146,13 +4171,26 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       const resetBtn = host.querySelector("[data-matrix-reset]");
       if (resetBtn) {
         resetBtn.addEventListener("click", () => {
-          state.matrixFilters = { category: "全部", isRegularPrice: "全部" };
+          state.matrixFilters = { category: "全部", isRegularPrice: "全部", kpiFilter: "all" };
           state.salesPeriod = getDefaultSalesPeriod();
           state.matrixItemsPerCell = 4;
           state.matrixExpandedCells = {};
           render();
         });
       }
+      
+      // KPI标签点击筛选
+      host.querySelectorAll("[data-kpi-filter]").forEach((el) => {
+        el.addEventListener("click", () => {
+          const filter = el.dataset.kpiFilter;
+          state.matrixFilters.kpiFilter = filter;
+          render();
+          // 滚动到联动总表
+          requestAnimationFrame(() => {
+            scrollToLinkedTable();
+          });
+        });
+      });
       
       // 导出图片按钮
       const exportBtn = host.querySelector("[data-matrix-export-image]");
