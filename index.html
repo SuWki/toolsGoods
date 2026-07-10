@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>黑爪商品驾驶舱 v2.1</title>
-  <link rel="icon" href="blackpaw-icon.png">
+  <link rel="icon" href="blackpaw-icon.jpg">
   <style>
     :root {
       --bg: #f4f1ea;
@@ -868,7 +868,7 @@
 
     .sku-thumb img {
       max-width: 90%; /* 缩小图片宽度，留边距 */
-      max-height: 90px; /* 缩小图片高度以适应固定框体 */
+      max-height: 90%; /* 相对于容器高度的百分比 */
       width: auto;
       height: auto;
       object-fit: contain;
@@ -2938,7 +2938,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       return [
         base,
         `period:${state.salesPeriod.start || ""}-${state.salesPeriod.end || ""}`,
-        `filters:${state.matrixFilters.category || ""}-${state.matrixFilters.isRegularPrice || ""}`,
+        `filters:${state.matrixFilters.category || ""}-${state.matrixFilters.isRegularPrice || ""}-${state.matrixFilters.kpiFilter || ""}`,
         `focus:${state.matrixFocusKey || ""}`,
       ].join("|");
     }
@@ -3795,7 +3795,17 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
     }
 
     function renderLinkedTab(model) {
-      const rows = model.linkedRows;
+      // 应用KPI筛选
+      const kpiFilter = state.matrixFilters.kpiFilter || "all";
+      let rows = model.linkedRows;
+      
+      // 如果有KPI筛选，需要根据matrixFilteredRows来过滤linkedRows
+      if (kpiFilter !== "all" && model.matrixFilteredRows) {
+        // 获取符合KPI条件的商品key集合
+        const filteredKeys = new Set(model.matrixFilteredRows.map(row => row.key));
+        rows = rows.filter(row => filteredKeys.has(row.key));
+      }
+      
       return tableSection({
         title: "联动总表",
         note: "这张表把商品、库存和销售先串起来。后续补货、滞销和保质期预警都会直接基于它继续往下做。点击品名可跳转到九宫格对应商品。",
@@ -3814,7 +3824,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           { label: "数据覆盖", render: (row) => formatInteger(row.sourceCount || 0) },
         ],
         emptyText: "请先上传文件，系统会先把核心表联动起来。",
-        previewText: `共 ${model.linkedRows.length} 条`
+        previewText: `共 ${rows.length} 条`
       });
     }
 
@@ -3828,6 +3838,20 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       // 创建新的事件处理器
       host._tableClickHandler = (event) => {
         if (event.target.closest("[data-column-resize-handle]")) return;
+        
+        // KPI标签点击筛选（使用事件委托）
+        const kpiFilterEl = event.target.closest("[data-kpi-filter]");
+        if (kpiFilterEl) {
+          const filter = kpiFilterEl.dataset.kpiFilter;
+          state.matrixFilters.kpiFilter = filter;
+          render();
+          // 滚动到联动总表
+          requestAnimationFrame(() => {
+            scrollToLinkedTable();
+          });
+          return;
+        }
+        
         const matrixJump = event.target.closest("[data-matrix-jump]");
         if (matrixJump) {
           jumpToLinkedRow(matrixJump.dataset.matrixJump || "");
@@ -3897,7 +3921,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         const matrixReset = event.target.closest("[data-matrix-reset]");
         if (matrixReset) {
           state.matrixFocusKey = "";
-          state.matrixFilters = { category: "全部", isRegularPrice: "全部" };
+          state.matrixFilters = { category: "全部", isRegularPrice: "全部", kpiFilter: "all" };
           state.salesPeriod = getDefaultSalesPeriod();
           updateTableState("linked", { page: 1, sortKey: "", sortDir: "desc" });
           render();
@@ -4179,19 +4203,6 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           render();
         });
       }
-      
-      // KPI标签点击筛选
-      host.querySelectorAll("[data-kpi-filter]").forEach((el) => {
-        el.addEventListener("click", () => {
-          const filter = el.dataset.kpiFilter;
-          state.matrixFilters.kpiFilter = filter;
-          render();
-          // 滚动到联动总表
-          requestAnimationFrame(() => {
-            scrollToLinkedTable();
-          });
-        });
-      });
       
       // 导出图片按钮
       const exportBtn = host.querySelector("[data-matrix-export-image]");
