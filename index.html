@@ -3843,12 +3843,15 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
             state.matrixFocusKey = key;
             // 标记滚动目标为九宫格（避免渲染时滚动到联动总表行）
             state.matrixScrollTarget = "grid";
+            // 重置KPI筛选，确保商品能在九宫格中显示
+            state.matrixFilters.kpiFilter = "all";
             if (state.activeTab !== "matrix") {
               state.activeTab = "matrix";
             }
             render();
             // 找到包含该商品的九宫格格子，滚动并高亮
-            requestAnimationFrame(() => {
+            // 使用setTimeout确保DOM已经更新
+            setTimeout(() => {
               // 使用属性选择器查找，避免key中的特殊字符问题
               const allChips = document.querySelectorAll("[data-matrix-jump]");
               let targetChip = null;
@@ -3879,7 +3882,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
                   matrixPanel.scrollIntoView({ block: "start", behavior: "smooth" });
                 }
               }
-            });
+            }, 100);
           }
           return;
         }
