@@ -2627,10 +2627,10 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         "3|1": { title: "原价/不补",   badge: "≤360天",  theme: "warm" },
         "1|2": { title: "原价/关注",   badge: "≤180天",  theme: "good" },
         "2|2": { title: "原价/不补",   badge: "≤360天",  theme: "warm" },
-        "3|2": { title: "压力/消化",   badge: "≤720天",  theme: "warn" },
+        "3|2": { title: "压力/消化",   badge: "≤720天",  theme: "danger" },
         "1|3": { title: "原价/不补",   badge: "≤360天",  theme: "warm" },
         "2|3": { title: "浮动/消化",   badge: "≤720天",  theme: "danger" },
-        "3|3": { title: "这价/去库存", badge: ">720天",  theme: "danger" },
+        "3|3": { title: "折价/去库存", badge: ">720天",  theme: "danger" },
       };
       return metaMap[cellKey] || { title: cellKey, badge: "待判定", theme: "neutral" };
     }
@@ -4148,6 +4148,20 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       state.matrixFocusKey = key;
       // 标记滚动目标为联动总表行
       state.matrixScrollTarget = "table";
+
+      // 预计算目标行所在页码，确保跳转后能定位到正确分页
+      const model = buildModel();
+      const rows = model.matrixFilteredRows || model.linkedRows || [];
+      const rowIndex = rows.findIndex((r) => r.key === key);
+      if (rowIndex >= 0) {
+        const ts = getTableState("linked");
+        const pageSize = ts.pageSize || 20;
+        const targetPage = Math.floor(rowIndex / pageSize) + 1;
+        if (ts.page !== targetPage) {
+          updateTableState("linked", { page: targetPage });
+        }
+      }
+
       // 保持在当前 Tab，只滚动到联动总表
       render();
       requestAnimationFrame(() => {
@@ -4517,11 +4531,9 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
       renderTabContent(model);
       cacheAppState();
-      // 联动总表滚动定位（驾驶舱联动子标签 或 九宫格模式内的联动表）
-      // 当从联动总表跳回九宫格时（matrixScrollTarget="grid"），不滚动到表格行
-      if (state.matrixScrollTarget !== "grid" &&
-          ((state.activeTab === "cockpit" && state.cockpitSubtab === "linked" && state.matrixFocusKey) ||
-          (state.activeTab === "matrix" && state.matrixFocusKey))) {
+      // 联动总表滚动定位：仅在从九宫格跳转到联动总表时触发（matrixScrollTarget="table"）
+      // 避免筛选/翻页等常规 render 时无脑滚动到之前聚焦的行
+      if (state.matrixScrollTarget === "table" && state.matrixFocusKey) {
         requestAnimationFrame(scrollToFocusedRow);
       }
       // 清除滚动目标标记
