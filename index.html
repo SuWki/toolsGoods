@@ -191,11 +191,38 @@
     .sidebar {
       position: sticky;
       top: 20px;
+      padding: 0;
+      display: grid;
+      gap: 0;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+    }
+
+    .sidebar-toggle-bar {
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .sidebar-toggle-btn {
+      font-size: 13px;
+      padding: 4px 12px;
+      cursor: pointer;
+    }
+
+    .sidebar-body {
       padding: 18px;
       display: grid;
       gap: 18px;
-      max-height: calc(100vh - 40px);
-      overflow-y: auto;
+    }
+
+    .sidebar.collapsed .sidebar-body {
+      display: none;
+    }
+
+    .sidebar.collapsed .sidebar-toggle-bar {
+      border-bottom: none;
     }
 
     .section-title {
@@ -1029,6 +1056,42 @@
       color: var(--ink);
     }
 
+    /* 大宫格图例 */
+    .big-cell-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding: 10px 24px;
+      border-bottom: 1px solid var(--line);
+      background: var(--bg);
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-box {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      border: 3px solid;
+      background: #f4efe8;
+    }
+
+    .legend-box.legend-red { border-color: #dc3545; }
+    .legend-box.legend-yellow { border-color: #ffc107; }
+    .legend-box.legend-green { border-color: #28a745; }
+
+    .legend-text-danger {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
     @media (max-width: 1200px) {
       .layout,
       .kpis,
@@ -1111,20 +1174,27 @@
 
     <div class="layout">
       <aside class="panel sidebar">
-        <section>
-          <h2 class="section-title" id="sidebar-file-title">驾驶舱文件</h2>
-          <div id="source-list" class="source-grid"></div>
-        </section>
+        <div class="sidebar-toggle-bar">
+          <button id="sidebar-toggle-btn" class="ghost sidebar-toggle-btn" title="折叠/展开侧边栏">
+            <span id="sidebar-toggle-icon">收起 &laquo;</span>
+          </button>
+        </div>
+        <div id="sidebar-body" class="sidebar-body">
+          <section>
+            <h2 class="section-title" id="sidebar-file-title">驾驶舱文件</h2>
+            <div id="source-list" class="source-grid"></div>
+          </section>
 
-        <section>
-          <h2 class="section-title">处理说明</h2>
-          <div class="soft-card" id="sidebar-notes"></div>
-        </section>
+          <section>
+            <h2 class="section-title">处理说明</h2>
+            <div class="soft-card" id="sidebar-notes"></div>
+          </section>
 
-        <section>
-          <h2 class="section-title">数据概况</h2>
-          <div id="data-quality" class="status-grid"></div>
-        </section>
+          <section>
+            <h2 class="section-title">数据概况</h2>
+            <div id="data-quality" class="status-grid"></div>
+          </section>
+        </div>
       </aside>
 
       <main class="main">
@@ -1228,6 +1298,7 @@ const COCKPIT_SUBTABS = [
       tableState: {},
       matrixFocusKey: "",
       matrixScrollTarget: "", // "table" = scroll to linked table row, "grid" = scroll to matrix grid
+      sidebarCollapsed: false, // 侧边栏是否折叠
       matrixFilters: {
         category: "全部",
         isRegularPrice: "全部",
@@ -1296,6 +1367,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           matrixFocusKey: state.matrixFocusKey,
           matrixFilters: state.matrixFilters,
           salesPeriod: state.salesPeriod,
+          sidebarCollapsed: state.sidebarCollapsed,
           sources: Object.fromEntries(
             Object.entries(state.sources).map(([key, source]) => [key, cloneSourceForCache(source)])
           ),
@@ -1348,6 +1420,9 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         }
         if (payload && payload.cockpitSubtab) {
           state.cockpitSubtab = payload.cockpitSubtab;
+        }
+        if (payload && typeof payload.sidebarCollapsed === "boolean") {
+          state.sidebarCollapsed = payload.sidebarCollapsed;
         }
       } catch {
         // ignore corrupted cache
@@ -1998,12 +2073,11 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         const productionNote = getSheetCellText(sheet, rowNumber, 7);
         const isRegularPrice = parseYesNo(getSheetCellValue(sheet, rowNumber, 8));
         const retailPrice = maybeNumber(getSheetCellValue(sheet, rowNumber, 9));
-        const currentStock = parseNumber(getSheetCellValue(sheet, rowNumber, 11), 0);
-        const stockMonths = maybeNumber(getSheetCellValue(sheet, rowNumber, 12));
-        const remainingDays = maybeNumber(getSheetCellValue(sheet, rowNumber, 13));
-        const salesBand = getSheetCellText(sheet, rowNumber, 14);
-        const stockHealth = getSheetCellText(sheet, rowNumber, 15) || getStockHealthLabel(stockMonths);
-        const salesTrend = getSheetCellText(sheet, rowNumber, 16);
+        // M列(13)=即时库存, N列(14)=日销系数, O列(15)=库存月, P列(16)=保质期剩余天数
+        const currentStock = parseNumber(getSheetCellValue(sheet, rowNumber, 13), 0);
+        const dailySalesCoef = maybeNumber(getSheetCellValue(sheet, rowNumber, 14));
+        const stockMonths = maybeNumber(getSheetCellValue(sheet, rowNumber, 15));
+        const remainingDays = maybeNumber(getSheetCellValue(sheet, rowNumber, 16));
         const salesMonthValues = [];
         for (let col = 24; col <= 30; col += 1) {
           salesMonthValues.push(parseNumber(getSheetCellValue(sheet, rowNumber, col), 0));
@@ -2040,9 +2114,8 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           stockQty: currentStock,
           stockMonths: derivedStockMonths,
           remainingDays,
-          salesBand: salesBand || "",
-          stockHealth,
-          salesTrend,
+          dailySalesCoef,
+          stockHealth: getStockHealthLabel(derivedStockMonths),
           salesQty,
           salesMonthValues: salesMonthValues.slice(), // 保存7个月的原始销售数据
           monthlyAverageSales: monthlyAverage,
@@ -2524,6 +2597,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         if (row.salesBand) item.salesBand = row.salesBand;
         if (row.stockHealth) item.stockHealth = row.stockHealth;
         if (row.salesTrend) item.salesTrend = row.salesTrend;
+        if (row.dailySalesCoef !== null && row.dailySalesCoef !== undefined) item.dailySalesCoef = row.dailySalesCoef;
         // 如果matrixWorkbook中有库存数据，也合并
         if (row.stockQty && row.stockQty > 0) {
           item.warehouseAvailable = item.warehouseAvailable || row.stockQty;
@@ -2636,21 +2710,42 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
     }
 
     // 为商品分配销售系数(X)和库存系数(Y)
-    // 1. 先根据消化周期(sellOutDays)确定 X+Y 之和
-    // 2. 在同一消化周期组内按销售数量排名，销售越高 → X越小(1)、Y越大
+    // 1. 优先用O列库存月确定 X+Y 之和（库存月×30≈消化周期天数）
+    // 2. 若N列日销系数有效(1/2/3)，直接用作X（按sum约束做clamp）
+    // 3. 无日销系数时，在同一消化周期组内按销售数量排名分配X
     function assignMatrixCoefficients(rows, periodDays) {
       // 计算消化周期和系数之和
       rows.forEach((row) => {
-        const sellOutDays = row.sellOutDays !== null && row.sellOutDays !== undefined
-          ? row.sellOutDays
-          : (row.salesQty > 0 ? (row.stockQty / row.salesQty) * periodDays : null);
-        row.sellOutDays = sellOutDays;
-        row.digestionSum = getDigestionSum(sellOutDays);
+        // 优先使用库存月(O列)计算消化周期
+        if (row.stockMonths !== null && row.stockMonths !== undefined && !Number.isNaN(row.stockMonths)) {
+          row.sellOutDays = row.stockMonths * 30;
+        } else {
+          const sellOutDays = row.sellOutDays !== null && row.sellOutDays !== undefined
+            ? row.sellOutDays
+            : (row.salesQty > 0 ? (row.stockQty / row.salesQty) * periodDays : null);
+          row.sellOutDays = sellOutDays;
+        }
+        row.digestionSum = getDigestionSum(row.sellOutDays);
       });
 
-      // 按消化周期分组，组内按销售数量降序排名分配X
-      const groups = new Map();
+      // 第一轮：有日销系数(N列)的商品直接分配X
+      const unassigned = [];
       rows.forEach((row) => {
+        const dsc = row.dailySalesCoef;
+        if (dsc !== null && dsc !== undefined && !Number.isNaN(dsc) && dsc >= 1 && dsc <= 3) {
+          const sum = row.digestionSum;
+          const minX = Math.max(1, sum - 3);
+          const maxX = Math.min(3, sum - 1);
+          row.salesCoef = Math.max(minX, Math.min(maxX, Math.round(dsc)));
+          row.inventoryCoef = sum - row.salesCoef;
+        } else {
+          unassigned.push(row);
+        }
+      });
+
+      // 第二轮：无日销系数的商品按消化周期分组，组内按销售数量降序排名分配X
+      const groups = new Map();
+      unassigned.forEach((row) => {
         const sum = row.digestionSum;
         if (!groups.has(sum)) groups.set(sum, []);
         groups.get(sum).push(row);
@@ -2687,9 +2782,11 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           const inventoryAmount = maybeNumber(row.inventoryAmount);
           const stockMonths = maybeNumber(row.stockMonths);
           const remainingDays = maybeNumber(row.remainingDays);
-          const sellOutDays = row.sellOutDays !== null && row.sellOutDays !== undefined
-            ? row.sellOutDays
-            : (salesQty > 0 ? (stockQty / salesQty) * periodDays : null);
+          const sellOutDays = (stockMonths !== null && stockMonths !== undefined && !Number.isNaN(stockMonths))
+            ? stockMonths * 30
+            : (row.sellOutDays !== null && row.sellOutDays !== undefined
+              ? row.sellOutDays
+              : (salesQty > 0 ? (stockQty / salesQty) * periodDays : null));
           const derivedStockMonths = stockMonths !== null && stockMonths !== undefined
             ? stockMonths
             : (salesQty > 0 ? (stockQty / salesQty) * periodMonths : null);
@@ -3233,11 +3330,13 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         subtitleEl.textContent = "九宫格模式：只需上传单个《总库存情况》文件，系统会自动读取商品资料、库存、净出库和图片，按消化周期生成销售系数×库存系数九宫格分析图。";
         notesEl.innerHTML = `
           <div class="note">1. 仅需上传一个 Excel 文件，包含《总库存情况》工作表。</div>
-          <div class="note">2. 系统会自动读取条码、品名、库存数量、销售数据和商品图片。</div>
+          <div class="note">2. 数据列映射：M列=即时库存(纵轴)、N列=日销系数(横轴)、O列=库存月(决定格子)、P列=保质期剩余天数。</div>
           <div class="note">3. 九宫格按"销售系数(1~3) × 库存系数(1~3)"自动划分，横轴+纵轴=消化周期分类。</div>
-          <div class="note">4. 消化周期≤90天→系数和=2，≤180天→3，≤360天→4，≤720天→5，>720天→6。</div>
-          <div class="note">5. 点击商品图片可跳转到联动总表查看明细。</div>
-          <div class="note">6. 页面会在本地缓存已上传文件，刷新后可自动恢复。</div>
+          <div class="note">4. 库存月≤3→系数和=2(≤90天)，≤6→3(≤180天)，≤12→4(≤360天)，≤24→5(≤720天)，>24→6(>720天)。</div>
+          <div class="note">5. 若N列日销系数为1/2/3，直接用作横轴；否则按销售数量排名自动分配。</div>
+          <div class="note">6. 点击商品图片可跳转到联动总表查看明细。</div>
+          <div class="note">7. 点击格子可查看大宫格弹窗，含图例说明。</div>
+          <div class="note">8. 页面会在本地缓存已上传文件，刷新后可自动恢复。</div>
         `;
       } else {
         titleEl.textContent = "驾驶舱文件";
@@ -3335,6 +3434,12 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
               <div class="big-cell-header">
                 <h3>${escapeHtml(cell.meta.title)} <span style="font-size:14px;font-weight:normal;color:var(--muted);">(${escapeHtml(cell.meta.badge)})</span></h3>
                 <button class="big-cell-close" data-big-cell-close title="关闭">&times;</button>
+              </div>
+              <div class="big-cell-legend">
+                <span class="legend-item"><span class="legend-box legend-red"></span>停产</span>
+                <span class="legend-item"><span class="legend-box legend-yellow"></span>待定</span>
+                <span class="legend-item"><span class="legend-box legend-green"></span>继续生产</span>
+                <span class="legend-item"><span class="legend-text-danger">红色加粗字体</span>保质期到期前消化不完</span>
               </div>
               <div class="big-cell-content">
                 <div class="big-cell-stats">
@@ -4474,6 +4579,24 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
     }
 
     function render(model = buildModel()) {
+      // 侧边栏折叠/展开
+      const sidebarEl = document.querySelector(".sidebar");
+      const toggleBtn = document.getElementById("sidebar-toggle-btn");
+      const toggleIcon = document.getElementById("sidebar-toggle-icon");
+      if (sidebarEl && toggleBtn) {
+        sidebarEl.classList.toggle("collapsed", state.sidebarCollapsed);
+        if (toggleIcon) {
+          toggleIcon.innerHTML = state.sidebarCollapsed ? '展开 &raquo;' : '收起 &laquo;';
+        }
+        // 避免重复绑定
+        if (!toggleBtn.dataset.bound) {
+          toggleBtn.dataset.bound = "1";
+          toggleBtn.addEventListener("click", () => {
+            state.sidebarCollapsed = !state.sidebarCollapsed;
+            render();
+          });
+        }
+      }
       renderModeSwitch(model);
       renderSidebarInfo(model);
       renderProgressPills(model);
