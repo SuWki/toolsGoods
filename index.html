@@ -217,17 +217,18 @@
       gap: 18px;
     }
 
-    .sidebar.collapsed .sidebar-body {
-      display: grid;
-      gap: 0;
-    }
-
-    .sidebar.collapsed .sidebar-body > section:not(:first-child) {
+    .sidebar.collapsed {
       display: none;
     }
 
-    .sidebar.collapsed .sidebar-toggle-bar {
-      border-bottom: none;
+    .layout.sidebar-hidden {
+      grid-template-columns: 1fr;
+    }
+
+    .restore-sidebar-btn {
+      font-size: 13px;
+      padding: 6px 14px;
+      cursor: pointer;
     }
 
     .section-title {
@@ -1171,6 +1172,7 @@
         <div class="actions">
           <button id="batch-upload" class="ghost">批量上传</button>
           <button id="clear-all" class="ghost">清空全部</button>
+          <button id="restore-sidebar" class="ghost restore-sidebar-btn" style="display:none;">恢复侧边栏</button>
           <input id="batch-input" type="file" accept=".xlsx,.xls,.csv" multiple hidden>
           <div id="batch-note" class="note" style="margin-top:4px;max-width:240px;text-align:right;"></div>
         </div>
@@ -2052,7 +2054,8 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
     async function parseMatrixWorkbookRowsFromFile(file) {
       const buffer = await file.arrayBuffer();
       const zip = await JSZip.loadAsync(buffer);
-      const workbook = XLSX.read(buffer, { type: "array", cellDates: true, raw: false });
+      // raw:true 跳过单元格格式化，大幅提升解析速度
+      const workbook = XLSX.read(buffer, { type: "array", cellDates: true, raw: true });
       const sheetName = findPreferredSheetName(workbook.SheetNames || [], ["总库存情况"]) || workbook.SheetNames?.[0] || "";
       if (!sheetName) {
         throw new Error("未找到总库存情况工作表");
@@ -2064,31 +2067,36 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       }
 
       const imageLookup = await buildMatrixImageLookup(zip);
+
+      // 一次性将工作表转为二维数组，避免逐单元格 encode_cell 调用
+      const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: "" });
       const imageTargets = new Map();
-      const range = XLSX.utils.decode_range(sheet["!ref"]);
-      const maxRow = range.e.r + 1;
       const rows = [];
 
-      for (let rowNumber = 4; rowNumber <= maxRow; rowNumber += 1) {
-        const productName = getSheetCellText(sheet, rowNumber, 4);
-        const barcode = getSheetCellText(sheet, rowNumber, 1);
-        const sku = getSheetCellText(sheet, rowNumber, 5);       // 货号
-        const spec = getSheetCellText(sheet, rowNumber, 6);       // 净含量/规格
-        const category = getSheetCellText(sheet, rowNumber, 7);   // 分类
-        const productionNote = getSheetCellText(sheet, rowNumber, 8); // 生产备注
-        const isRegularPrice = parseYesNo(getSheetCellValue(sheet, rowNumber, 9));  // 正价
-        const retailPrice = maybeNumber(getSheetCellValue(sheet, rowNumber, 10));   // 零售价
+      // 数据从第4行开始（索引3）
+      for (let rowIdx = 3; rowIdx < sheetRows.length; rowIdx += 1) {
+        const r = sheetRows[rowIdx] || [];
+        const productName = String(r[3] ?? "").trim();
+        const barcode = String(r[0] ?? "").trim();
+        const sku = String(r[4] ?? "").trim();
+        if (!productName && !barcode && !sku) continue;
+
+        const spec = String(r[5] ?? "").trim();
+        const category = String(r[6] ?? "").trim();
+        const productionNote = String(r[7] ?? "").trim();
+        const isRegularPrice = parseYesNo(r[8]);
+        const retailPrice = maybeNumber(r[9]);
         // M列(13)=即时库存, N列(14)=日销系数, O列(15)=库存月, P列(16)=保质期剩余天数
-        const currentStock = parseNumber(getSheetCellValue(sheet, rowNumber, 13), 0);
-        const dailySalesCoef = maybeNumber(getSheetCellValue(sheet, rowNumber, 14));
-        const stockMonths = maybeNumber(getSheetCellValue(sheet, rowNumber, 15));
-        const remainingDays = maybeNumber(getSheetCellValue(sheet, rowNumber, 16));
+        const currentStock = parseNumber(r[12], 0);
+        const dailySalesCoef = maybeNumber(r[13]);
+        const stockMonths = maybeNumber(r[14]);
+        const remainingDays = maybeNumber(r[15]);
         // 线上月均(21) + 线下月均(24) 计算月均销量
-        const onlineMonthlyAvg = parseNumber(getSheetCellValue(sheet, rowNumber, 21), 0);
-        const offlineMonthlyAvg = parseNumber(getSheetCellValue(sheet, rowNumber, 24), 0);
+        const onlineMonthlyAvg = parseNumber(r[20], 0);
+        const offlineMonthlyAvg = parseNumber(r[23], 0);
         const monthlyAverage = onlineMonthlyAvg + offlineMonthlyAvg;
-        const stockHealth = getSheetCellText(sheet, rowNumber, 27) || getStockHealthLabel(stockMonths); // 库存判断
-        const salesTrend = getSheetCellText(sheet, rowNumber, 28); // 销量趋势
+        const stockHealth = String(r[26] ?? "").trim() || getStockHealthLabel(stockMonths);
+        const salesTrend = String(r[27] ?? "").trim();
         // 按7个月周期计算总销量
         const periodMonths = 7;
         const salesQty = Math.round(monthlyAverage * periodMonths);
@@ -2099,19 +2107,19 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           ? stockMonths * 30
           : (monthlyAverage > 0 ? (currentStock / monthlyAverage) * 30 : null);
         const canSellBeforeExpiry = sellOutDays !== null && remainingDays !== null ? sellOutDays <= remainingDays : null;
-        const imageCell = getSheetCell(sheet, rowNumber, 3);
+
+        // 图片：DISPIMG 公式存在 cell.f 或 cell.v 中
+        const imageCell = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: 2 })];
         const imageId = extractDispImgId(imageCell);
         const imageTarget = imageLookup.get(imageId) || "";
         if (imageId && imageTarget) {
           imageTargets.set(imageId, imageTarget);
         }
 
-        if (!productName && !barcode && !sku) continue;
-
         rows.push({
           key: makeBarcodeKey({ barcode, sku, specCode: sku, productCode: sku, productName, spec }),
           barcode,
-          id: getSheetCellText(sheet, rowNumber, 2),
+          id: String(r[1] ?? "").trim(),
           imageId,
           imageTarget,
           productName,
@@ -2131,15 +2139,20 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           monthlyAverageSales: monthlyAverage,
           sellOutDays,
           canSellBeforeExpiry,
-          raw: Array.from({ length: 30 }, (_, idx) => getSheetCellValue(sheet, rowNumber, idx + 1)),
+          raw: r.slice(0, 30),
         });
       }
 
+      // 图片分批加载，避免一次性 Promise.all 创建过多并发
       const uniqueTargets = Array.from(new Set(Array.from(imageTargets.values())));
       const imageDataByTarget = {};
-      await Promise.all(uniqueTargets.map(async (target) => {
-        imageDataByTarget[target] = await buildMatrixImageData(zip, target);
-      }));
+      const BATCH_SIZE = 20;
+      for (let i = 0; i < uniqueTargets.length; i += BATCH_SIZE) {
+        const batch = uniqueTargets.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(async (target) => {
+          imageDataByTarget[target] = await buildMatrixImageData(zip, target);
+        }));
+      }
 
       rows.forEach((row) => {
         row.imageUrl = row.imageTarget ? imageDataByTarget[row.imageTarget] || "" : "";
@@ -2147,12 +2160,21 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
       // 从文件中自动读取销售时间段：第1行第67列(BO)=开始日期，第66列(BN)=结束日期
       let salesPeriod = null;
-      const startDateCell = getSheetCell(sheet, 1, 67);
-      const endDateCell = getSheetCell(sheet, 1, 66);
-      if (startDateCell && endDateCell) {
-        // 优先使用格式化文本（cell.w），避免时区问题
-        const startText = String(startDateCell.w || startDateCell.v || "").trim();
-        const endText = String(endDateCell.w || endDateCell.v || "").trim();
+      const row1 = sheetRows[0] || [];
+      const startDateVal = row1[66];
+      const endDateVal = row1[65];
+      if (startDateVal && endDateVal) {
+        const formatDateVal = (val) => {
+          if (val instanceof Date) {
+            const y = val.getFullYear();
+            const m = String(val.getMonth() + 1).padStart(2, "0");
+            const d = String(val.getDate()).padStart(2, "0");
+            return `${y}-${m}-${d}`;
+          }
+          return String(val).trim();
+        };
+        const startText = formatDateVal(startDateVal);
+        const endText = formatDateVal(endDateVal);
         const startMatch = startText.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
         const endMatch = endText.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
         if (startMatch && endMatch) {
@@ -4581,21 +4603,28 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
     function render(model = buildModel()) {
       // 侧边栏折叠/展开
       const sidebarEl = document.querySelector(".sidebar");
+      const layoutEl = document.querySelector(".layout");
       const toggleBtn = document.getElementById("sidebar-toggle-btn");
-      const toggleIcon = document.getElementById("sidebar-toggle-icon");
-      if (sidebarEl && toggleBtn) {
-        sidebarEl.classList.toggle("collapsed", state.sidebarCollapsed);
-        if (toggleIcon) {
-          toggleIcon.innerHTML = state.sidebarCollapsed ? '展开 &raquo;' : '收起 &laquo;';
-        }
-        // 避免重复绑定
-        if (!toggleBtn.dataset.bound) {
-          toggleBtn.dataset.bound = "1";
-          toggleBtn.addEventListener("click", () => {
-            state.sidebarCollapsed = !state.sidebarCollapsed;
-            render();
-          });
-        }
+      const restoreBtn = document.getElementById("restore-sidebar");
+      if (sidebarEl && layoutEl) {
+        const collapsed = state.sidebarCollapsed;
+        sidebarEl.classList.toggle("collapsed", collapsed);
+        layoutEl.classList.toggle("sidebar-hidden", collapsed);
+        if (restoreBtn) restoreBtn.style.display = collapsed ? "" : "none";
+      }
+      if (toggleBtn && !toggleBtn.dataset.bound) {
+        toggleBtn.dataset.bound = "1";
+        toggleBtn.addEventListener("click", () => {
+          state.sidebarCollapsed = true;
+          render();
+        });
+      }
+      if (restoreBtn && !restoreBtn.dataset.bound) {
+        restoreBtn.dataset.bound = "1";
+        restoreBtn.addEventListener("click", () => {
+          state.sidebarCollapsed = false;
+          render();
+        });
       }
       renderModeSwitch(model);
       renderSidebarInfo(model);
