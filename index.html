@@ -2105,7 +2105,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           : (monthlyAverage > 0 ? currentStock / monthlyAverage : null);
         const sellOutDays = (stockMonths !== null && stockMonths !== undefined)
           ? stockMonths * 30
-          : (monthlyAverage > 0 ? (currentStock / monthlyAverage) * 30 : null);
+          : (monthlyAverage > 0 ? (currentStock / monthlyAverage) * 30 : Infinity);
         const canSellBeforeExpiry = sellOutDays !== null && remainingDays !== null ? sellOutDays <= remainingDays : null;
 
         // 图片：DISPIMG 公式存在 cell.f 或 cell.v 中
@@ -2706,7 +2706,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       return metaMap[cellKey] || { title: cellKey, badge: "待判定", theme: "neutral" };
     }
 
-    // ===== 新九宫格分类逻辑：销售系数 × 库存系数 =====
+    // ===== 新九宫格分类逻辑：日销系数 × 消化周期 =====
     // 消化周期(天) → X+Y系数之和
     function getDigestionSum(sellOutDays) {
       if (sellOutDays === null || sellOutDays === undefined || Number.isNaN(sellOutDays)) return 6;
@@ -2724,7 +2724,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
     }
 
     // 新九宫格单元格元数据
-    // 横轴X=销售系数(1高~3低)，纵轴Y=库存系数(1低~3高)
+    // 横轴X=日销系数(1高~3低)，纵轴Y=消化周期反推(1低~3高)
     function getMatrixCellMetaNew(x, y) {
       const cellKey = `${x}|${y}`;
       const metaMap = {
@@ -2741,54 +2741,45 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       return metaMap[cellKey] || { title: cellKey, badge: "待判定", theme: "neutral" };
     }
 
-    // 为商品分配销售系数(X)和库存系数(Y)
+    // 为商品分配日销系数(X)和纵轴值(Y=sum-X)
     // 1. 用O列库存月确定 X+Y 之和（库存月×30≈消化周期天数）
-    // 2. N列日销系数理解为销售数量排名值：组内按N值降序排名，高销量→X=1，低销量→X=3
-    // 3. 无N值时回退到 salesQty 排名
+    // 2. 直接读取N列日销系数数值分配X：N≥10→X=1(高日销)，3≤N<10→X=2(中日销)，N<3→X=3(低日销)
+    // 3. Y = sum - X（由消化周期反推，不再单独计算库存系数）
     function assignMatrixCoefficients(rows, periodDays) {
       // 计算消化周期和系数之和
       rows.forEach((row) => {
         // 优先使用库存月(O列)计算消化周期
         if (row.stockMonths !== null && row.stockMonths !== undefined && !Number.isNaN(row.stockMonths)) {
           row.sellOutDays = row.stockMonths * 30;
+        } else if (row.sellOutDays !== null && row.sellOutDays !== undefined) {
+          // 保留已计算的 sellOutDays（可能为 Infinity）
+        } else if (row.salesQty > 0) {
+          row.sellOutDays = (row.stockQty / row.salesQty) * periodDays;
         } else {
-          const sellOutDays = row.sellOutDays !== null && row.sellOutDays !== undefined
-            ? row.sellOutDays
-            : (row.salesQty > 0 ? (row.stockQty / row.salesQty) * periodDays : null);
-          row.sellOutDays = sellOutDays;
+          // 有库存但无销量，消化周期无穷大
+          row.sellOutDays = Infinity;
         }
         row.digestionSum = getDigestionSum(row.sellOutDays);
       });
 
-      // 按消化周期分组，组内按日销系数(N列)降序排名分配X
-      const groups = new Map();
+      // 直接根据N列日销系数数值分配X（不再组内排名）
       rows.forEach((row) => {
+        const n = (row.dailySalesCoef != null && !Number.isNaN(row.dailySalesCoef)) ? row.dailySalesCoef : 0;
+        let x;
+        if (n >= 10) {
+          x = 1;  // 高日销
+        } else if (n >= 3) {
+          x = 2;  // 中日销
+        } else {
+          x = 3;  // 低日销
+        }
+        // 根据消化周期约束 X 的范围：X ∈ [max(1, sum-3), min(3, sum-1)]
         const sum = row.digestionSum;
-        if (!groups.has(sum)) groups.set(sum, []);
-        groups.get(sum).push(row);
-      });
-
-      groups.forEach((groupRows, sum) => {
-        // 排序优先级：日销系数(N列) > salesQty
-        groupRows.sort((a, b) => {
-          const aVal = (a.dailySalesCoef != null && !Number.isNaN(a.dailySalesCoef)) ? a.dailySalesCoef : (a.salesQty || 0);
-          const bVal = (b.dailySalesCoef != null && !Number.isNaN(b.dailySalesCoef)) ? b.dailySalesCoef : (b.salesQty || 0);
-          return bVal - aVal;
-        });
         const minX = Math.max(1, sum - 3);
         const maxX = Math.min(3, sum - 1);
-        const range = maxX - minX + 1;
-        const count = groupRows.length;
-        groupRows.forEach((row, index) => {
-          let idx;
-          if (range <= 1) {
-            idx = 0;
-          } else {
-            idx = Math.min(Math.floor((index / count) * range), range - 1);
-          }
-          row.salesCoef = minX + idx;
-          row.inventoryCoef = sum - row.salesCoef;
-        });
+        x = Math.max(minX, Math.min(maxX, x));
+        row.salesCoef = x;
+        row.inventoryCoef = sum - x;
       });
     }
 
@@ -2808,7 +2799,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
             ? stockMonths * 30
             : (row.sellOutDays !== null && row.sellOutDays !== undefined
               ? row.sellOutDays
-              : (salesQty > 0 ? (stockQty / salesQty) * periodDays : null));
+              : (salesQty > 0 ? (stockQty / salesQty) * periodDays : Infinity));
           const derivedStockMonths = stockMonths !== null && stockMonths !== undefined
             ? stockMonths
             : (salesQty > 0 ? (stockQty / salesQty) * periodMonths : null);
@@ -2840,7 +2831,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         })
         .filter((row) => row.productName || row.barcode || row.sku);
 
-      // 分配销售系数和库存系数（基于消化周期反推九宫格）
+      // 分配日销系数和纵轴值（基于消化周期反推九宫格）
       assignMatrixCoefficients(rows, periodDays);
       rows.forEach((row) => {
         row.matrixMeta = getMatrixCellMetaNew(row.salesCoef, row.inventoryCoef);
@@ -2976,7 +2967,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         };
       }).filter((row) => row.productName || row.barcode || row.sku);
 
-      // 分配销售系数和库存系数（基于消化周期反推九宫格）
+      // 分配日销系数和纵轴值（基于消化周期反推九宫格）
       assignMatrixCoefficients(rows, periodDays);
       rows.forEach((row) => {
         row.matrixMeta = getMatrixCellMetaNew(row.salesCoef, row.inventoryCoef);
@@ -3349,13 +3340,13 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
       if (state.activeTab === "matrix") {
         titleEl.textContent = "九宫格文件";
-        subtitleEl.textContent = "九宫格模式：只需上传单个《总库存情况》文件，系统会自动读取商品资料、库存、净出库和图片，按消化周期生成销售系数×库存系数九宫格分析图。";
+        subtitleEl.textContent = "九宫格模式：只需上传单个《总库存情况》文件，系统会自动读取商品资料、库存、净出库和图片，按消化周期生成日销系数×消化周期九宫格分析图。";
         notesEl.innerHTML = `
           <div class="note">1. 仅需上传一个 Excel 文件，包含《总库存情况》工作表。</div>
-          <div class="note">2. 数据列映射：M列=即时库存(纵轴)、N列=日销系数(横轴排名)、O列=库存月(决定格子)、P列=保质期剩余天数。</div>
-          <div class="note">3. 九宫格按"销售系数(1~3) × 库存系数(1~3)"自动划分，横轴+纵轴=消化周期分类。</div>
+          <div class="note">2. 数据列映射：M列=即时库存、N列=日销系数(横轴)、O列=库存月(决定消化周期)、P列=保质期剩余天数。</div>
+          <div class="note">3. 横轴=日销系数(1~3)，直接读取N列数值：N≥10→1(高日销)，3≤N<10→2(中日销)，N<3→3(低日销)。</div>
           <div class="note">4. 库存月≤3→系数和=2(≤90天)，≤6→3(≤180天)，≤12→4(≤360天)，≤24→5(≤720天)，>24→6(>720天)。</div>
-          <div class="note">5. N列日销系数作为销售数量排名值，组内按N值降序分配横轴(高销量→X=1，低销量→X=3)。</div>
+          <div class="note">5. 纵轴=系数和-横轴，由消化周期反推，不再单独计算库存系数。</div>
           <div class="note">6. 点击商品图片可跳转到联动总表查看明细。</div>
           <div class="note">7. 点击格子可查看大宫格弹窗，含图例说明。</div>
           <div class="note">8. 页面会在本地缓存已上传文件，刷新后可自动恢复。</div>
@@ -3387,7 +3378,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
               <button class="primary" data-open-source="matrixWorkbook">上传九宫格文件</button>
             </div>
             <div class="soft-card">
-              <div class="note">上传后，系统会根据消化周期自动将商品分配到销售系数×库存系数九宫格，并保留点击商品图片跳转明细的能力。</div>
+              <div class="note">上传后，系统会根据消化周期自动将商品分配到日销系数×消化周期九宫格，并保留点击商品图片跳转明细的能力。</div>
             </div>
           </div>
         `;
@@ -3496,8 +3487,8 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         <div class="panel matrix-panel" id="matrix-panel">
           <div class="block-head">
             <div>
-              <h2>SKU 九宫格分析（销售系数 × 库存系数）</h2>
-              <div class="note">横轴=销售系数（1高~3低），纵轴=库存系数（1低~3高），横轴+纵轴=消化周期分类。点击商品图片会跳到联动总表对应行。</div>
+              <h2>SKU 九宫格分析（日销系数 × 消化周期）</h2>
+              <div class="note">横轴=日销系数（N列数值：1高日销~3低日销），纵轴=消化周期反推（1低~3高）。点击商品图片会跳到联动总表对应行。</div>
             </div>
             <div style="display:flex;gap:10px;align-items:center;">
               <span class="badge neutral">共 ${formatInteger(model.matrixSummary.totalSku)} 个商品</span>
@@ -3544,17 +3535,17 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           </div>
 
           <div class="soft-card">
-              <div class="note" style="margin-bottom:10px;font-weight:700;color:var(--ink);">销售系数（横轴：1=高销售 → 3=低销售）</div>
+              <div class="note" style="margin-bottom:10px;font-weight:700;color:var(--ink);">日销系数（横轴：1=高日销 → 3=低日销）</div>
             <div class="matrix-grid" id="matrix-grid" style="grid-template-columns:88px repeat(3, minmax(0, 1fr));">
               <div></div>
-              <div class="matrix-col-head">销售系数 1<br>（高销售）</div>
-              <div class="matrix-col-head">销售系数 2<br>（中销售）</div>
-              <div class="matrix-col-head">销售系数 3<br>（低销售）</div>
-              <div class="matrix-row-head">库存系数 1<br>（低库存）</div>
+              <div class="matrix-col-head">日销系数 1<br>（高日销）</div>
+              <div class="matrix-col-head">日销系数 2<br>（中日销）</div>
+              <div class="matrix-col-head">日销系数 3<br>（低日销）</div>
+              <div class="matrix-row-head">纵轴 1<br>（低）</div>
               ${cellHtml.slice(0, 3).join("")}
-              <div class="matrix-row-head">库存系数 2<br>（中库存）</div>
+              <div class="matrix-row-head">纵轴 2<br>（中）</div>
               ${cellHtml.slice(3, 6).join("")}
-              <div class="matrix-row-head">库存系数 3<br>（高库存）</div>
+              <div class="matrix-row-head">纵轴 3<br>（高）</div>
               ${cellHtml.slice(6, 9).join("")}
             </div>
           </div>
@@ -3567,14 +3558,19 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
             title: "联动总表（九宫格命中结果）",
             note: "这里展示当前筛选条件下的 SKU 明细，点击品名可跳回九宫格对应商品。",
             rows: rows,
+            showAll: true,
             columns: [
               { label: "品名", key: "productName", render: (row) => `<a href="#" class="link-to-matrix" data-link-key="${escapeHtml(row.key)}" title="点击跳回九宫格">${escapeHtml(shortenProductName(row.productName) || "-")}</a>`, sortValue: (row) => row.productName || "" },
               { label: "规格", render: (row) => escapeHtml(row.spec || "-") },
               { label: "条码", key: "barcode", render: (row) => escapeHtml(row.barcode || row.sku || "-"), sortValue: (row) => row.barcode || row.sku || "" },
               { label: "分类", render: (row) => escapeHtml(row.category || "-") },
-              { label: "销售系数", render: (row) => row.salesCoef ? `系数${row.salesCoef}` : "-", sortValue: (row) => row.salesCoef || 0 },
-              { label: "库存系数", render: (row) => row.inventoryCoef ? `系数${row.inventoryCoef}` : "-", sortValue: (row) => row.inventoryCoef || 0 },
-              { label: "消化周期", render: (row) => row.sellOutDays !== null && row.sellOutDays !== undefined ? `${Math.round(row.sellOutDays)} 天` : "-", sortValue: (row) => row.sellOutDays ?? 0 },
+              { label: "日销系数", render: (row) => row.salesCoef ? `系数${row.salesCoef}` : "-", sortValue: (row) => row.salesCoef || 0 },
+              { label: "N值", render: (row) => row.dailySalesCoef !== null && row.dailySalesCoef !== undefined ? formatNumber(row.dailySalesCoef) : "-", sortValue: (row) => row.dailySalesCoef ?? 0 },
+              { label: "消化周期", render: (row) => {
+                if (row.sellOutDays === Infinity) return "无法消化";
+                if (row.sellOutDays !== null && row.sellOutDays !== undefined) return `${Math.round(row.sellOutDays)} 天`;
+                return "-";
+              }, sortValue: (row) => row.sellOutDays === Infinity ? Number.MAX_SAFE_INTEGER : (row.sellOutDays ?? 0) },
               { label: "销售数量", render: (row) => formatInteger(row.salesQty || 0) },
               { label: "即时库存", render: (row) => formatInteger(row.stockQty || 0) },
               { label: "库存月", render: (row) => row.stockMonths === null || row.stockMonths === undefined ? "-" : `${Math.round(row.stockMonths)} 个月` },
@@ -3583,7 +3579,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
               { label: "能否卖完", render: (row) => badge(row.canSellBeforeExpiry === false ? "danger" : "good", row.canSellBeforeExpiry === false ? "卖不完" : "可卖完") },
             ],
             emptyText: "当前筛选下没有 SKU。请换个分类或放宽条件。",
-            previewText: `当前筛选 ${formatInteger(rows.length)} 条`,
+            previewText: `共 ${formatInteger(rows.length)} 条`,
             rowClassName: (row) => row.key === state.matrixFocusKey ? "focus-row" : "",
           })}
           ${renderBigCellModal()}
@@ -3591,7 +3587,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       `;
     }
 
-    function tableSection({ tabId, title, note, rows, columns, emptyText, previewText, rowClassName }) {
+    function tableSection({ tabId, title, note, rows, columns, emptyText, previewText, rowClassName, showAll }) {
       if (!rows.length) {
         return `
           <div class="card block">
@@ -3611,12 +3607,12 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       const sortKey = tableState.sortKey || "";
       const sortDir = tableState.sortDir || "desc";
       const resolvedRows = applySorting(rows, columns, sortKey, sortDir);
-      const pageSize = tableState.pageSize || 20;
-      const columnWidths = tableState.columnWidths || {};
       const totalRows = resolvedRows.length;
-      const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
-      const currentPage = Math.min(Math.max(tableState.page || 1, 1), totalPages);
-      const pageRows = resolvedRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+      const pageSize = showAll ? totalRows : (tableState.pageSize || 20);
+      const columnWidths = tableState.columnWidths || {};
+      const totalPages = showAll ? 1 : Math.max(1, Math.ceil(totalRows / pageSize));
+      const currentPage = showAll ? 1 : Math.min(Math.max(tableState.page || 1, 1), totalPages);
+      const pageRows = showAll ? resolvedRows : resolvedRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
       const colgroup = columns.map((col) => {
         const key = getResizableColumnKey(col);
         const width = columnWidths[key];
@@ -3655,15 +3651,15 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
             <span class="badge neutral">${escapeHtml(previewText || `显示 ${totalRows} 条`)}</span>
           </div>
           <div class="table-toolbar">
-            <p class="hint">点击表头可排序，分页会记住当前页。</p>
-            <div class="pager">
+            <p class="hint">${showAll ? "点击表头可排序，当前展示全部数据。" : "点击表头可排序，分页会记住当前页。"}</p>
+            ${showAll ? "" : `<div class="pager">
               <select data-page-size data-tab-id="${escapeHtml(activeTabId)}" aria-label="每页条数">
                 ${[20, 50, 100].map((size) => `<option value="${size}" ${pageSize === size ? "selected" : ""}>每页 ${size} 条</option>`).join("")}
               </select>
               <button class="ghost" data-page-action="prev" data-tab-id="${escapeHtml(activeTabId)}" ${currentPage <= 1 ? "disabled" : ""}>上一页</button>
               <span class="page-info">第 ${currentPage} / ${totalPages} 页</span>
               <button class="ghost" data-page-action="next" data-tab-id="${escapeHtml(activeTabId)}" ${currentPage >= totalPages ? "disabled" : ""}>下一页</button>
-            </div>
+            </div>`}
           </div>
           <div class="table-wrap">
             <table>
@@ -3961,6 +3957,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         title: "联动总表",
         note: "这张表把商品、库存和销售先串起来。后续补货、滞销和保质期预警都会直接基于它继续往下做。点击品名可跳转到九宫格对应商品。",
         rows,
+        showAll: true,
         columns: [
           { label: "品名", render: (row) => `<a href="#" class="link-to-matrix" data-link-key="${escapeHtml(row.key)}" title="点击跳转到九宫格">${escapeHtml(row.productName || "-")}</a>` },
           { label: "条码", render: (row) => escapeHtml(row.barcode || row.sku || "-") },
@@ -4276,20 +4273,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       // 标记滚动目标为联动总表行
       state.matrixScrollTarget = "table";
 
-      // 预计算目标行所在页码，确保跳转后能定位到正确分页
-      const model = buildModel();
-      const rows = model.matrixFilteredRows || model.linkedRows || [];
-      const rowIndex = rows.findIndex((r) => r.key === key);
-      if (rowIndex >= 0) {
-        const ts = getTableState("linked");
-        const pageSize = ts.pageSize || 20;
-        const targetPage = Math.floor(rowIndex / pageSize) + 1;
-        if (ts.page !== targetPage) {
-          updateTableState("linked", { page: targetPage });
-        }
-      }
-
-      // 保持在当前 Tab，只滚动到联动总表
+      // 联动总表已取消分页，直接滚动定位
       render();
       requestAnimationFrame(() => {
         scrollToLinkedTable();
@@ -4571,7 +4555,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
                 <li>工作表：总库存情况</li>
                 <li>包含字段：条码、品名、规格、分类、库存数量、7个月销售数据等</li>
               </ul>
-              <div class="note" style="margin-top:8px;">上传后，系统会根据消化周期自动将商品分配到销售系数×库存系数九宫格。</div>
+              <div class="note" style="margin-top:8px;">上传后，系统会根据消化周期自动将商品分配到日销系数×消化周期九宫格。</div>
             </div>
           </div>
           <input id="matrix-empty-input" type="file" accept=".xlsx,.xls,.csv" hidden>
