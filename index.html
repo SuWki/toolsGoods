@@ -3564,8 +3564,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
               { label: "规格", render: (row) => escapeHtml(row.spec || "-") },
               { label: "条码", key: "barcode", render: (row) => escapeHtml(row.barcode || row.sku || "-"), sortValue: (row) => row.barcode || row.sku || "" },
               { label: "分类", render: (row) => escapeHtml(row.category || "-") },
-              { label: "日销系数", render: (row) => row.salesCoef ? `系数${row.salesCoef}` : "-", sortValue: (row) => row.salesCoef || 0 },
-              { label: "N值", render: (row) => row.dailySalesCoef !== null && row.dailySalesCoef !== undefined ? formatNumber(row.dailySalesCoef) : "-", sortValue: (row) => row.dailySalesCoef ?? 0 },
+              { label: "日销系数", render: (row) => row.dailySalesCoef !== null && row.dailySalesCoef !== undefined ? formatNumber(row.dailySalesCoef) : "-", sortValue: (row) => row.dailySalesCoef ?? 0 },
               { label: "消化周期", render: (row) => {
                 if (row.sellOutDays === Infinity) return "无法消化";
                 if (row.sellOutDays !== null && row.sellOutDays !== undefined) return `${Math.round(row.sellOutDays)} 天`;
