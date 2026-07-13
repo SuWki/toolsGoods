@@ -1231,7 +1231,7 @@ const COCKPIT_SUBTABS = [
       matrixFilters: {
         category: "全部",
         isRegularPrice: "全部",
-        kpiFilter: "all", // all, healthy, risk, backlog, selloutSafe, selloutRisk
+        kpiFilter: "all", // all, digest2, digest3, digest4, digest5, digest6
       },
       salesPeriod: getDefaultSalesPeriod(),
 matrixExpandedCells: {}, // 记录哪些格子展开
@@ -2600,6 +2600,81 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       return metaMap[cellKey] || { title: cellKey, badge: "待判定", theme: "neutral" };
     }
 
+    // ===== 新九宫格分类逻辑：销售系数 × 库存系数 =====
+    // 消化周期(天) → X+Y系数之和
+    function getDigestionSum(sellOutDays) {
+      if (sellOutDays === null || sellOutDays === undefined || Number.isNaN(sellOutDays)) return 6;
+      if (sellOutDays <= 90) return 2;
+      if (sellOutDays <= 180) return 3;
+      if (sellOutDays <= 360) return 4;
+      if (sellOutDays <= 720) return 5;
+      return 6;
+    }
+
+    // 消化周期标签
+    function getDigestionLabel(sum) {
+      const labels = { 2: "≤90天", 3: "≤180天", 4: "≤360天", 5: "≤720天", 6: ">720天" };
+      return labels[sum] || "未知";
+    }
+
+    // 新九宫格单元格元数据
+    // 横轴X=销售系数(1高~3低)，纵轴Y=库存系数(1低~3高)
+    function getMatrixCellMetaNew(x, y) {
+      const cellKey = `${x}|${y}`;
+      const metaMap = {
+        "1|1": { title: "原价/补货",   badge: "≤90天",   theme: "good" },
+        "2|1": { title: "原价/关注",   badge: "≤180天",  theme: "good" },
+        "3|1": { title: "原价/不补",   badge: "≤360天",  theme: "warm" },
+        "1|2": { title: "原价/关注",   badge: "≤180天",  theme: "good" },
+        "2|2": { title: "原价/不补",   badge: "≤360天",  theme: "warm" },
+        "3|2": { title: "压力/消化",   badge: "≤720天",  theme: "warn" },
+        "1|3": { title: "原价/不补",   badge: "≤360天",  theme: "warm" },
+        "2|3": { title: "浮动/消化",   badge: "≤720天",  theme: "danger" },
+        "3|3": { title: "这价/去库存", badge: ">720天",  theme: "danger" },
+      };
+      return metaMap[cellKey] || { title: cellKey, badge: "待判定", theme: "neutral" };
+    }
+
+    // 为商品分配销售系数(X)和库存系数(Y)
+    // 1. 先根据消化周期(sellOutDays)确定 X+Y 之和
+    // 2. 在同一消化周期组内按销售数量排名，销售越高 → X越小(1)、Y越大
+    function assignMatrixCoefficients(rows, periodDays) {
+      // 计算消化周期和系数之和
+      rows.forEach((row) => {
+        const sellOutDays = row.sellOutDays !== null && row.sellOutDays !== undefined
+          ? row.sellOutDays
+          : (row.salesQty > 0 ? (row.stockQty / row.salesQty) * periodDays : null);
+        row.sellOutDays = sellOutDays;
+        row.digestionSum = getDigestionSum(sellOutDays);
+      });
+
+      // 按消化周期分组，组内按销售数量降序排名分配X
+      const groups = new Map();
+      rows.forEach((row) => {
+        const sum = row.digestionSum;
+        if (!groups.has(sum)) groups.set(sum, []);
+        groups.get(sum).push(row);
+      });
+
+      groups.forEach((groupRows, sum) => {
+        groupRows.sort((a, b) => (b.salesQty || 0) - (a.salesQty || 0));
+        const minX = Math.max(1, sum - 3);
+        const maxX = Math.min(3, sum - 1);
+        const range = maxX - minX + 1;
+        const count = groupRows.length;
+        groupRows.forEach((row, index) => {
+          let idx;
+          if (range <= 1) {
+            idx = 0;
+          } else {
+            idx = Math.min(Math.floor((index / count) * range), range - 1);
+          }
+          row.salesCoef = minX + idx;
+          row.inventoryCoef = sum - row.salesCoef;
+        });
+      });
+    }
+
     function buildMatrixRowsFromWorkbook(source) {
       const periodMonths = 7;
       const periodDays = periodMonths * 30;
@@ -2646,40 +2721,11 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         })
         .filter((row) => row.productName || row.barcode || row.sku);
 
-      // 判断是否有筛选条件
-      const hasFilter = (state.matrixFilters.category && state.matrixFilters.category !== "全部") ||
-                        (state.matrixFilters.isRegularPrice && state.matrixFilters.isRegularPrice !== "全部");
-
-      // 计算销售排名：无筛选时全品类一起排名，有筛选时在筛选分类内排名
-      const calculateRanking = (targetRows) => {
-        const sorted = targetRows.slice().sort((a, b) => {
-          const aScore = a.salesQty || 0;
-          const bScore = b.salesQty || 0;
-          if (bScore !== aScore) return bScore - aScore;
-          return compareValues(a.productName, b.productName);
-        });
-        const count = sorted.length;
-        sorted.forEach((row, index) => {
-          const percent = count ? (index + 1) / count : null;
-          row.salesBand = row.salesBand || getSalesBandLabel(percent);
-          row.salesRankPercent = percent;
-          row.matrixMeta = getMatrixCellMeta(row);
-        });
-      };
-
-      if (hasFilter) {
-        // 有筛选时：按分类分组排名
-        const grouped = new Map();
-        rows.forEach((row) => {
-          const groupKey = normalizeText(row.category || "未分类");
-          if (!grouped.has(groupKey)) grouped.set(groupKey, []);
-          grouped.get(groupKey).push(row);
-        });
-        grouped.forEach((groupRows) => calculateRanking(groupRows));
-      } else {
-        // 无筛选时：全品类一起排名
-        calculateRanking(rows);
-      }
+      // 分配销售系数和库存系数（基于消化周期反推九宫格）
+      assignMatrixCoefficients(rows, periodDays);
+      rows.forEach((row) => {
+        row.matrixMeta = getMatrixCellMetaNew(row.salesCoef, row.inventoryCoef);
+      });
 
       const categoryOptions = Array.from(new Set(rows.map((row) => row.category || "未分类"))).sort((a, b) => a.localeCompare(b, "zh-CN"));
       const filtered = rows.filter((row) => {
@@ -2690,43 +2736,37 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         const kpiFilter = state.matrixFilters.kpiFilter || "all";
         if (categoryFilter !== "全部" && (row.category || "未分类") !== categoryFilter) return false;
         if (priceFilter !== "全部" && (row.isRegularPrice || "未设置") !== priceFilter) return false;
-        // KPI筛选
+        // KPI筛选（按消化周期分类）
         if (kpiFilter !== "all") {
-          if (kpiFilter === "healthy" && row.stockHealth !== "健康") return false;
-          if (kpiFilter === "risk" && row.stockHealth !== "风险") return false;
-          if (kpiFilter === "backlog" && row.stockHealth !== "积压") return false;
-          if (kpiFilter === "selloutSafe" && row.canSellBeforeExpiry !== true) return false;
-          if (kpiFilter === "selloutRisk" && row.canSellBeforeExpiry !== false) return false;
+          if (kpiFilter === "digest2" && row.digestionSum !== 2) return false;
+          if (kpiFilter === "digest3" && row.digestionSum !== 3) return false;
+          if (kpiFilter === "digest4" && row.digestionSum !== 4) return false;
+          if (kpiFilter === "digest5" && row.digestionSum !== 5) return false;
+          if (kpiFilter === "digest6" && row.digestionSum !== 6) return false;
         }
         return true;
       });
 
       const gridOrder = [
-        ["健康", "畅销"],
-        ["健康", "平销"],
-        ["健康", "滞销"],
-        ["风险", "畅销"],
-        ["风险", "平销"],
-        ["风险", "滞销"],
-        ["积压", "畅销"],
-        ["积压", "平销"],
-        ["积压", "滞销"],
+        { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 3, y: 1 },
+        { x: 1, y: 2 }, { x: 2, y: 2 }, { x: 3, y: 2 },
+        { x: 1, y: 3 }, { x: 2, y: 3 }, { x: 3, y: 3 },
       ];
-      const cells = gridOrder.map(([health, sales]) => {
-        const cellRows = filtered.filter((row) => row.stockHealth === health && row.salesBand === sales)
+      const cells = gridOrder.map(({ x, y }) => {
+        const cellRows = filtered.filter((row) => row.salesCoef === x && row.inventoryCoef === y)
           .sort((a, b) => (b.salesQty || 0) - (a.salesQty || 0));
         const skuCount = cellRows.length;
         const inventoryQty = cellRows.reduce((sum, row) => sum + (row.stockQty || 0), 0);
         const inventoryAmount = cellRows.reduce((sum, row) => sum + (row.inventoryAmount || 0), 0);
         return {
-          key: `${health}|${sales}`,
-          health,
-          sales,
+          key: `${x}|${y}`,
+          x,
+          y,
           rows: cellRows,
           skuCount,
           inventoryQty,
           inventoryAmount,
-          meta: getMatrixCellMeta({ stockMonths: health === "健康" ? 12 : health === "风险" ? 18 : 36, salesBand: sales }),
+          meta: getMatrixCellMetaNew(x, y),
         };
       });
 
@@ -2734,9 +2774,11 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         totalSku: filtered.length,
         totalInventoryQty: filtered.reduce((sum, row) => sum + (row.stockQty || 0), 0),
         totalInventoryAmount: filtered.reduce((sum, row) => sum + (row.inventoryAmount || 0), 0),
-        healthyCount: filtered.filter((row) => row.stockHealth === "健康").length,
-        riskCount: filtered.filter((row) => row.stockHealth === "风险").length,
-        backlogCount: filtered.filter((row) => row.stockHealth === "积压").length,
+        digest2Count: filtered.filter((row) => row.digestionSum === 2).length,
+        digest3Count: filtered.filter((row) => row.digestionSum === 3).length,
+        digest4Count: filtered.filter((row) => row.digestionSum === 4).length,
+        digest5Count: filtered.filter((row) => row.digestionSum === 5).length,
+        digest6Count: filtered.filter((row) => row.digestionSum === 6).length,
         selloutSafeCount: filtered.filter((row) => row.canSellBeforeExpiry === true).length,
         selloutRiskCount: filtered.filter((row) => row.canSellBeforeExpiry === false).length,
         categoryOptions,
@@ -2815,26 +2857,10 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         };
       }).filter((row) => row.productName || row.barcode || row.sku);
 
-      const grouped = new Map();
+      // 分配销售系数和库存系数（基于消化周期反推九宫格）
+      assignMatrixCoefficients(rows, periodDays);
       rows.forEach((row) => {
-        const groupKey = normalizeText(row.category || "未分类");
-        if (!grouped.has(groupKey)) grouped.set(groupKey, []);
-        grouped.get(groupKey).push(row);
-      });
-      grouped.forEach((groupRows) => {
-        const sorted = groupRows.slice().sort((a, b) => {
-          const aScore = a.salesQty || 0;
-          const bScore = b.salesQty || 0;
-          if (bScore !== aScore) return bScore - aScore;
-          return compareValues(a.productName, b.productName);
-        });
-        const count = sorted.length;
-        sorted.forEach((row, index) => {
-          const percent = count ? (index + 1) / count : null;
-          row.salesBand = getSalesBandLabel(percent);
-          row.salesRankPercent = percent;
-          row.matrixMeta = getMatrixCellMeta(row);
-        });
+        row.matrixMeta = getMatrixCellMetaNew(row.salesCoef, row.inventoryCoef);
       });
 
       const categoryOptions = Array.from(new Set(rows.map((row) => row.category || "未分类"))).sort((a, b) => a.localeCompare(b, "zh-CN"));
@@ -2849,31 +2875,25 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       });
 
       const gridOrder = [
-        ["健康", "畅销"],
-        ["健康", "平销"],
-        ["健康", "滞销"],
-        ["风险", "畅销"],
-        ["风险", "平销"],
-        ["风险", "滞销"],
-        ["积压", "畅销"],
-        ["积压", "平销"],
-        ["积压", "滞销"],
+        { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 3, y: 1 },
+        { x: 1, y: 2 }, { x: 2, y: 2 }, { x: 3, y: 2 },
+        { x: 1, y: 3 }, { x: 2, y: 3 }, { x: 3, y: 3 },
       ];
-      const cells = gridOrder.map(([health, sales]) => {
-        const cellRows = filtered.filter((row) => row.stockHealth === health && row.salesBand === sales)
+      const cells = gridOrder.map(({ x, y }) => {
+        const cellRows = filtered.filter((row) => row.salesCoef === x && row.inventoryCoef === y)
           .sort((a, b) => (b.salesQty || 0) - (a.salesQty || 0));
         const skuCount = cellRows.length;
         const inventoryQty = cellRows.reduce((sum, row) => sum + (row.stockQty || 0), 0);
         const inventoryAmount = cellRows.reduce((sum, row) => sum + (row.inventoryAmount || 0), 0);
         return {
-          key: `${health}|${sales}`,
-          health,
-          sales,
+          key: `${x}|${y}`,
+          x,
+          y,
           rows: cellRows,
           skuCount,
           inventoryQty,
           inventoryAmount,
-          meta: getMatrixCellMeta({ stockMonths: health === "健康" ? 12 : health === "风险" ? 18 : 36, salesBand: sales }),
+          meta: getMatrixCellMetaNew(x, y),
         };
       });
 
@@ -2881,9 +2901,11 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         totalSku: filtered.length,
         totalInventoryQty: filtered.reduce((sum, row) => sum + (row.stockQty || 0), 0),
         totalInventoryAmount: filtered.reduce((sum, row) => sum + (row.inventoryAmount || 0), 0),
-        healthyCount: filtered.filter((row) => row.stockHealth === "健康").length,
-        riskCount: filtered.filter((row) => row.stockHealth === "风险").length,
-        backlogCount: filtered.filter((row) => row.stockHealth === "积压").length,
+        digest2Count: filtered.filter((row) => row.digestionSum === 2).length,
+        digest3Count: filtered.filter((row) => row.digestionSum === 3).length,
+        digest4Count: filtered.filter((row) => row.digestionSum === 4).length,
+        digest5Count: filtered.filter((row) => row.digestionSum === 5).length,
+        digest6Count: filtered.filter((row) => row.digestionSum === 6).length,
         selloutSafeCount: filtered.filter((row) => row.canSellBeforeExpiry === true).length,
         selloutRiskCount: filtered.filter((row) => row.canSellBeforeExpiry === false).length,
         categoryOptions,
@@ -3208,13 +3230,14 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
       if (state.activeTab === "matrix") {
         titleEl.textContent = "九宫格文件";
-        subtitleEl.textContent = "九宫格模式：只需上传单个《总库存情况》文件，系统会自动读取商品资料、库存、净出库和图片，生成健康×销售九宫格分析图。";
+        subtitleEl.textContent = "九宫格模式：只需上传单个《总库存情况》文件，系统会自动读取商品资料、库存、净出库和图片，按消化周期生成销售系数×库存系数九宫格分析图。";
         notesEl.innerHTML = `
           <div class="note">1. 仅需上传一个 Excel 文件，包含《总库存情况》工作表。</div>
           <div class="note">2. 系统会自动读取条码、品名、库存数量、销售数据和商品图片。</div>
-          <div class="note">3. 九宫格按"健康 / 风险 / 积压 × 畅销 / 平销 / 滞销"自动划分。</div>
-          <div class="note">4. 点击商品图片可跳转到联动总表查看明细。</div>
-          <div class="note">5. 页面会在本地缓存已上传文件，刷新后可自动恢复。</div>
+          <div class="note">3. 九宫格按"销售系数(1~3) × 库存系数(1~3)"自动划分，横轴+纵轴=消化周期分类。</div>
+          <div class="note">4. 消化周期≤90天→系数和=2，≤180天→3，≤360天→4，≤720天→5，>720天→6。</div>
+          <div class="note">5. 点击商品图片可跳转到联动总表查看明细。</div>
+          <div class="note">6. 页面会在本地缓存已上传文件，刷新后可自动恢复。</div>
         `;
       } else {
         titleEl.textContent = "驾驶舱文件";
@@ -3243,7 +3266,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
               <button class="primary" data-open-source="matrixWorkbook">上传九宫格文件</button>
             </div>
             <div class="soft-card">
-              <div class="note">上传后，这里会按“健康 / 风险 / 积压 × 畅销 / 平销 / 滞销”自动生成九宫格，并保留点击商品图片跳转明细的能力。</div>
+              <div class="note">上传后，系统会根据消化周期自动将商品分配到销售系数×库存系数九宫格，并保留点击商品图片跳转明细的能力。</div>
             </div>
           </div>
         `;
@@ -3346,8 +3369,8 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         <div class="panel matrix-panel" id="matrix-panel">
           <div class="block-head">
             <div>
-              <h2>商品库存健康 × 销售表现九宫格分析</h2>
-              <div class="note">时间范围：${escapeHtml(model.matrixPeriodLabel)}，销售表现按同分类内前 30% / 中间 40% / 后 30% 划分，点击商品图片会跳到联动总表对应行。</div>
+              <h2>SKU 九宫格分析（销售系数 × 库存系数）</h2>
+              <div class="note">横轴=销售系数（1高~3低），纵轴=库存系数（1低~3高），横轴+纵轴=消化周期分类。点击商品图片会跳到联动总表对应行。</div>
             </div>
             <div style="display:flex;gap:10px;align-items:center;">
               <span class="badge neutral">共 ${formatInteger(model.matrixSummary.totalSku)} 个商品</span>
@@ -3386,25 +3409,25 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
           <div class="matrix-kpis">
             <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'all' ? 'active' : ''}" data-kpi-filter="all" style="cursor:pointer;" title="点击查看全部"><small>总 SKU</small><strong>${formatInteger(model.matrixSummary.totalSku)}</strong></div>
-            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'healthy' ? 'active' : ''}" data-kpi-filter="healthy" style="cursor:pointer;" title="点击筛选健康商品"><small>健康</small><strong>${formatInteger(model.matrixSummary.healthyCount)}</strong></div>
-            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'risk' ? 'active' : ''}" data-kpi-filter="risk" style="cursor:pointer;" title="点击筛选风险商品"><small>风险</small><strong>${formatInteger(model.matrixSummary.riskCount)}</strong></div>
-            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'backlog' ? 'active' : ''}" data-kpi-filter="backlog" style="cursor:pointer;" title="点击筛选积压商品"><small>积压</small><strong>${formatInteger(model.matrixSummary.backlogCount)}</strong></div>
-            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'selloutSafe' ? 'active' : ''}" data-kpi-filter="selloutSafe" style="cursor:pointer;" title="点击筛选可卖完商品"><small>可卖完</small><strong>${formatInteger(model.matrixSummary.selloutSafeCount)}</strong></div>
-            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'selloutRisk' ? 'active' : ''}" data-kpi-filter="selloutRisk" style="cursor:pointer;" title="点击筛选卖不完风险商品"><small>卖不完风险</small><strong>${formatInteger(model.matrixSummary.selloutRiskCount)}</strong></div>
+            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'digest2' ? 'active' : ''}" data-kpi-filter="digest2" style="cursor:pointer;" title="消化周期≤90天"><small>≤90天</small><strong>${formatInteger(model.matrixSummary.digest2Count)}</strong></div>
+            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'digest3' ? 'active' : ''}" data-kpi-filter="digest3" style="cursor:pointer;" title="消化周期≤180天"><small>≤180天</small><strong>${formatInteger(model.matrixSummary.digest3Count)}</strong></div>
+            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'digest4' ? 'active' : ''}" data-kpi-filter="digest4" style="cursor:pointer;" title="消化周期≤360天"><small>≤360天</small><strong>${formatInteger(model.matrixSummary.digest4Count)}</strong></div>
+            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'digest5' ? 'active' : ''}" data-kpi-filter="digest5" style="cursor:pointer;" title="消化周期≤720天"><small>≤720天</small><strong>${formatInteger(model.matrixSummary.digest5Count)}</strong></div>
+            <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'digest6' ? 'active' : ''}" data-kpi-filter="digest6" style="cursor:pointer;" title="消化周期>720天"><small>>720天</small><strong>${formatInteger(model.matrixSummary.digest6Count)}</strong></div>
           </div>
 
           <div class="soft-card">
-              <div class="note" style="margin-bottom:10px;font-weight:700;color:var(--ink);">销售表现（横轴）</div>
+              <div class="note" style="margin-bottom:10px;font-weight:700;color:var(--ink);">销售系数（横轴：1=高销售 → 3=低销售）</div>
             <div class="matrix-grid" id="matrix-grid" style="grid-template-columns:88px repeat(3, minmax(0, 1fr));">
               <div></div>
-              <div class="matrix-col-head">畅销（前30%）</div>
-              <div class="matrix-col-head">平销（30%-70%）</div>
-              <div class="matrix-col-head">滞销（后30%）</div>
-              <div class="matrix-row-head">库存深度<br>健康(≤12个月)</div>
+              <div class="matrix-col-head">销售系数 1<br>（高销售）</div>
+              <div class="matrix-col-head">销售系数 2<br>（中销售）</div>
+              <div class="matrix-col-head">销售系数 3<br>（低销售）</div>
+              <div class="matrix-row-head">库存系数 1<br>（低库存）</div>
               ${cellHtml.slice(0, 3).join("")}
-              <div class="matrix-row-head">库存深度<br>风险(12~24个月)</div>
+              <div class="matrix-row-head">库存系数 2<br>（中库存）</div>
               ${cellHtml.slice(3, 6).join("")}
-              <div class="matrix-row-head">库存深度<br>积压(≥24个月)</div>
+              <div class="matrix-row-head">库存系数 3<br>（高库存）</div>
               ${cellHtml.slice(6, 9).join("")}
             </div>
           </div>
@@ -3422,8 +3445,9 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
               { label: "规格", render: (row) => escapeHtml(row.spec || "-") },
               { label: "条码", key: "barcode", render: (row) => escapeHtml(row.barcode || row.sku || "-"), sortValue: (row) => row.barcode || row.sku || "" },
               { label: "分类", render: (row) => escapeHtml(row.category || "-") },
-              { label: "销售表现", render: (row) => escapeHtml(row.salesBand || "-") },
-              { label: "库存健康度", render: (row) => escapeHtml(row.stockHealth || "-") },
+              { label: "销售系数", render: (row) => row.salesCoef ? `系数${row.salesCoef}` : "-", sortValue: (row) => row.salesCoef || 0 },
+              { label: "库存系数", render: (row) => row.inventoryCoef ? `系数${row.inventoryCoef}` : "-", sortValue: (row) => row.inventoryCoef || 0 },
+              { label: "消化周期", render: (row) => row.sellOutDays !== null && row.sellOutDays !== undefined ? `${Math.round(row.sellOutDays)} 天` : "-", sortValue: (row) => row.sellOutDays ?? 0 },
               { label: "销售数量", render: (row) => formatInteger(row.salesQty || 0) },
               { label: "即时库存", render: (row) => formatInteger(row.stockQty || 0) },
               { label: "库存月", render: (row) => row.stockMonths === null || row.stockMonths === undefined ? "-" : `${Math.round(row.stockMonths)} 个月` },
@@ -4406,7 +4430,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
                 <li>工作表：总库存情况</li>
                 <li>包含字段：条码、品名、规格、分类、库存数量、7个月销售数据等</li>
               </ul>
-              <div class="note" style="margin-top:8px;">上传后，这里会按"健康 / 风险 / 积压 × 畅销 / 平销 / 滞销"自动生成九宫格。</div>
+              <div class="note" style="margin-top:8px;">上传后，系统会根据消化周期自动将商品分配到销售系数×库存系数九宫格。</div>
             </div>
           </div>
           <input id="matrix-empty-input" type="file" accept=".xlsx,.xls,.csv" hidden>
