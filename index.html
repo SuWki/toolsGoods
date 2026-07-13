@@ -218,6 +218,11 @@
     }
 
     .sidebar.collapsed .sidebar-body {
+      display: grid;
+      gap: 0;
+    }
+
+    .sidebar.collapsed .sidebar-body > section:not(:first-child) {
       display: none;
     }
 
@@ -2067,27 +2072,32 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       for (let rowNumber = 4; rowNumber <= maxRow; rowNumber += 1) {
         const productName = getSheetCellText(sheet, rowNumber, 4);
         const barcode = getSheetCellText(sheet, rowNumber, 1);
-        const sku = getSheetCellText(sheet, rowNumber, 10);
-        const spec = getSheetCellText(sheet, rowNumber, 5);
-        const category = getSheetCellText(sheet, rowNumber, 6);
-        const productionNote = getSheetCellText(sheet, rowNumber, 7);
-        const isRegularPrice = parseYesNo(getSheetCellValue(sheet, rowNumber, 8));
-        const retailPrice = maybeNumber(getSheetCellValue(sheet, rowNumber, 9));
+        const sku = getSheetCellText(sheet, rowNumber, 5);       // 货号
+        const spec = getSheetCellText(sheet, rowNumber, 6);       // 净含量/规格
+        const category = getSheetCellText(sheet, rowNumber, 7);   // 分类
+        const productionNote = getSheetCellText(sheet, rowNumber, 8); // 生产备注
+        const isRegularPrice = parseYesNo(getSheetCellValue(sheet, rowNumber, 9));  // 正价
+        const retailPrice = maybeNumber(getSheetCellValue(sheet, rowNumber, 10));   // 零售价
         // M列(13)=即时库存, N列(14)=日销系数, O列(15)=库存月, P列(16)=保质期剩余天数
         const currentStock = parseNumber(getSheetCellValue(sheet, rowNumber, 13), 0);
         const dailySalesCoef = maybeNumber(getSheetCellValue(sheet, rowNumber, 14));
         const stockMonths = maybeNumber(getSheetCellValue(sheet, rowNumber, 15));
         const remainingDays = maybeNumber(getSheetCellValue(sheet, rowNumber, 16));
-        const salesMonthValues = [];
-        for (let col = 24; col <= 30; col += 1) {
-          salesMonthValues.push(parseNumber(getSheetCellValue(sheet, rowNumber, col), 0));
-        }
-        const salesQty = salesMonthValues.reduce((sum, value) => sum + value, 0);
-        const monthlyAverage = salesQty > 0 ? salesQty / salesMonthValues.length : 0;
+        // 线上月均(21) + 线下月均(24) 计算月均销量
+        const onlineMonthlyAvg = parseNumber(getSheetCellValue(sheet, rowNumber, 21), 0);
+        const offlineMonthlyAvg = parseNumber(getSheetCellValue(sheet, rowNumber, 24), 0);
+        const monthlyAverage = onlineMonthlyAvg + offlineMonthlyAvg;
+        const stockHealth = getSheetCellText(sheet, rowNumber, 27) || getStockHealthLabel(stockMonths); // 库存判断
+        const salesTrend = getSheetCellText(sheet, rowNumber, 28); // 销量趋势
+        // 按7个月周期计算总销量
+        const periodMonths = 7;
+        const salesQty = Math.round(monthlyAverage * periodMonths);
         const derivedStockMonths = stockMonths !== null && stockMonths !== undefined
           ? stockMonths
           : (monthlyAverage > 0 ? currentStock / monthlyAverage : null);
-        const sellOutDays = salesQty > 0 ? (currentStock / salesQty) * (salesMonthValues.length * 30) : null;
+        const sellOutDays = (stockMonths !== null && stockMonths !== undefined)
+          ? stockMonths * 30
+          : (monthlyAverage > 0 ? (currentStock / monthlyAverage) * 30 : null);
         const canSellBeforeExpiry = sellOutDays !== null && remainingDays !== null ? sellOutDays <= remainingDays : null;
         const imageCell = getSheetCell(sheet, rowNumber, 3);
         const imageId = extractDispImgId(imageCell);
@@ -2115,9 +2125,9 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           stockMonths: derivedStockMonths,
           remainingDays,
           dailySalesCoef,
-          stockHealth: getStockHealthLabel(derivedStockMonths),
+          stockHealth,
+          salesTrend,
           salesQty,
-          salesMonthValues: salesMonthValues.slice(), // 保存7个月的原始销售数据
           monthlyAverageSales: monthlyAverage,
           sellOutDays,
           canSellBeforeExpiry,
@@ -2710,9 +2720,9 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
     }
 
     // 为商品分配销售系数(X)和库存系数(Y)
-    // 1. 优先用O列库存月确定 X+Y 之和（库存月×30≈消化周期天数）
-    // 2. 若N列日销系数有效(1/2/3)，直接用作X（按sum约束做clamp）
-    // 3. 无日销系数时，在同一消化周期组内按销售数量排名分配X
+    // 1. 用O列库存月确定 X+Y 之和（库存月×30≈消化周期天数）
+    // 2. N列日销系数理解为销售数量排名值：组内按N值降序排名，高销量→X=1，低销量→X=3
+    // 3. 无N值时回退到 salesQty 排名
     function assignMatrixCoefficients(rows, periodDays) {
       // 计算消化周期和系数之和
       rows.forEach((row) => {
@@ -2728,31 +2738,21 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         row.digestionSum = getDigestionSum(row.sellOutDays);
       });
 
-      // 第一轮：有日销系数(N列)的商品直接分配X
-      const unassigned = [];
-      rows.forEach((row) => {
-        const dsc = row.dailySalesCoef;
-        if (dsc !== null && dsc !== undefined && !Number.isNaN(dsc) && dsc >= 1 && dsc <= 3) {
-          const sum = row.digestionSum;
-          const minX = Math.max(1, sum - 3);
-          const maxX = Math.min(3, sum - 1);
-          row.salesCoef = Math.max(minX, Math.min(maxX, Math.round(dsc)));
-          row.inventoryCoef = sum - row.salesCoef;
-        } else {
-          unassigned.push(row);
-        }
-      });
-
-      // 第二轮：无日销系数的商品按消化周期分组，组内按销售数量降序排名分配X
+      // 按消化周期分组，组内按日销系数(N列)降序排名分配X
       const groups = new Map();
-      unassigned.forEach((row) => {
+      rows.forEach((row) => {
         const sum = row.digestionSum;
         if (!groups.has(sum)) groups.set(sum, []);
         groups.get(sum).push(row);
       });
 
       groups.forEach((groupRows, sum) => {
-        groupRows.sort((a, b) => (b.salesQty || 0) - (a.salesQty || 0));
+        // 排序优先级：日销系数(N列) > salesQty
+        groupRows.sort((a, b) => {
+          const aVal = (a.dailySalesCoef != null && !Number.isNaN(a.dailySalesCoef)) ? a.dailySalesCoef : (a.salesQty || 0);
+          const bVal = (b.dailySalesCoef != null && !Number.isNaN(b.dailySalesCoef)) ? b.dailySalesCoef : (b.salesQty || 0);
+          return bVal - aVal;
+        });
         const minX = Math.max(1, sum - 3);
         const maxX = Math.min(3, sum - 1);
         const range = maxX - minX + 1;
@@ -3330,10 +3330,10 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         subtitleEl.textContent = "九宫格模式：只需上传单个《总库存情况》文件，系统会自动读取商品资料、库存、净出库和图片，按消化周期生成销售系数×库存系数九宫格分析图。";
         notesEl.innerHTML = `
           <div class="note">1. 仅需上传一个 Excel 文件，包含《总库存情况》工作表。</div>
-          <div class="note">2. 数据列映射：M列=即时库存(纵轴)、N列=日销系数(横轴)、O列=库存月(决定格子)、P列=保质期剩余天数。</div>
+          <div class="note">2. 数据列映射：M列=即时库存(纵轴)、N列=日销系数(横轴排名)、O列=库存月(决定格子)、P列=保质期剩余天数。</div>
           <div class="note">3. 九宫格按"销售系数(1~3) × 库存系数(1~3)"自动划分，横轴+纵轴=消化周期分类。</div>
           <div class="note">4. 库存月≤3→系数和=2(≤90天)，≤6→3(≤180天)，≤12→4(≤360天)，≤24→5(≤720天)，>24→6(>720天)。</div>
-          <div class="note">5. 若N列日销系数为1/2/3，直接用作横轴；否则按销售数量排名自动分配。</div>
+          <div class="note">5. N列日销系数作为销售数量排名值，组内按N值降序分配横轴(高销量→X=1，低销量→X=3)。</div>
           <div class="note">6. 点击商品图片可跳转到联动总表查看明细。</div>
           <div class="note">7. 点击格子可查看大宫格弹窗，含图例说明。</div>
           <div class="note">8. 页面会在本地缓存已上传文件，刷新后可自动恢复。</div>

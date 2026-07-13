@@ -1,0 +1,6 @@
+node_modules/
+package.json
+package-lock.json
+work/inspect-output.txt
+work/inspect-xlsx.js
+work/inspect-xlsx2.js
