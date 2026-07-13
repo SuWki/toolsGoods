@@ -2073,6 +2073,35 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       const imageTargets = new Map();
       const rows = [];
 
+      // 从AP列开始扫描净出库数据，确定统计时间段和周期月数
+      const headerRow = sheetRows[2] || [];
+      const totalsRow = sheetRows[1] || [];
+      let netOutboundMonths = [];
+      for (let c = 41; c < headerRow.length; c++) {
+        const headerText = String(headerRow[c] || "").trim();
+        if (headerText.includes("净出库")) {
+          const monthMatch = headerText.match(/(\d+)月/);
+          const month = monthMatch ? parseInt(monthMatch[1]) : (c - 41 + 1);
+          const total = Number(totalsRow[c]) || 0;
+          if (total > 0) {
+            netOutboundMonths.push(month);
+          }
+        }
+      }
+      let salesPeriod = null;
+      let periodMonths = 7;
+      if (netOutboundMonths.length > 0) {
+        const startMonth = Math.min(...netOutboundMonths);
+        const endMonth = Math.max(...netOutboundMonths);
+        const year = new Date().getFullYear();
+        const endDay = new Date(year, endMonth, 0).getDate();
+        salesPeriod = {
+          start: `${year}-${String(startMonth).padStart(2, "0")}-01`,
+          end: `${year}-${String(endMonth).padStart(2, "0")}-${String(endDay).padStart(2, "0")}`,
+        };
+        periodMonths = endMonth - startMonth + 1;
+      }
+
       // 数据从第4行开始（索引3）
       for (let rowIdx = 3; rowIdx < sheetRows.length; rowIdx += 1) {
         const r = sheetRows[rowIdx] || [];
@@ -2097,8 +2126,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         const monthlyAverage = onlineMonthlyAvg + offlineMonthlyAvg;
         const stockHealth = String(r[26] ?? "").trim() || getStockHealthLabel(stockMonths);
         const salesTrend = String(r[27] ?? "").trim();
-        // 按7个月周期计算总销量
-        const periodMonths = 7;
+        // periodMonths 由净出库列数据扫描得出（后续会延长）
         const salesQty = Math.round(monthlyAverage * periodMonths);
         const derivedStockMonths = stockMonths !== null && stockMonths !== undefined
           ? stockMonths
@@ -2158,38 +2186,12 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         row.imageUrl = row.imageTarget ? imageDataByTarget[row.imageTarget] || "" : "";
       });
 
-      // 从文件中自动读取销售时间段：第1行第67列(BO)=开始日期，第66列(BN)=结束日期
-      let salesPeriod = null;
-      const row1 = sheetRows[0] || [];
-      const startDateVal = row1[66];
-      const endDateVal = row1[65];
-      if (startDateVal && endDateVal) {
-        const formatDateVal = (val) => {
-          if (val instanceof Date) {
-            const y = val.getFullYear();
-            const m = String(val.getMonth() + 1).padStart(2, "0");
-            const d = String(val.getDate()).padStart(2, "0");
-            return `${y}-${m}-${d}`;
-          }
-          return String(val).trim();
-        };
-        const startText = formatDateVal(startDateVal);
-        const endText = formatDateVal(endDateVal);
-        const startMatch = startText.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-        const endMatch = endText.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-        if (startMatch && endMatch) {
-          salesPeriod = {
-            start: `${startMatch[1]}-${String(startMatch[2]).padStart(2, "0")}-${String(startMatch[3]).padStart(2, "0")}`,
-            end: `${endMatch[1]}-${String(endMatch[2]).padStart(2, "0")}-${String(endMatch[3]).padStart(2, "0")}`,
-          };
-        }
-      }
-
       return {
         sheetName,
         rows,
         imageDataByTarget,
         salesPeriod,
+        periodMonths,
       };
     }
 
@@ -2784,7 +2786,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
     }
 
     function buildMatrixRowsFromWorkbook(source) {
-      const periodMonths = 7;
+      const periodMonths = source?.periodMonths || 7;
       const periodDays = periodMonths * 30;
       const baseRows = Array.isArray(source?.rows) ? source.rows.slice() : [];
       const rows = baseRows
@@ -2900,7 +2902,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         cells,
         summary,
         periodDays,
-        periodLabel: "最近 7 个月净出库",
+        periodLabel: source?.salesPeriod ? `${source.salesPeriod.start} ~ ${source.salesPeriod.end}` : `最近 ${periodMonths} 个月净出库`,
         categoryOptions,
       };
     }
@@ -3541,11 +3543,11 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
               <div class="matrix-col-head">日销系数 1<br>（高日销）</div>
               <div class="matrix-col-head">日销系数 2<br>（中日销）</div>
               <div class="matrix-col-head">日销系数 3<br>（低日销）</div>
-              <div class="matrix-row-head">纵轴 1<br>（低）</div>
+              <div class="matrix-row-head">库存系数 1<br>（低库存）</div>
               ${cellHtml.slice(0, 3).join("")}
-              <div class="matrix-row-head">纵轴 2<br>（中）</div>
+              <div class="matrix-row-head">库存系数 2<br>（中库存）</div>
               ${cellHtml.slice(3, 6).join("")}
-              <div class="matrix-row-head">纵轴 3<br>（高）</div>
+              <div class="matrix-row-head">库存系数 3<br>（高库存）</div>
               ${cellHtml.slice(6, 9).join("")}
             </div>
           </div>
@@ -3570,7 +3572,6 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
                 if (row.sellOutDays !== null && row.sellOutDays !== undefined) return `${Math.round(row.sellOutDays)} 天`;
                 return "-";
               }, sortValue: (row) => row.sellOutDays === Infinity ? Number.MAX_SAFE_INTEGER : (row.sellOutDays ?? 0) },
-              { label: "销售数量", render: (row) => formatInteger(row.salesQty || 0) },
               { label: "即时库存", render: (row) => formatInteger(row.stockQty || 0) },
               { label: "库存月", render: (row) => row.stockMonths === null || row.stockMonths === undefined ? "-" : `${Math.round(row.stockMonths)} 个月` },
               { label: "生产备注", render: (row) => escapeHtml(row.productionNote || "-") },
@@ -4372,34 +4373,40 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       });
       
       // 大宫格关闭按钮
-      const bigCellClose = host.querySelector("[data-big-cell-close]");
-      if (bigCellClose) {
-        bigCellClose.addEventListener("click", () => {
-          state.matrixBigCell = null;
-          render();
-        });
-      }
+const bigCellClose = host.querySelector("[data-big-cell-close]");
+if (bigCellClose) {
+bigCellClose.addEventListener("click", () => {
+const savedScrollY = window.scrollY;
+state.matrixBigCell = null;
+render();
+window.scrollTo(0, savedScrollY);
+});
+}
       
       // 大宫格遮罩层点击关闭
-      const bigCellOverlay = host.querySelector("[data-big-cell-overlay]");
-      if (bigCellOverlay) {
-        bigCellOverlay.addEventListener("click", (e) => {
-          if (e.target === bigCellOverlay) {
-            state.matrixBigCell = null;
-            render();
-          }
-        });
-      }
+const bigCellOverlay = host.querySelector("[data-big-cell-overlay]");
+if (bigCellOverlay) {
+bigCellOverlay.addEventListener("click", (e) => {
+if (e.target === bigCellOverlay) {
+const savedScrollY = window.scrollY;
+state.matrixBigCell = null;
+render();
+window.scrollTo(0, savedScrollY);
+}
+});
+}
       
       // ESC 键关闭大宫格
-      if (state.matrixBigCell) {
-        const escHandler = (e) => {
-          if (e.key === "Escape") {
-            state.matrixBigCell = null;
-            render();
-            document.removeEventListener("keydown", escHandler);
-          }
-        };
+if (state.matrixBigCell) {
+const escHandler = (e) => {
+if (e.key === "Escape") {
+const savedScrollY = window.scrollY;
+state.matrixBigCell = null;
+render();
+window.scrollTo(0, savedScrollY);
+document.removeEventListener("keydown", escHandler);
+}
+};
         document.addEventListener("keydown", escHandler);
       }
     }
