@@ -2112,11 +2112,11 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
         const spec = String(r[5] ?? "").trim();
         const category = String(r[6] ?? "").trim();
-        // 生产备注：优先读取CG列(索引84)，CG为空时回退到H列(索引7)
-        const productionNote = String(r[84] ?? "").trim() || String(r[7] ?? "").trim();
+        const productionNote = String(r[7] ?? "").trim();
+        const reorderNote = String(r[84] ?? "").trim();
         const isRegularPrice = parseYesNo(r[8]);
         const retailPrice = maybeNumber(r[9]);
-        // M列(13)=即时库存, N列(14)=日销系数, O列(15)=库存月, P列(16)=保质期剩余天数, CG列(85)=生产备注
+        // M列(13)=即时库存, N列(14)=日销系数, O列(15)=库存月, P列(16)=保质期剩余天数, CG列(85)=补单备注
         const currentStock = parseNumber(r[12], 0);
         const dailySalesCoef = maybeNumber(r[13]);
         const stockMonths = maybeNumber(r[14]);
@@ -2155,6 +2155,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           spec,
           category,
           productionNote,
+          reorderNote,
           isRegularPrice,
           retailPrice,
           sku,
@@ -2506,6 +2507,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
             expiryDate: "",
             avgExpiryDate: "", // 加权平均到期日期
             productionNote: "", // 生产备注
+            reorderNote: "", // 补单备注
             sourceCount: 0,
             sourceFlags: {
               product: false,
@@ -2563,6 +2565,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         target.brand = target.brand || row.brand || "";
         target.category = target.category || row.category || row.firstCategory || "";
         target.productionNote = target.productionNote || row.productionNote || "";
+        target.reorderNote = target.reorderNote || row.reorderNote || "";
         if (target.retailPrice === null && row.retailPrice !== undefined && row.retailPrice !== null) {
           target.retailPrice = row.retailPrice;
         }
@@ -2627,6 +2630,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         // 从matrixWorkbook获取特有的字段
         if (row.spec) item.spec = row.spec;
         if (row.productionNote) item.productionNote = row.productionNote;
+        if (row.reorderNote) item.reorderNote = row.reorderNote;
         if (row.imageUrl) item.imageUrl = row.imageUrl;
         if (row.imageTarget) item.imageTarget = row.imageTarget;
         if (row.salesBand) item.salesBand = row.salesBand;
@@ -2943,6 +2947,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         const salesBand = "";
         const stockHealth = getStockHealthLabel(stockMonths);
         const productionNote = product.productionNote || stock.productionNote || "";
+        const reorderNote = product.reorderNote || stock.reorderNote || "";
         return {
           key,
           productName,
@@ -2965,6 +2970,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           canSellBeforeExpiry,
           salesBand,
           productionNote,
+          reorderNote,
           rawProduct: product.raw,
           rawStock: stock.raw,
         };
@@ -3642,6 +3648,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
               }, sortValue: (row) => row.sellOutDays === Infinity ? Number.MAX_SAFE_INTEGER : (row.sellOutDays ?? 0) },
               { label: "即时库存", render: (row) => formatInteger(row.stockQty || 0) },
               { label: "生产备注", render: (row) => escapeHtml(row.productionNote || "-") },
+              { label: "补单备注", render: (row) => escapeHtml(row.reorderNote || "-") },
               { label: "保质期", render: (row) => row.avgExpiryDate ? `${escapeHtml(row.avgExpiryDate)} 年` : "-" },
               { label: "能否卖完", render: (row) => badge(row.canSellBeforeExpiry === false ? "danger" : "good", row.canSellBeforeExpiry === false ? "卖不完" : "可卖完") },
             ],
