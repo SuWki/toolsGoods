@@ -2112,10 +2112,11 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
         const spec = String(r[5] ?? "").trim();
         const category = String(r[6] ?? "").trim();
-        const productionNote = String(r[7] ?? "").trim();
+        // 生产备注：优先读取CG列(索引84)，CG为空时回退到H列(索引7)
+        const productionNote = String(r[84] ?? "").trim() || String(r[7] ?? "").trim();
         const isRegularPrice = parseYesNo(r[8]);
         const retailPrice = maybeNumber(r[9]);
-        // M列(13)=即时库存, N列(14)=日销系数, O列(15)=库存月, P列(16)=保质期剩余天数
+        // M列(13)=即时库存, N列(14)=日销系数, O列(15)=库存月, P列(16)=保质期剩余天数, CG列(85)=生产备注
         const currentStock = parseNumber(r[12], 0);
         const dailySalesCoef = maybeNumber(r[13]);
         const stockMonths = maybeNumber(r[14]);
@@ -3367,9 +3368,11 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
 
     function renderMatrixTab(model) {
       const rows = model.matrixFilteredRows;
+      const totalRows = model.matrixRows || [];
       const categoryOptions = ["全部", ...model.matrixCategoryOptions];
       const priceOptions = ["全部", "是", "否", "未设置"];
-      if (!rows.length) {
+      // 区分两种空状态：1)完全没有数据 2)有数据但被筛选条件过滤为空
+      if (!totalRows.length) {
         return `
           <div class="panel matrix-panel">
             <div class="block-head">
@@ -3381,6 +3384,71 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
             </div>
             <div class="soft-card">
               <div class="note">上传后，系统会根据消化周期自动将商品分配到日销系数×消化周期九宫格，并保留点击商品图片跳转明细的能力。</div>
+            </div>
+          </div>
+        `;
+      }
+      // 有数据但筛选后为空：显示筛选栏和提示，不让用户卡死
+      if (!rows.length) {
+        const activeFilters = [];
+        if (state.matrixFilters.category && state.matrixFilters.category !== "全部") activeFilters.push(`分类=${state.matrixFilters.category}`);
+        if (state.matrixFilters.isRegularPrice && state.matrixFilters.isRegularPrice !== "全部") activeFilters.push(`是否正价=${state.matrixFilters.isRegularPrice}`);
+        if (state.matrixFilters.kpiFilter && state.matrixFilters.kpiFilter !== "all") {
+          const kpiLabels = { digest2: "≤90天", digest3: "≤180天", digest4: "≤360天", digest5: "≤720天", digest6: ">720天" };
+          activeFilters.push(`消化周期=${kpiLabels[state.matrixFilters.kpiFilter] || state.matrixFilters.kpiFilter}`);
+        }
+        return `
+          <div class="panel matrix-panel" id="matrix-panel">
+            <div class="block-head">
+              <div>
+                <h2>SKU 九宫格分析（日销系数 × 消化周期）</h2>
+                <div class="note">横轴=日销系数（N列数值：1高日销~3低日销），纵轴=消化周期反推（1低~3高）。点击商品图片会跳到联动总表对应行。</div>
+              </div>
+              <div style="display:flex;gap:10px;align-items:center;">
+                <span class="badge neutral">共 ${formatInteger(totalRows.length)} 个商品（筛选后 0 个）</span>
+                <button class="ghost" data-matrix-reset>重置筛选</button>
+                <button class="primary" data-matrix-export-image>导出图片</button>
+              </div>
+            </div>
+            <div class="matrix-toolbar">
+              <label>
+                销售时间段
+                <div style="display:flex;align-items:center;gap:4px;font-weight:600;color:var(--ink);">
+                  ${escapeHtml(state.salesPeriod.start || "自动读取")} ~ ${escapeHtml(state.salesPeriod.end || "")}
+                </div>
+              </label>
+              <label>
+                分类
+                <select data-matrix-category>
+                  ${categoryOptions.map((item) => `<option value="${escapeHtml(item)}" ${state.matrixFilters.category === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}
+                </select>
+              </label>
+              <label>
+                是否正价
+                <select data-matrix-price>
+                  ${priceOptions.map((item) => `<option value="${escapeHtml(item)}" ${state.matrixFilters.isRegularPrice === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}
+                </select>
+              </label>
+              <label>
+                每格显示
+                <div style="display:flex;gap:4px;">
+                  ${[4, 8, 12].map(n => `<button type="button" class="${state.matrixItemsPerCell === n ? 'primary' : 'ghost'}" data-matrix-items="${n}" style="padding:6px 12px;font-size:12px;">${n}</button>`).join('')}
+                </div>
+              </label>
+              <button class="ghost" data-matrix-reset>重置</button>
+            </div>
+            <div class="matrix-kpis">
+              <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'all' ? 'active' : ''}" data-kpi-filter="all" style="cursor:pointer;" title="点击查看全部"><small>总 SKU</small><strong>${formatInteger(model.matrixSummary.totalSku)}</strong></div>
+              <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'digest2' ? 'active' : ''}" data-kpi-filter="digest2" style="cursor:pointer;" title="消化周期≤90天"><small>≤90天</small><strong>${formatInteger(model.matrixSummary.digest2Count)}</strong></div>
+              <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'digest3' ? 'active' : ''}" data-kpi-filter="digest3" style="cursor:pointer;" title="消化周期≤180天"><small>≤180天</small><strong>${formatInteger(model.matrixSummary.digest3Count)}</strong></div>
+              <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'digest4' ? 'active' : ''}" data-kpi-filter="digest4" style="cursor:pointer;" title="消化周期≤360天"><small>≤360天</small><strong>${formatInteger(model.matrixSummary.digest4Count)}</strong></div>
+              <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'digest5' ? 'active' : ''}" data-kpi-filter="digest5" style="cursor:pointer;" title="消化周期≤720天"><small>≤720天</small><strong>${formatInteger(model.matrixSummary.digest5Count)}</strong></div>
+              <div class="matrix-mini ${state.matrixFilters.kpiFilter === 'digest6' ? 'active' : ''}" data-kpi-filter="digest6" style="cursor:pointer;" title="消化周期>720天"><small>>720天</small><strong>${formatInteger(model.matrixSummary.digest6Count)}</strong></div>
+            </div>
+            <div class="soft-card" style="padding:40px 20px;text-align:center;">
+              <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:8px;">当前筛选条件下没有匹配的商品</div>
+              <div class="note" style="margin-bottom:16px;">${activeFilters.length ? `已启用筛选：${activeFilters.join("、")}` : "请尝试调整筛选条件"}</div>
+              <button class="primary" data-matrix-reset>重置筛选条件</button>
             </div>
           </div>
         `;
@@ -3573,7 +3641,6 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
                 return "-";
               }, sortValue: (row) => row.sellOutDays === Infinity ? Number.MAX_SAFE_INTEGER : (row.sellOutDays ?? 0) },
               { label: "即时库存", render: (row) => formatInteger(row.stockQty || 0) },
-              { label: "库存月", render: (row) => row.stockMonths === null || row.stockMonths === undefined ? "-" : `${Math.round(row.stockMonths)} 个月` },
               { label: "生产备注", render: (row) => escapeHtml(row.productionNote || "-") },
               { label: "保质期", render: (row) => row.avgExpiryDate ? `${escapeHtml(row.avgExpiryDate)} 年` : "-" },
               { label: "能否卖完", render: (row) => badge(row.canSellBeforeExpiry === false ? "danger" : "good", row.canSellBeforeExpiry === false ? "卖不完" : "可卖完") },
@@ -4692,9 +4759,10 @@ document.removeEventListener("keydown", escHandler);
 
       try {
         if (key === "matrixWorkbook") {
-          // 上传新文件时清除旧的聚焦和展开状态，避免渲染后触发 scrollIntoView 导致页面跳动
+          // 上传新文件时清除旧的聚焦、展开状态和筛选条件，避免渲染后被筛选条件过滤为空导致页面卡死
           state.matrixFocusKey = "";
           state.matrixExpandedCells = {};
+          state.matrixFilters = { category: "全部", isRegularPrice: "全部", kpiFilter: "all" };
           const fileData = await parseMatrixWorkbookRowsFromFile(file);
           state.sources[key] = {
             ...createEmptySourceState(cfg),
@@ -4787,6 +4855,7 @@ document.removeEventListener("keydown", escHandler);
       state.cockpitSubtab = "overview";
       state.matrixFocusKey = "";
       state.matrixExpandedCells = {};
+      state.matrixFilters = { category: "全部", isRegularPrice: "全部", kpiFilter: "all" };
       setBatchNote("");
       render();
     }
