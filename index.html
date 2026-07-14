@@ -909,19 +909,35 @@
       background: #f4efe8;
     }
 
-    .sku-chip small {
-      display: block;
-      color: var(--muted);
-      font-size: 11px;
-      line-height: 1.4;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      white-space: normal;
-      max-height: 2.8em;
-    }
+.sku-chip small {
+display: block;
+color: var(--muted);
+font-size: 11px;
+line-height: 1.4;
+overflow: hidden;
+text-overflow: ellipsis;
+display: -webkit-box;
+-webkit-line-clamp: 2;
+-webkit-box-orient: vertical;
+white-space: normal;
+max-height: 2.8em;
+}
+
+.sku-chip {
+position: relative;
+}
+
+.sku-chip .reorder-star {
+position: absolute;
+top: 2px;
+right: 2px;
+font-size: 16px;
+color: #ffc107;
+text-shadow: 0 0 2px rgba(0,0,0,0.3);
+z-index: 5;
+line-height: 1;
+pointer-events: none;
+}
 
     .matrix-more {
       display: grid;
@@ -1315,6 +1331,9 @@ const COCKPIT_SUBTABS = [
 matrixExpandedCells: {}, // 记录哪些格子展开
 matrixItemsPerCell: 4, // 每个格子显示商品数量
 matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
+      matrixHistory: {}, // 商品九宫格位置历史 {key: {nodeLabel: position}}
+      matrixHistoryNodes: [], // 所有历史时间节点标签列表
+      historyCompareNodes: ["", "", ""], // 用户选择对比的三个时间节点
     };
 
     const columnResizeState = {
@@ -1371,11 +1390,14 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           activeTab: state.activeTab,
           cockpitSubtab: state.cockpitSubtab,
           tableState: state.tableState,
-          matrixFocusKey: state.matrixFocusKey,
-          matrixFilters: state.matrixFilters,
-          salesPeriod: state.salesPeriod,
-          sidebarCollapsed: state.sidebarCollapsed,
-          sources: Object.fromEntries(
+matrixFocusKey: state.matrixFocusKey,
+matrixFilters: state.matrixFilters,
+salesPeriod: state.salesPeriod,
+sidebarCollapsed: state.sidebarCollapsed,
+matrixHistory: state.matrixHistory,
+matrixHistoryNodes: state.matrixHistoryNodes,
+historyCompareNodes: state.historyCompareNodes,
+sources: Object.fromEntries(
             Object.entries(state.sources).map(([key, source]) => [key, cloneSourceForCache(source)])
           ),
         };
@@ -1421,6 +1443,15 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
             ...state.salesPeriod,
             ...payload.salesPeriod,
           };
+        }
+        if (payload && payload.matrixHistory && typeof payload.matrixHistory === "object") {
+          state.matrixHistory = payload.matrixHistory;
+        }
+        if (payload && Array.isArray(payload.matrixHistoryNodes)) {
+          state.matrixHistoryNodes = payload.matrixHistoryNodes;
+        }
+        if (payload && Array.isArray(payload.historyCompareNodes)) {
+          state.historyCompareNodes = payload.historyCompareNodes;
         }
         if (payload && payload.activeTab) {
           state.activeTab = payload.activeTab;
@@ -2730,6 +2761,63 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       return labels[sum] || "未知";
     }
 
+    // 九宫格位置编号：先横再竖，1~9号位
+    // gridOrder: (1,1)=1号位 (2,1)=2号位 (3,1)=3号位 (1,2)=4号位 ... (3,3)=9号位
+    const GRID_ORDER = [
+      { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 3, y: 1 },
+      { x: 1, y: 2 }, { x: 2, y: 2 }, { x: 3, y: 2 },
+      { x: 1, y: 3 }, { x: 2, y: 3 }, { x: 3, y: 3 },
+    ];
+
+    function getMatrixPosition(x, y) {
+      const idx = GRID_ORDER.findIndex(p => p.x === x && p.y === y);
+      if (idx < 0) return "-";
+      const nums = ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
+      return `${nums[idx]}号位`;
+    }
+
+    function getMatrixPositionShort(x, y) {
+      const idx = GRID_ORDER.findIndex(p => p.x === x && p.y === y);
+      if (idx < 0) return "-";
+      return `${idx + 1}号位`;
+    }
+
+    // 获取当前数据源的时间节点标签
+    function getCurrentNodeLabel() {
+      const source = state.sources.matrixWorkbook;
+      if (source && source.fileName) {
+        // 从文件名中提取日期信息
+        const match = source.fileName.match(/(\d{2,4}[-.]?\d{1,2}[-.]?\d{0,2})/);
+        if (match) return match[1].replace(/[.-]/g, ".");
+      }
+      if (state.salesPeriod && state.salesPeriod.end) {
+        return state.salesPeriod.end;
+      }
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    // 保存当前九宫格位置到历史记录
+    function saveMatrixHistory(rows) {
+      const nodeLabel = getCurrentNodeLabel();
+      if (!nodeLabel) return;
+      rows.forEach((row) => {
+        if (!row.key) return;
+        if (!state.matrixHistory[row.key]) {
+          state.matrixHistory[row.key] = {};
+        }
+        state.matrixHistory[row.key][nodeLabel] = getMatrixPositionShort(row.salesCoef, row.inventoryCoef);
+      });
+      if (!state.matrixHistoryNodes.includes(nodeLabel)) {
+        state.matrixHistoryNodes.push(nodeLabel);
+      }
+      // 自动填充未设置的对比节点
+      for (let i = 0; i < 3; i++) {
+        if (!state.historyCompareNodes[i] && state.matrixHistoryNodes[i]) {
+          state.historyCompareNodes[i] = state.matrixHistoryNodes[i];
+        }
+      }
+    }
+
     // 新九宫格单元格元数据
     // 横轴X=日销系数(1高~3低)，纵轴Y=消化周期反推(1低~3高)
     function getMatrixCellMetaNew(x, y) {
@@ -3098,10 +3186,14 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       const channelSales = state.sources.channelSales;
       const storeSales = state.sources.storeSales;
 
-      const matrix = matrixWorkbook.rows.length
-        ? buildMatrixRowsFromWorkbook(matrixWorkbook)
-        : buildMatrixRows(state.sources);
-      const channelSalesAgg = summarizeChannelSales(channelSales.rows);
+const matrix = matrixWorkbook.rows.length
+? buildMatrixRowsFromWorkbook(matrixWorkbook)
+: buildMatrixRows(state.sources);
+// 保存当前九宫格位置到历史记录
+if (matrix.rows && matrix.rows.length) {
+saveMatrixHistory(matrix.rows);
+}
+const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       const storeSalesAgg = summarizeStoreSales(storeSales.rows);
       const linkedRows = buildLinkedRows(state.sources);
       const productUnique = new Set(product.rows.map((row) => row.key)).size;
@@ -3476,7 +3568,8 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         return `
           <div class="sku-strip">
             ${displayRows.map((row) => `
-              <button type="button" class="sku-chip ${row.canSellBeforeExpiry === false ? 'sellout-risk' : ''}" data-matrix-jump="${escapeHtml(row.key)}" title="点击跳转到联动总表：${escapeHtml(row.productName || "")}">
+              <button type="button" class="sku-chip ${row.canSellBeforeExpiry === false ? 'sellout-risk' : ''}" data-matrix-jump="${escapeHtml(row.key)}" title="点击跳转到联动总表：${escapeHtml(row.productName || "")}${row.reorderNote ? '\n补单备注：' + row.reorderNote : ''}">
+                ${row.reorderNote ? '<span class="reorder-star">⭐</span>' : ''}
                 <div class="sku-thumb ${getProductionBorderClass(row.productionNote)}">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(shortenProductName(row.productName) || "")}" onerror="this.remove();this.parentElement.textContent='无图';">` : "无图"}</div>
                 <small style="${row.canSellBeforeExpiry === false ? 'color: var(--danger); font-weight: 600;' : ''}">${escapeHtml(shortenProductName(row.productName) || "-")}</small>
               </button>
@@ -3569,6 +3662,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
             <div style="display:flex;gap:10px;align-items:center;">
               <span class="badge neutral">共 ${formatInteger(model.matrixSummary.totalSku)} 个商品</span>
               <button class="ghost" data-matrix-fit-screen>适应屏幕</button>
+              <button class="ghost" data-matrix-export-data>导出数据</button>
               <button class="primary" data-matrix-export-image>导出图片</button>
             </div>
           </div>
@@ -3651,17 +3745,70 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
               { label: "补单备注", render: (row) => escapeHtml(row.reorderNote || "-") },
               { label: "保质期", render: (row) => row.avgExpiryDate ? `${escapeHtml(row.avgExpiryDate)} 年` : "-" },
               { label: "能否卖完", render: (row) => badge(row.canSellBeforeExpiry === false ? "danger" : "good", row.canSellBeforeExpiry === false ? "卖不完" : "可卖完") },
+              { label: "九宫格位置", key: "matrixPos", render: (row) => escapeHtml(getMatrixPosition(row.salesCoef, row.inventoryCoef)), sortValue: (row) => { const idx = GRID_ORDER.findIndex(p => p.x === row.salesCoef && p.y === row.inventoryCoef); return idx >= 0 ? idx + 1 : 0; } },
             ],
             emptyText: "当前筛选下没有 SKU。请换个分类或放宽条件。",
             previewText: `共 ${formatInteger(rows.length)} 条`,
             rowClassName: (row) => row.key === state.matrixFocusKey ? "focus-row" : "",
           })}
+          ${renderHistoryCompareTable(rows)}
           ${renderBigCellModal()}
         </div>
       `;
     }
 
-    function tableSection({ tabId, title, note, rows, columns, emptyText, previewText, rowClassName, showAll }) {
+    // 渲染历史位置对比子表
+    function renderHistoryCompareTable(rows) {
+      if (!state.matrixHistoryNodes.length) return "";
+      const nodeOptions = ["", ...state.matrixHistoryNodes];
+      const compareNodes = state.historyCompareNodes;
+      const compareRows = rows.filter(row => row.key && state.matrixHistory[row.key]).map(row => {
+        const hist = state.matrixHistory[row.key] || {};
+        return {
+          key: row.key,
+          productName: row.productName,
+          spec: row.spec,
+          category: row.category,
+          sellOutDays: row.sellOutDays,
+          positions: compareNodes.map(node => node ? (hist[node] || "-") : "-"),
+        };
+      });
+      return tableSection({
+        tabId: "historyCompare",
+        title: "历史节点九宫格位置对比",
+        note: "选择最多三个时间节点，对比商品在九宫格中的位置变化。每次上传新文件会自动记录当前位置。",
+        rows: compareRows,
+        showAll: true,
+        columns: [
+          { label: "品名", key: "productName", render: (row) => escapeHtml(row.productName || "-"), sortValue: (row) => row.productName || "" },
+          { label: "规格", render: (row) => escapeHtml(row.spec || "-") },
+          { label: "分类", render: (row) => escapeHtml(row.category || "-") },
+          { label: "消化周期", render: (row) => {
+            if (row.sellOutDays === Infinity) return "无法消化";
+            if (row.sellOutDays !== null && row.sellOutDays !== undefined) return `${Math.round(row.sellOutDays)} 天`;
+            return "-";
+          }, sortValue: (row) => row.sellOutDays === Infinity ? Number.MAX_SAFE_INTEGER : (row.sellOutDays ?? 0) },
+          { label: "历史节点1", render: (row) => escapeHtml(row.positions[0] || "-"), sortValue: (row) => row.positions[0] || "" },
+          { label: "历史节点2", render: (row) => escapeHtml(row.positions[1] || "-"), sortValue: (row) => row.positions[1] || "" },
+          { label: "历史节点3", render: (row) => escapeHtml(row.positions[2] || "-"), sortValue: (row) => row.positions[2] || "" },
+        ],
+        emptyText: "暂无历史位置数据。每次上传新文件时会自动记录当前九宫格位置。",
+        previewText: `共 ${formatInteger(compareRows.length)} 条`,
+        extraToolbar: `
+          <label>节点1 <select data-history-node="0">
+            ${nodeOptions.map(n => `<option value="${escapeHtml(n)}" ${compareNodes[0] === n ? "selected" : ""}>${escapeHtml(n || "请选择")}</option>`).join("")}
+          </select></label>
+          <label>节点2 <select data-history-node="1">
+            ${nodeOptions.map(n => `<option value="${escapeHtml(n)}" ${compareNodes[1] === n ? "selected" : ""}>${escapeHtml(n || "请选择")}</option>`).join("")}
+          </select></label>
+          <label>节点3 <select data-history-node="2">
+            ${nodeOptions.map(n => `<option value="${escapeHtml(n)}" ${compareNodes[2] === n ? "selected" : ""}>${escapeHtml(n || "请选择")}</option>`).join("")}
+          </select></label>
+        `,
+      });
+    }
+
+    function tableSection({ tabId, title, note, rows, columns, emptyText, previewText, rowClassName, showAll, extraToolbar }) {
       if (!rows.length) {
         return `
           <div class="card block">
@@ -3726,6 +3873,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           </div>
           <div class="table-toolbar">
             <p class="hint">${showAll ? "点击表头可排序，当前展示全部数据。" : "点击表头可排序，分页会记住当前页。"}</p>
+            ${extraToolbar || ""}
             ${showAll ? "" : `<div class="pager">
               <select data-page-size data-tab-id="${escapeHtml(activeTabId)}" aria-label="每页条数">
                 ${[20, 50, 100].map((size) => `<option value="${size}" ${pageSize === size ? "selected" : ""}>每页 ${size} 条</option>`).join("")}
@@ -4149,12 +4297,17 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
           render();
           return;
         }
-        const matrixExportImage = event.target.closest("[data-matrix-export-image]");
-        if (matrixExportImage) {
-          generateMatrixImage();
-          return;
-        }
-        const matrixFitScreen = event.target.closest("[data-matrix-fit-screen]");
+const matrixExportImage = event.target.closest("[data-matrix-export-image]");
+if (matrixExportImage) {
+generateMatrixImage();
+return;
+}
+const matrixExportData = event.target.closest("[data-matrix-export-data]");
+if (matrixExportData) {
+exportLinkedData();
+return;
+}
+const matrixFitScreen = event.target.closest("[data-matrix-fit-screen]");
         if (matrixFitScreen) {
           const panel = document.getElementById("matrix-panel");
           const grid = document.getElementById("matrix-grid");
@@ -4427,11 +4580,26 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         });
       }
       
-      // 导出图片按钮
-      const exportBtn = host.querySelector("[data-matrix-export-image]");
-      if (exportBtn) {
-        exportBtn.addEventListener("click", generateMatrixImage);
-      }
+// 导出图片按钮
+const exportBtn = host.querySelector("[data-matrix-export-image]");
+if (exportBtn) {
+exportBtn.addEventListener("click", generateMatrixImage);
+}
+
+// 导出数据按钮
+const exportDataBtn = host.querySelector("[data-matrix-export-data]");
+if (exportDataBtn) {
+exportDataBtn.addEventListener("click", exportLinkedData);
+}
+
+// 历史节点选择器
+host.querySelectorAll("[data-history-node]").forEach((sel) => {
+sel.addEventListener("change", (e) => {
+const idx = parseInt(e.target.dataset.historyNode, 10);
+state.historyCompareNodes[idx] = e.target.value || "";
+render();
+});
+});
       
       // 大宫格点击展开
       host.querySelectorAll("[data-matrix-big-cell]").forEach((cell) => {
@@ -4522,31 +4690,78 @@ document.removeEventListener("keydown", escHandler);
       const exportBtn = panel.querySelector("[data-matrix-export-image]");
       if (exportBtn) exportBtn.textContent = "生成中...";
       try {
-        const canvas = await html2canvas(panel, {
+// 构建展开所有商品的临时容器，九个格子从上到下排列
+const model = buildModel();
+        if (!model || !model.matrixCells) {
+          alert("没有九宫格数据可导出");
+          return;
+        }
+        const cells = model.matrixCells;
+        const fontFamily = '"Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Noto Sans CJK SC", "WenQuanYi Micro Hei", sans-serif';
+        const container = document.createElement("div");
+        container.style.cssText = `position:absolute;left:-99999px;top:0;width:900px;background:#fbf8f2;padding:20px;font-family:${fontFamily};box-sizing:border-box;`;
+        // 标题
+        const header = document.createElement("div");
+        header.style.cssText = "text-align:center;margin-bottom:16px;";
+        header.innerHTML = `<h2 style="margin:0 0 4px;font-size:18px;">SKU 九宫格分析（日销系数 × 消化周期）</h2><div style="font-size:12px;color:#888;">销售时间段：${escapeHtml(state.salesPeriod.start || "")} ~ ${escapeHtml(state.salesPeriod.end || "")}　|　共 ${formatInteger(model.matrixSummary.totalSku)} 个商品</div>`;
+        container.appendChild(header);
+
+        const getProductionBorderClass = (productionNote) => {
+          if (!productionNote) return "";
+          const note = productionNote.toLowerCase();
+          if (note.includes("正常")) return "production-normal";
+          if (note.includes("停产")) return "production-stopped";
+          return "production-other";
+        };
+
+        for (let i = 0; i < cells.length; i++) {
+          const cell = cells[i];
+          const meta = cell.meta || {};
+          const themeColor = meta.theme === "danger" ? "#b92318" : (meta.theme === "warm" ? "#c4732e" : "#146356");
+          const bgColor = meta.theme === "danger" ? "rgba(185,35,24,.08)" : (meta.theme === "warm" ? "rgba(196,115,46,.08)" : "rgba(20,99,86,.08)");
+          const cellDiv = document.createElement("div");
+          cellDiv.style.cssText = `margin-bottom:16px;border:1px solid #d8cdbf;border-radius:12px;overflow:hidden;background:#fff;`;
+          // 格子标题
+          const cellHead = document.createElement("div");
+          cellHead.style.cssText = `padding:10px 14px;background:${bgColor};border-bottom:1px solid #d8cdbf;display:flex;justify-content:space-between;align-items:center;`;
+          const posLabel = getMatrixPosition(cell.x, cell.y);
+          cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeColor};">${posLabel} - ${escapeHtml(meta.title || "")}</div><div style="font-size:12px;color:#888;">${escapeHtml(meta.badge || "")} | ${cell.rows.length} 个商品</div>`;
+          cellDiv.appendChild(cellHead);
+          // 商品网格
+          const strip = document.createElement("div");
+          strip.style.cssText = "display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;padding:12px;";
+          cell.rows.forEach((row) => {
+            const chip = document.createElement("div");
+            chip.style.cssText = "border:1px solid rgba(216,205,191,.8);border-radius:8px;padding:8px;text-align:center;position:relative;background:rgba(255,255,255,.84);";
+            const starHtml = row.reorderNote ? '<span style="position:absolute;top:2px;right:4px;font-size:14px;color:#ffc107;">⭐</span>' : "";
+            const borderColor = row.productionNote && row.productionNote.includes("正常") ? "#28a745" : (row.productionNote && row.productionNote.includes("停产") ? "#dc3545" : (row.productionNote ? "#ffc107" : "#333"));
+            const imgHtml = row.imageUrl
+              ? `<img src="${escapeHtml(row.imageUrl)}" style="width:80px;height:80px;object-fit:contain;border-radius:8px;border:3px solid ${borderColor};box-sizing:border-box;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span style="display:none;width:80px;height:80px;border-radius:8px;border:3px solid ${borderColor};background:#f4efe8;align-items:center;justify-content:center;font-size:12px;color:#999;">无图</span>`
+              : `<div style="width:80px;height:80px;border-radius:8px;border:3px solid ${borderColor};background:#f4efe8;display:flex;align-items:center;justify-content:center;font-size:12px;color:#999;margin:0 auto;">无图</div>`;
+            chip.innerHTML = `${starHtml}${imgHtml}<div style="margin-top:4px;font-size:11px;color:#666;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;max-height:2.6em;">${escapeHtml(row.productName || "-")}</div>`;
+            strip.appendChild(chip);
+          });
+          if (!cell.rows.length) {
+            strip.innerHTML = '<div style="grid-column:1/-1;padding:12px;text-align:center;color:#999;font-size:13px;">无商品</div>';
+          }
+          cellDiv.appendChild(strip);
+          container.appendChild(cellDiv);
+        }
+        document.body.appendChild(container);
+        // 等待图片加载
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const canvas = await html2canvas(container, {
           scale: 2,
           useCORS: true,
           allowTaint: true,
           backgroundColor: "#fbf8f2",
           logging: false,
           foreignObjectRendering: false,
-          onclone: (clonedDoc) => {
-            const clonedPanel = clonedDoc.getElementById("matrix-panel");
-            if (clonedPanel) {
-              clonedPanel.style.boxShadow = "none";
-              clonedPanel.style.border = "1px solid #d8cdbf";
-              clonedPanel.style.fontFamily = '"Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Noto Sans CJK SC", "WenQuanYi Micro Hei", sans-serif';
-            }
-            const allElements = clonedDoc.querySelectorAll("*");
-            allElements.forEach((el) => {
-              if (el.style) {
-                el.style.fontFamily = '"Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Noto Sans CJK SC", "WenQuanYi Micro Hei", sans-serif';
-              }
-            });
-          }
         });
+        document.body.removeChild(container);
         const link = document.createElement("a");
         const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
-        link.download = `九宫格库存分析_${timestamp}.png`;
+        link.download = `九宫格库存分析_展开_${timestamp}.png`;
         link.href = canvas.toDataURL("image/png");
         link.click();
       } catch (err) {
@@ -4555,6 +4770,40 @@ document.removeEventListener("keydown", escHandler);
       } finally {
         if (exportBtn) exportBtn.textContent = "导出图片";
       }
+    }
+
+    function exportLinkedData() {
+      const model = buildModel();
+      if (!model || !model.matrixFilteredRows || !model.matrixFilteredRows.length) {
+        alert("没有数据可导出，请先上传文件");
+        return;
+      }
+      const rows = model.matrixFilteredRows;
+      const headers = ["品名", "规格", "条码", "分类", "日销系数", "消化周期(天)", "即时库存", "生产备注", "补单备注", "保质期(年)", "能否卖完", "九宫格位置"];
+      const data = [headers];
+      rows.forEach((row) => {
+        const sellOutDays = row.sellOutDays === Infinity ? "无法消化" : (row.sellOutDays !== null && row.sellOutDays !== undefined ? Math.round(row.sellOutDays) : "-");
+        const canSell = row.canSellBeforeExpiry === false ? "卖不完" : (row.canSellBeforeExpiry === true ? "可卖完" : "-");
+        data.push([
+          row.productName || "",
+          row.spec || "",
+          row.barcode || row.sku || "",
+          row.category || "",
+          row.dailySalesCoef !== null && row.dailySalesCoef !== undefined ? row.dailySalesCoef : "",
+          sellOutDays,
+          row.stockQty || 0,
+          row.productionNote || "",
+          row.reorderNote || "",
+          row.avgExpiryDate || "",
+          canSell,
+          getMatrixPosition(row.salesCoef, row.inventoryCoef),
+        ]);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "联动总表");
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
+      XLSX.writeFile(wb, `联动总表数据_${timestamp}.xlsx`);
     }
 
     function renderTabContent(model) {
