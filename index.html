@@ -3618,10 +3618,11 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
                 <button class="big-cell-close" data-big-cell-close title="关闭">&times;</button>
               </div>
               <div class="big-cell-legend">
-                <span class="legend-item"><span class="legend-box legend-red"></span>停产</span>
-                <span class="legend-item"><span class="legend-box legend-yellow"></span>待定</span>
-                <span class="legend-item"><span class="legend-box legend-green"></span>继续生产</span>
-                <span class="legend-item"><span class="legend-text-danger">红色加粗字体</span>保质期到期前消化不完</span>
+<span class="legend-item"><span class="legend-box legend-red"></span>停产</span>
+<span class="legend-item"><span class="legend-box legend-yellow"></span>待定</span>
+<span class="legend-item"><span class="legend-box legend-green"></span>继续生产</span>
+<span class="legend-item"><span class="legend-text-danger">红色加粗字体</span>保质期到期前消化不完</span>
+<span class="legend-item"><span style="color:#ffc107;font-size:16px;">⭐</span>补单在途</span>
               </div>
               <div class="big-cell-content">
                 <div class="big-cell-stats">
@@ -3640,7 +3641,8 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
                 </div>
                 <div class="sku-strip">
                   ${cell.rows.map((row) => `
-                    <button type="button" class="sku-chip ${row.canSellBeforeExpiry === false ? 'sellout-risk' : ''}" data-matrix-jump="${escapeHtml(row.key)}" title="点击跳转到联动总表：${escapeHtml(row.productName || "")}">
+                    <button type="button" class="sku-chip ${row.canSellBeforeExpiry === false ? 'sellout-risk' : ''}" data-matrix-jump="${escapeHtml(row.key)}" title="点击跳转到联动总表：${escapeHtml(row.productName || "")}${row.reorderNote ? '\n补单备注：' + row.reorderNote : ''}">
+                      ${row.reorderNote ? '<span class="reorder-star">⭐</span>' : ''}
                       <div class="sku-thumb ${getProductionBorderClass(row.productionNote)}">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(shortenProductName(row.productName) || "")}" onerror="this.remove();this.parentElement.textContent='无图';">` : "无图"}</div>
                       <small style="${row.canSellBeforeExpiry === false ? 'color: var(--danger); font-weight: 600;' : ''}">${escapeHtml(shortenProductName(row.productName) || "-")}</small>
                     </button>
@@ -4703,8 +4705,20 @@ const model = buildModel();
         // 标题
         const header = document.createElement("div");
         header.style.cssText = "text-align:center;margin-bottom:16px;";
-        header.innerHTML = `<h2 style="margin:0 0 4px;font-size:18px;">SKU 九宫格分析（日销系数 × 消化周期）</h2><div style="font-size:12px;color:#888;">销售时间段：${escapeHtml(state.salesPeriod.start || "")} ~ ${escapeHtml(state.salesPeriod.end || "")}　|　共 ${formatInteger(model.matrixSummary.totalSku)} 个商品</div>`;
-        container.appendChild(header);
+header.innerHTML = `<h2 style="margin:0 0 4px;font-size:18px;">SKU 九宫格分析（日销系数 × 消化周期）</h2><div style="font-size:12px;color:#888;">销售时间段：${escapeHtml(state.salesPeriod.start || "")} ~ ${escapeHtml(state.salesPeriod.end || "")}　|　共 ${formatInteger(model.matrixSummary.totalSku)} 个商品</div>`;
+container.appendChild(header);
+
+// 图例说明
+const legend = document.createElement("div");
+legend.style.cssText = "display:flex;flex-wrap:wrap;gap:16px;padding:8px 0 12px;font-size:12px;color:#666;border-bottom:1px solid #d8cdbf;margin-bottom:16px;";
+legend.innerHTML = `
+<span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;border:3px solid #dc3545;background:#f4efe8;"></span>停产</span>
+<span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;border:3px solid #ffc107;background:#f4efe8;"></span>待定</span>
+<span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;border:3px solid #28a745;background:#f4efe8;"></span>继续生产</span>
+<span style="display:inline-flex;align-items:center;gap:4px;"><span style="color:#dc3545;font-weight:700;">红色加粗字体</span>保质期到期前消化不完</span>
+<span style="display:inline-flex;align-items:center;gap:4px;"><span style="color:#ffc107;font-size:16px;">⭐</span>补单在途</span>
+`;
+container.appendChild(legend);
 
         const getProductionBorderClass = (productionNote) => {
           if (!productionNote) return "";
