@@ -2958,18 +2958,22 @@ sources: Object.fromEntries(
         { x: 1, y: 3 }, { x: 2, y: 3 }, { x: 3, y: 3 },
       ];
       const cells = gridOrder.map(({ x, y }) => {
-        const cellRows = filtered.filter((row) => row.salesCoef === x && row.inventoryCoef === y)
-          .sort((a, b) => (b.salesQty || 0) - (a.salesQty || 0));
-        const skuCount = cellRows.length;
-        const inventoryQty = cellRows.reduce((sum, row) => sum + (row.stockQty || 0), 0);
-        const inventoryAmount = cellRows.reduce((sum, row) => sum + (row.inventoryAmount || 0), 0);
-        return {
-          key: `${x}|${y}`,
-          x,
-          y,
-          rows: cellRows,
-          skuCount,
-          inventoryQty,
+const cellRows = filtered.filter((row) => row.salesCoef === x && row.inventoryCoef === y)
+.sort((a, b) => {
+const ai = parseInt(a.id, 10); const bi = parseInt(b.id, 10);
+if (!isNaN(ai) && !isNaN(bi)) return ai - bi;
+return String(a.id || "").localeCompare(String(b.id || ""), "zh");
+});
+const skuCount = cellRows.length;
+const inventoryQty = cellRows.reduce((sum, row) => sum + (row.stockQty || 0), 0);
+const inventoryAmount = cellRows.reduce((sum, row) => sum + (row.inventoryAmount || 0), 0);
+return {
+key: `${x}|${y}`,
+x,
+y,
+rows: cellRows,
+skuCount,
+inventoryQty,
           inventoryAmount,
           meta: getMatrixCellMetaNew(x, y),
         };
@@ -3087,18 +3091,22 @@ sources: Object.fromEntries(
         { x: 1, y: 3 }, { x: 2, y: 3 }, { x: 3, y: 3 },
       ];
       const cells = gridOrder.map(({ x, y }) => {
-        const cellRows = filtered.filter((row) => row.salesCoef === x && row.inventoryCoef === y)
-          .sort((a, b) => (b.salesQty || 0) - (a.salesQty || 0));
-        const skuCount = cellRows.length;
-        const inventoryQty = cellRows.reduce((sum, row) => sum + (row.stockQty || 0), 0);
-        const inventoryAmount = cellRows.reduce((sum, row) => sum + (row.inventoryAmount || 0), 0);
-        return {
-          key: `${x}|${y}`,
-          x,
-          y,
-          rows: cellRows,
-          skuCount,
-          inventoryQty,
+const cellRows = filtered.filter((row) => row.salesCoef === x && row.inventoryCoef === y)
+.sort((a, b) => {
+const ai = parseInt(a.id, 10); const bi = parseInt(b.id, 10);
+if (!isNaN(ai) && !isNaN(bi)) return ai - bi;
+return String(a.id || "").localeCompare(String(b.id || ""), "zh");
+});
+const skuCount = cellRows.length;
+const inventoryQty = cellRows.reduce((sum, row) => sum + (row.stockQty || 0), 0);
+const inventoryAmount = cellRows.reduce((sum, row) => sum + (row.inventoryAmount || 0), 0);
+return {
+key: `${x}|${y}`,
+x,
+y,
+rows: cellRows,
+skuCount,
+inventoryQty,
           inventoryAmount,
           meta: getMatrixCellMetaNew(x, y),
         };
@@ -4738,8 +4746,10 @@ container.appendChild(legend);
           // 格子标题
           const cellHead = document.createElement("div");
           cellHead.style.cssText = `padding:10px 14px;background:${bgColor};border-bottom:1px solid #d8cdbf;display:flex;justify-content:space-between;align-items:center;`;
-          const posLabel = getMatrixPosition(cell.x, cell.y);
-          cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeColor};">${posLabel} - ${escapeHtml(meta.title || "")}</div><div style="font-size:12px;color:#888;">${escapeHtml(meta.badge || "")} | ${cell.rows.length} 个商品</div>`;
+const posLabel = getMatrixPosition(cell.x, cell.y);
+const invQty = cell.rows.reduce((s, r) => s + (r.stockQty || 0), 0);
+const invAmt = cell.rows.reduce((s, r) => s + (r.inventoryAmount || 0), 0);
+cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeColor};">${posLabel} - ${escapeHtml(meta.title || "")}</div><div style="font-size:12px;color:#888;">${escapeHtml(meta.badge || "")} | ${cell.rows.length} 个商品 | 库存 ${formatInteger(invQty)} 件 | 金额 ${formatCurrency(invAmt)}</div>`;
           cellDiv.appendChild(cellHead);
           // 商品网格
           const strip = document.createElement("div");
