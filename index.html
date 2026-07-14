@@ -4451,9 +4451,15 @@ const bigCellClose = host.querySelector("[data-big-cell-close]");
 if (bigCellClose) {
 bigCellClose.addEventListener("click", () => {
 const savedScrollY = window.scrollY;
+const tableWrap = host.querySelector("[data-linked-table] .table-wrap");
+const savedTableScroll = tableWrap ? tableWrap.scrollTop : 0;
 state.matrixBigCell = null;
 render();
 window.scrollTo(0, savedScrollY);
+requestAnimationFrame(() => {
+const newTableWrap = document.querySelector("[data-linked-table] .table-wrap");
+if (newTableWrap) newTableWrap.scrollTop = savedTableScroll;
+});
 });
 }
       
@@ -4463,9 +4469,15 @@ if (bigCellOverlay) {
 bigCellOverlay.addEventListener("click", (e) => {
 if (e.target === bigCellOverlay) {
 const savedScrollY = window.scrollY;
+const tableWrap = host.querySelector("[data-linked-table] .table-wrap");
+const savedTableScroll = tableWrap ? tableWrap.scrollTop : 0;
 state.matrixBigCell = null;
 render();
 window.scrollTo(0, savedScrollY);
+requestAnimationFrame(() => {
+const newTableWrap = document.querySelector("[data-linked-table] .table-wrap");
+if (newTableWrap) newTableWrap.scrollTop = savedTableScroll;
+});
 }
 });
 }
@@ -4475,9 +4487,15 @@ if (state.matrixBigCell) {
 const escHandler = (e) => {
 if (e.key === "Escape") {
 const savedScrollY = window.scrollY;
+const tableWrap = host.querySelector("[data-linked-table] .table-wrap");
+const savedTableScroll = tableWrap ? tableWrap.scrollTop : 0;
 state.matrixBigCell = null;
 render();
 window.scrollTo(0, savedScrollY);
+requestAnimationFrame(() => {
+const newTableWrap = document.querySelector("[data-linked-table] .table-wrap");
+if (newTableWrap) newTableWrap.scrollTop = savedTableScroll;
+});
 document.removeEventListener("keydown", escHandler);
 }
 };
