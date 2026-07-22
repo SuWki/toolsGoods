@@ -1414,8 +1414,8 @@ pointer-events: none;
       left: 50%;
       top: 50%;
       transform: translate(-50%, -50%);
-      width: min(94vw, 1400px);
-      max-height: 92vh;
+      width: min(98vw, 1600px);
+      max-height: 96vh;
       overflow: auto;
       background: #fff;
       border-radius: 14px;
@@ -1430,7 +1430,7 @@ pointer-events: none;
       align-items: center;
     }
     .trend-modal-body .trend-chart-wrap {
-      max-height: 70vh;
+      max-height: 78vh;
       overflow: auto;
     }
 
@@ -2777,6 +2777,13 @@ sources: Object.fromEntries(
       return list.find((v) => /^69\d{11}$/.test(v)) || list.find((v) => /^\d{13}$/.test(v)) || list[0] || "";
     }
 
+    // 销售趋势专用：统一用 69 码做 key，保证出库单(线上)和门店单(线下)能按同一商品对齐
+    function makeTrendKey(row) {
+      const barcode = pickTrendBarcode(row.barcode, row.sku, row.specCode, row.productCode);
+      if (barcode) return barcode;
+      return keyFrom(row.productName, row.spec);
+    }
+
     async function parseSalesTrendRowsFromFile(file) {
       const lower = file.name.toLowerCase();
       // CSV：单表，主线程通用解析
@@ -2849,7 +2856,7 @@ sources: Object.fromEntries(
               if (ch && (ch.includes("线上") || ch.includes("电商") || ch.includes("淘宝") || ch.includes("天猫") || ch.includes("抖音") || ch.includes("京东"))) onlineQty = qty;
             }
             if (onlineQty <= 0) continue;
-            const key = makeBarcodeKey({ barcode, sku, specCode: sku, productCode: sku, productName, spec });
+            const key = makeTrendKey({ barcode, sku, specCode: sku, productCode: sku, productName, spec });
             addRow(key, { productName, barcode, sku, spec }, time, onlineQty, 0);
           }
           usedSheets.push(sheetName);
@@ -2871,7 +2878,7 @@ sources: Object.fromEntries(
             if (status === "关闭" || status === "取消" || status === "退款成功") continue;
             if (!productName && !barcode && !specCode) continue;
             if (isAggregateLabel(productName) || isAggregateLabel(barcode)) continue;
-            const key = makeBarcodeKey({ barcode, sku: specCode || productCode, specCode, productCode, productName, spec });
+            const key = makeTrendKey({ barcode, sku: specCode || productCode, specCode, productCode, productName, spec });
             addRow(key, { productName, barcode, sku: specCode || productCode, spec }, time, 0, qty);
           }
           usedSheets.push(sheetName);
@@ -5636,11 +5643,23 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         <text x="${padL - 44}" y="${padT + plotH / 2}" text-anchor="middle" font-size="11" fill="#736454" transform="rotate(-90 ${padL - 44} ${padT + plotH / 2})">销量</text>
       `;
 
-      return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="销量趋势折线图">
+      // Tooltip 交互：在 SVG 内覆盖透明层捕获鼠标，并输出 data-* 属性供 JS 读取
+      let overlayHtml = "";
+      if (n <= 90) {
+        const colW = plotW / n;
+        for (let i = 0; i < n; i++) {
+          const cx = x(i);
+          const rx = Math.max(colW / 2, 10);
+          overlayHtml += `<rect x="${cx - rx}" y="${padT}" width="${rx * 2}" height="${plotH}" fill="transparent" data-trend-tip="1" data-date="${dates[i]}" data-values="${series.map((s) => s.values[i] || 0).join(",")}" data-labels="${series.map((s) => s.label).join(",")}" data-colors="${series.map((s) => s.color).join(",")}"/>`;
+        }
+      }
+
+      return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="销量趋势折线图" data-trend-svg="1">
         ${gridHtml}
         ${axesHtml}
         ${linesHtml}
         ${xLabelsHtml}
+        ${overlayHtml}
       </svg>`;
     }
 
@@ -5744,6 +5763,55 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       const summary = renderTrendSummaryHtml(dates, series);
       document.getElementById("trend-modal-body").innerHTML = `${summary}<div class="trend-chart-wrap trend-chart-wrap--modal">${svg}</div>${legend}`;
       modal.classList.add("open");
+      // 弹窗内的 tooltip 也要绑定
+      const modalBody = document.getElementById("trend-modal-body");
+      if (modalBody) bindTrendTooltip(modalBody);
+    }
+
+    // 销售趋势 tooltip 交互
+    function bindTrendTooltip(container) {
+      let tip = document.getElementById("trend-tooltip");
+      if (!tip) {
+        tip = document.createElement("div");
+        tip.id = "trend-tooltip";
+        tip.style.cssText = "position:fixed;z-index:10000;pointer-events:none;background:rgba(45,36,29,.92);color:#fff;padding:8px 12px;border-radius:8px;font-size:12px;line-height:1.6;box-shadow:0 6px 20px rgba(0,0,0,.25);display:none;max-width:260px;";
+        document.body.appendChild(tip);
+      }
+      container.addEventListener("mouseover", (e) => {
+        const rect = e.target.closest("[data-trend-tip]");
+        if (!rect) return;
+        const date = rect.dataset.date || "";
+        const values = (rect.dataset.values || "").split(",").map((v) => Number(v) || 0);
+        const labels = (rect.dataset.labels || "").split(",");
+        const colors = (rect.dataset.colors || "").split(",");
+        let html = `<div style="font-weight:600;margin-bottom:4px;">${escapeHtml(date)}</div>`;
+        for (let i = 0; i < labels.length; i++) {
+          if (!labels[i]) continue;
+          const val = values[i] || 0;
+          if (val <= 0) continue;
+          const color = colors[i] || "#fff";
+          html += `<div style="display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;"></span><span>${escapeHtml(labels[i])}: <strong>${formatInteger(val)}</strong></span></div>`;
+        }
+        if (html === `<div style="font-weight:600;margin-bottom:4px;">${escapeHtml(date)}</div>`) {
+          html += `<div style="opacity:.7;">无销量</div>`;
+        }
+        tip.innerHTML = html;
+        tip.style.display = "block";
+      });
+      container.addEventListener("mousemove", (e) => {
+        if (tip.style.display !== "block") return;
+        const x = e.clientX + 14;
+        const y = e.clientY + 14;
+        const maxX = window.innerWidth - tip.offsetWidth - 10;
+        const maxY = window.innerHeight - tip.offsetHeight - 10;
+        tip.style.left = Math.min(x, maxX) + "px";
+        tip.style.top = Math.min(y, maxY) + "px";
+      });
+      container.addEventListener("mouseout", (e) => {
+        if (e.target.closest("[data-trend-tip]")) {
+          tip.style.display = "none";
+        }
+      });
     }
 
     function renderTrendProductListHtml(model) {
@@ -5948,13 +6016,16 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         });
       }
 
-      // 点击折线图区域弹出放大弹窗
-      chartEl.addEventListener("click", (e) => {
-        if (e.target.closest(".trend-chart-wrap--modal")) return;
-        openTrendChartModal(model);
-      });
+// 点击折线图区域弹出放大弹窗
+chartEl.addEventListener("click", (e) => {
+if (e.target.closest(".trend-chart-wrap--modal")) return;
+openTrendChartModal(model);
+});
 
-    }
+// 鼠标悬停 tooltip：绑定到 chartEl 利用事件委托
+bindTrendTooltip(chartEl);
+
+}
 
     function renderEmptyTabContent() {
       // 根据当前选中的 Tab 显示对应的空状态
