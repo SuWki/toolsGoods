@@ -1362,6 +1362,78 @@ pointer-events: none;
       color: #fff;
     }
 
+    .trend-chart-wrap {
+      position: relative;
+      cursor: pointer;
+    }
+    .trend-chart-zoom-hint {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      background: rgba(255,255,255,.85);
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(216,205,191,.6);
+      pointer-events: none;
+    }
+    .trend-chart-wrap--modal {
+      cursor: default;
+    }
+
+    .trend-loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(20,99,86,.15);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: trend-spin 1s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes trend-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .trend-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+    }
+    .trend-modal.open {
+      display: block;
+    }
+    .trend-modal-back {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+    }
+    .trend-modal-box {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(94vw, 1400px);
+      max-height: 92vh;
+      overflow: auto;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      display: grid;
+      gap: 12px;
+      padding: 18px;
+    }
+    .trend-modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .trend-modal-body .trend-chart-wrap {
+      max-height: 70vh;
+      overflow: auto;
+    }
+
     @media (max-width: 1100px) {
       .trend-toolbar { grid-template-columns: 1fr 1fr; }
       .trend-picker { grid-template-columns: 1fr; }
@@ -2699,6 +2771,12 @@ sources: Object.fromEntries(
       return "";
     }
 
+    // 优先 69 码(EAN-13) 作为商品主键，和九宫格保持一致，避免线下 P 码与线上 69 码对不上
+    function pickTrendBarcode(...cands) {
+      const list = cands.map((v) => (v == null ? "" : String(v).trim())).filter(Boolean);
+      return list.find((v) => /^69\d{11}$/.test(v)) || list.find((v) => /^\d{13}$/.test(v)) || list[0] || "";
+    }
+
     async function parseSalesTrendRowsFromFile(file) {
       const lower = file.name.toLowerCase();
       // CSV：单表，主线程通用解析
@@ -2752,7 +2830,7 @@ sources: Object.fromEntries(
             const productName = getCell(row, map, ["货品名称", "商品名称"]);
             const sku = getCell(row, map, ["货品编号", "商品编码", "规格编码"]);
             const spec = getCell(row, map, ["规格"]);
-            const barcode = getCell(row, map, ["条码", "商品条码", "规格条码"]);
+            const barcode = pickTrendBarcode(getCell(row, map, ["条码"]), getCell(row, map, ["商品条码"]), getCell(row, map, ["规格条码"]));
             const qty = parseNumber(getCell(row, map, ["数量", "商品数量"]), 0);
             const time = parseTrendDate(getCell(row, map, ["出库时间", "日期"]));
             const channel = getCell(row, map, ["销售渠道"]);
@@ -2786,7 +2864,7 @@ sources: Object.fromEntries(
             const spec = getCell(row, map, ["商品规格"]);
             const specCode = getCell(row, map, ["规格编码"]);
             const productCode = getCell(row, map, ["商品编码"]);
-            const barcode = getCell(row, map, ["商品条码", "规格条码"]);
+            const barcode = pickTrendBarcode(getCell(row, map, ["规格条码"]), getCell(row, map, ["商品条码"]));
             const time = parseTrendDate(getCell(row, map, ["日期", "订单创建时间", "下单时间", "成交时间", "支付时间"]));
             if (!time) continue;
             if (qty <= 0) continue;
@@ -5416,9 +5494,16 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
     }
 
     // ===== 销售趋势：折线图与交互 =====
-    const TREND_ONLINE_COLOR = "#2563eb"; // 线上 蓝
-    const TREND_OFFLINE_COLOR = "#f97316"; // 线下 橙
+    const TREND_ONLINE_COLOR = "#2563eb"; // 线上 蓝（合并模式/单商品）
+    const TREND_OFFLINE_COLOR = "#f97316"; // 线下 橙（合并模式/单商品）
     const TREND_DASH_PATTERNS = ["", "6 4", "2 5", "10 4 2 4", "12 2 4 2", "4 2"];
+    // 两两对比时，每个商品用一对独立颜色（线上/线下），4 条线 4 种颜色
+    const TREND_PRODUCT_PAIRS = [
+      { online: "#2563eb", offline: "#f97316" }, // 蓝 / 橙
+      { online: "#16a34a", offline: "#9333ea" }, // 绿 / 紫
+      { online: "#0ea5e9", offline: "#e11d48" }, // 天蓝 / 玫红
+      { online: "#ca8a04", offline: "#0891b2" }, // 金 / 青
+    ];
 
     function getTrendFilteredDates(model) {
       const trend = model.salesTrendModel;
@@ -5455,17 +5540,17 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
             }
           });
         });
-        series.push({ label: "线上(合计)", color: TREND_ONLINE_COLOR, dash: "", values: onlineValues });
-        series.push({ label: "线下(合计)", color: TREND_OFFLINE_COLOR, dash: "", values: offlineValues });
+        series.push({ label: "线上(合计)", color: TREND_ONLINE_COLOR, dash: "", values: onlineValues, channel: "online" });
+        series.push({ label: "线下(合计)", color: TREND_OFFLINE_COLOR, dash: "", values: offlineValues, channel: "offline" });
       } else {
         // 分商品：每个商品各画 线上 / 线下 两条线，用 dash 区分商品
         selected.forEach((p, idx) => {
-          const dash = TREND_DASH_PATTERNS[idx % TREND_DASH_PATTERNS.length];
+          const pair = TREND_PRODUCT_PAIRS[idx % TREND_PRODUCT_PAIRS.length];
           const onlineValues = dates.map((d) => (p.dates[d] ? p.dates[d].online || 0 : 0));
           const offlineValues = dates.map((d) => (p.dates[d] ? p.dates[d].offline || 0 : 0));
-          const name = p.productName || p.barcode || p.sku || p.key;
-          series.push({ label: `${name}·线上`, color: TREND_ONLINE_COLOR, dash, values: onlineValues, product: name });
-          series.push({ label: `${name}·线下`, color: TREND_OFFLINE_COLOR, dash, values: offlineValues, product: name });
+          const name = shortenProductName(p.productName || p.barcode || p.sku || p.key) || (p.productName || p.barcode || p.sku || p.key);
+          series.push({ label: `${name}·线上`, color: pair.online, dash: "", values: onlineValues, product: name, channel: "online" });
+          series.push({ label: `${name}·线下`, color: pair.offline, dash: "", values: offlineValues, product: name, channel: "offline" });
         });
       }
       return { dates, series, selected };
@@ -5483,17 +5568,18 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       return niceFraction * Math.pow(10, exponent);
     }
 
-    function renderTrendSvg(dates, series) {
+    function renderTrendSvg(dates, series, opts = {}) {
       const hasData = dates.length > 0 && series.some((s) => s.values.some((v) => v > 0));
       if (!hasData) {
         return `<div class="trend-product-empty">当前筛选条件下没有销量数据，请调整商品或日期段。</div>`;
       }
 
       const n = dates.length;
-      const padL = 56, padR = 22, padT = 18, padB = 46;
-      const minW = 700, maxW = 1600;
+      const padL = 64, padR = 24, padT = 20, padB = 50;
+      const minW = opts.minW || 700, maxW = opts.maxW || 1600, H = opts.height || 380;
       const W = Math.min(maxW, Math.max(minW, n * 36 + padL + padR));
-      const H = 380;
+      const pointR = opts.pointR || 2.4;
+      const strokeW = opts.strokeWidth || 2;
       const plotW = W - padL - padR;
       const plotH = H - padT - padB;
 
@@ -5532,12 +5618,12 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         if (!s.values.some((v) => v > 0)) return;
         const pts = s.values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
         const dashAttr = s.dash ? ` stroke-dasharray="${s.dash}"` : "";
-        linesHtml += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"${dashAttr} opacity="0.92"/>`;
+        linesHtml += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${strokeW}" stroke-linejoin="round" stroke-linecap="round"${dashAttr} opacity="0.92"/>`;
         // 数据点(数据量不大时显示)
         if (n <= 60) {
           s.values.forEach((v, i) => {
             if (v > 0) {
-              linesHtml += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.4" fill="${s.color}" opacity="0.92"/>`;
+              linesHtml += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="${pointR}" fill="${s.color}" opacity="0.92"/>`;
             }
           });
         }
@@ -5560,18 +5646,14 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
 
     function renderTrendLegendHtml(series, selected, mode) {
       const items = [];
-      items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch" style="background:${TREND_ONLINE_COLOR}"></span>线上</span>`);
-      items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch" style="background:${TREND_OFFLINE_COLOR}"></span>线下</span>`);
-      if (mode === "split" && selected.length > 1) {
-        selected.forEach((p, idx) => {
-          const dash = TREND_DASH_PATTERNS[idx % TREND_DASH_PATTERNS.length];
-          const dashStyle = dash ? `border-top:2px dashed ${TREND_ONLINE_COLOR};background:transparent;height:0;` : `background:${TREND_ONLINE_COLOR};`;
-          const name = p.productName || p.barcode || p.sku || p.key;
-          items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch" style="${dashStyle}"></span>${escapeHtml(name)}</span>`);
+      if (mode === "merge") {
+        items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch" style="background:${TREND_ONLINE_COLOR}"></span>线上(合计)</span>`);
+        items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch" style="background:${TREND_OFFLINE_COLOR}"></span>线下(合计)</span>`);
+      } else {
+        // 分商品：每条折线独立颜色，两两对比时 4 条线 4 种颜色
+        series.forEach((s) => {
+          items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch" style="background:${s.color}"></span>${escapeHtml(s.label)}</span>`);
         });
-      } else if (mode === "split" && selected.length === 1) {
-        const name = selected[0].productName || selected[0].barcode || selected[0].sku || selected[0].key;
-        items.push(`<span class="trend-legend-item">${escapeHtml(name)}</span>`);
       }
       return `<div class="trend-legend">${items.join("")}</div>`;
     }
@@ -5580,7 +5662,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       let totalOnline = 0, totalOffline = 0;
       series.forEach((s) => {
         const sum = s.values.reduce((a, b) => a + b, 0);
-        if (s.color === TREND_ONLINE_COLOR) totalOnline += sum;
+        if (s.channel === "online") totalOnline += sum;
         else totalOffline += sum;
       });
       // 找单日总量最高
@@ -5608,7 +5690,60 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       const svg = renderTrendSvg(dates, series);
       const legend = renderTrendLegendHtml(series, selected, f.mode);
       const summary = renderTrendSummaryHtml(dates, series);
-      return `${summary}<div class="trend-chart-wrap">${svg}</div>${legend}`;
+      return `${summary}<div class="trend-chart-wrap" data-trend-chart="1" title="点击放大查看">${svg}<div class="trend-chart-zoom-hint">点击图表可放大查看</div></div>${legend}`;
+    }
+
+    function renderSalesTrendLoading() {
+      return `
+        <div class="panel trend-panel">
+          <div class="block-head">
+            <div>
+              <h2>每日销量趋势对比</h2>
+              <div class="note">正在解析销量文件，大文件可能需要数十秒，请稍候…</div>
+            </div>
+          </div>
+          <div class="soft-card" style="text-align:center;padding:48px 16px;">
+            <div class="trend-loading-spinner"></div>
+            <div class="note" style="margin-top:14px;">解析中，请勿关闭或刷新页面</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function ensureTrendModal() {
+      let modal = document.getElementById("trend-chart-modal");
+      if (modal) return modal;
+      modal = document.createElement("div");
+      modal.id = "trend-chart-modal";
+      modal.className = "trend-modal";
+      modal.innerHTML = `
+        <div class="trend-modal-back"></div>
+        <div class="trend-modal-box">
+          <div class="trend-modal-head">
+            <strong>每日销量趋势对比（放大）</strong>
+            <button type="button" class="ghost" id="trend-modal-close">关闭</button>
+          </div>
+          <div id="trend-modal-body" class="trend-modal-body"></div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      modal.addEventListener("click", (e) => {
+        if (e.target.classList.contains("trend-modal-back") || e.target.id === "trend-modal-close" || e.target === modal) {
+          modal.classList.remove("open");
+        }
+      });
+      return modal;
+    }
+
+    function openTrendChartModal(model) {
+      const modal = ensureTrendModal();
+      const { dates, series, selected } = buildTrendSeries(model);
+      const f = state.salesTrendFilters;
+      const svg = renderTrendSvg(dates, series, { minW: 960, maxW: 2400, height: 640, pointR: 3, strokeWidth: 2.4 });
+      const legend = renderTrendLegendHtml(series, selected, f.mode);
+      const summary = renderTrendSummaryHtml(dates, series);
+      document.getElementById("trend-modal-body").innerHTML = `${summary}<div class="trend-chart-wrap trend-chart-wrap--modal">${svg}</div>${legend}`;
+      modal.classList.add("open");
     }
 
     function renderTrendProductListHtml(model) {
@@ -5627,12 +5762,13 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       }
       return filtered.map((p) => {
         const checked = keySet.has(p.key) ? "checked" : "";
-        const name = p.productName || p.barcode || p.sku || p.key;
+        const fullName = p.productName || p.barcode || p.sku || p.key;
+        const name = shortenProductName(fullName) || fullName;
         const sub = [p.barcode, p.sku].filter(Boolean).join(" / ");
         return `
           <label class="trend-product-item" data-trend-key="${escapeHtml(p.key)}">
             <input type="checkbox" ${checked} data-trend-key="${escapeHtml(p.key)}">
-            <span class="trend-product-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+            <span class="trend-product-name" title="${escapeHtml(fullName)}">${escapeHtml(name)}</span>
             <span class="trend-product-sub">${escapeHtml(sub)}</span>
           </label>
         `;
@@ -5665,7 +5801,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
           <div class="block-head">
             <div>
               <h2>每日销量趋势对比</h2>
-              <div class="note">横轴=日期，纵轴=销量；蓝色=线上，橙色=线下。可在左侧多选商品对比，右侧调整日期段。</div>
+              <div class="note">横轴=日期，纵轴=销量；最多选择 2 个商品两两对比，4 条折线 4 种颜色。</div>
             </div>
             <div style="display:flex;gap:10px;align-items:center;">
               <span class="badge neutral">共 ${formatInteger(trend.productCount)} 个商品 · 已选 ${formatInteger(selectedCount)}</span>
@@ -5690,15 +5826,14 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
               <input type="date" id="trend-end" value="${escapeHtml(endVal)}" min="${escapeHtml(trend.dateMin)}" max="${escapeHtml(trend.dateMax)}">
             </label>
             <div style="display:flex;gap:8px;align-items:flex-end;">
-              <button type="button" class="ghost" id="trend-select-all">全选</button>
-              <button type="button" class="ghost" id="trend-select-top10">前10</button>
+              <button type="button" class="ghost" id="trend-select-top2">前2对比</button>
               <button type="button" class="ghost" id="trend-clear">清空</button>
             </div>
           </div>
 
           <div class="trend-picker">
             <div class="trend-picker-col">
-              <div class="note">商品列表（按总销量排序，可多选对比）</div>
+              <div class="note">商品列表（按总销量排序，最多选 2 个）</div>
               <div id="trend-product-list" class="trend-product-list">${renderTrendProductListHtml(model)}</div>
             </div>
             <div class="trend-picker-col">
@@ -5736,8 +5871,18 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
           cb.addEventListener("change", () => {
             const key = cb.dataset.trendKey;
             const set = new Set(state.salesTrendFilters.selectedKeys);
-            if (cb.checked) set.add(key); else set.delete(key);
+            if (cb.checked) {
+              set.add(key);
+              // 最多两两对比：超出 2 个时移除最早选中的
+              while (set.size > 2) {
+                const oldest = state.salesTrendFilters.selectedKeys.find((k) => set.has(k));
+                if (oldest) set.delete(oldest);
+              }
+            } else {
+              set.delete(key);
+            }
             state.salesTrendFilters.selectedKeys = Array.from(set);
+            refreshList();
             refreshChart();
             cacheAppState();
           });
@@ -5784,19 +5929,10 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         });
       });
 
-      const selectAllBtn = document.getElementById("trend-select-all");
-      if (selectAllBtn) {
-        selectAllBtn.addEventListener("click", () => {
-          state.salesTrendFilters.selectedKeys = model.salesTrendModel.products.map((p) => p.key);
-          refreshList();
-          refreshChart();
-          cacheAppState();
-        });
-      }
-      const top10Btn = document.getElementById("trend-select-top10");
-      if (top10Btn) {
-        top10Btn.addEventListener("click", () => {
-          state.salesTrendFilters.selectedKeys = model.salesTrendModel.products.slice(0, 10).map((p) => p.key);
+      const top2Btn = document.getElementById("trend-select-top2");
+      if (top2Btn) {
+        top2Btn.addEventListener("click", () => {
+          state.salesTrendFilters.selectedKeys = model.salesTrendModel.products.slice(0, 2).map((p) => p.key);
           refreshList();
           refreshChart();
           cacheAppState();
@@ -5811,6 +5947,12 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
           cacheAppState();
         });
       }
+
+      // 点击折线图区域弹出放大弹窗
+      chartEl.addEventListener("click", (e) => {
+        if (e.target.closest(".trend-chart-wrap--modal")) return;
+        openTrendChartModal(model);
+      });
 
     }
 
@@ -5911,6 +6053,14 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       } else {
         // 九宫格模式：隐藏子标签栏
         tabsBar.style.display = "none";
+      }
+
+      // 销售趋势解析中：先显示加载态，避免用户以为卡死
+      if (state.activeTab === "salesTrend" && state.sources.salesTrend && state.sources.salesTrend.loading) {
+        kpiGrid.style.display = "none";
+        tabsBar.style.display = "none";
+        document.getElementById("tab-content").innerHTML = renderSalesTrendLoading();
+        return;
       }
 
       if (!model.uploadedCount) {
