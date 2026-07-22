@@ -2681,105 +2681,22 @@ sources: Object.fromEntries(
       return result;
     }
 
-    // 「每日销量趋势」文件解析：读取 Excel 的两张子表
-    //   - 出库单子表：AZ 列(第52列, index 51)为"线上"的行计入线上销量（兼容 AZ 列本身为线上销量数值）
-    //   - 门店销售单子表：全部计入线下销量
-    // 使用 Web Worker 解析，避免大文件阻塞主线程导致页面卡死
-    const SALES_TREND_XLSX_CDN = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
-    let salesTrendWorker = null;
-
-    function buildSalesTrendWorkerSource() {
-      return [
-        '"use strict";',
-        "importScripts(" + JSON.stringify(SALES_TREND_XLSX_CDN) + ");",
-        "const normalizeText=(v)=>String(v==null?'':v).trim().replace(/\\s+/g,'').toLowerCase();",
-        "const isAggregateLabel=(v)=>{const t=normalizeText(v);if(!t)return false;return['总计','合计','小计','汇总','总合计'].some(l=>t.startsWith(normalizeText(l)));};",
-        "const parseNumber=(v,fb=0)=>{if(v==null||v==='')return fb;const t=String(v).replace(/,/g,'').trim();const m=t.match(/-?\\d+(?:\\.\\d+)?/);if(!m)return fb;const n=Number(m[0]);return Number.isFinite(n)?n:fb;};",
-        "const formatDateValue=(v)=>{if(!v)return '';if(v instanceof Date&&!Number.isNaN(v.getTime()))return v.toISOString().slice(0,10);if(typeof v==='number'&&v>20000&&v<70000){const b=new Date(Date.UTC(1899,11,30));b.setUTCDate(b.getUTCDate()+v);return b.toISOString().slice(0,10);}const t=String(v).trim();const m=t.match(/^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})/);if(m)return m[1]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[3]).padStart(2,'0');return t;};",
-        "const keyFrom=(...parts)=>parts.map(p=>normalizeText(p)).filter(Boolean).join('|');",
-        "const makeBarcodeKey=(r)=>normalizeText(r.barcode)||keyFrom(r.sku,r.specCode,r.productCode,r.productName,r.spec);",
-        "const headerIndex=(headers)=>{const m=new Map();(headers||[]).forEach((h,i)=>m.set(normalizeText(h),i));return m;};",
-        "const getCell=(row,map,aliases)=>{for(const a of aliases){const idx=map.get(normalizeText(a));if(idx!==undefined){const v=row[idx];if(v!==undefined&&v!==null&&String(v).trim()!=='')return v;}}return '';};",
-        "const cleanSheetRows=(rows)=>(rows||[]).filter(r=>Array.isArray(r)&&r.some(c=>String(c==null?'':c).trim()!==''));",
-        "self.onmessage=(e)=>{",
-        "const {buffer,name}=e.data;",
-        "try{",
-        "const wb=XLSX.read(buffer,{type:'array',cellDates:true,raw:true});",
-        "const result=[];const usedSheets=[];",
-        "for(const sn of (wb.SheetNames||[])){",
-        "const sheet=wb.Sheets[sn];if(!sheet)continue;",
-        "const rows=cleanSheetRows(XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:''}));",
-        "if(!rows.length)continue;",
-        "const headers=rows[0]||[];const hnorm=headers.map(h=>normalizeText(h));const nameNorm=normalizeText(sn);",
-        "const isChuhuo=hnorm.some(h=>h.includes('出库时间')||h.includes('出库单号'))||nameNorm.includes('出库');",
-        "const isMendian=hnorm.some(h=>h.includes('订单创建时间')||h.includes('归属店铺')||h.includes('订单号'))||nameNorm.includes('门店')||nameNorm.includes('店铺');",
-        "if(isChuhuo&&!isMendian){",
-        "const map=headerIndex(headers);",
-        "for(let i=1;i<rows.length;i++){const row=rows[i];",
-        "const productName=getCell(row,map,['货品名称','商品名称']);",
-        "const sku=getCell(row,map,['货品编号','商品编码','规格编码']);",
-        "const spec=getCell(row,map,['规格']);",
-        "const barcode=getCell(row,map,['条码','商品条码','规格条码']);",
-        "const qty=parseNumber(getCell(row,map,['数量','商品数量']),0);",
-        "const time=formatDateValue(getCell(row,map,['出库时间']));",
-        "const channel=getCell(row,map,['销售渠道']);",
-        "if(!time||!/^\\d{4}-\\d{2}-\\d{2}/.test(time))continue;",
-        "if(!productName&&!barcode&&!sku)continue;",
-        "if(isAggregateLabel(productName)||isAggregateLabel(barcode))continue;",
-        "const az=row[51]!=null?row[51]:'';const azStr=String(az).trim();",
-        "let onlineQty=0;",
-        "if(azStr&&!isNaN(Number(azStr))&&Number(azStr)>0)onlineQty=Number(azStr);",
-        "else if(normalizeText(azStr).includes('线上'))onlineQty=qty;",
-        "else{const ch=normalizeText(channel);if(ch&&(ch.includes('线上')||ch.includes('电商')||ch.includes('淘宝')||ch.includes('天猫')||ch.includes('抖音')||ch.includes('京东')))onlineQty=qty;}",
-        "if(onlineQty<=0)continue;",
-        "result.push({key:makeBarcodeKey({barcode,sku,specCode:sku,productCode:sku,productName,spec}),productName,barcode,sku,spec,date:time,onlineQty:Math.max(0,onlineQty),offlineQty:0});",
-        "}",
-        "usedSheets.push(sn);",
-        "}else if(isMendian){",
-        "const map=headerIndex(headers);",
-        "for(let i=1;i<rows.length;i++){const row=rows[i];",
-        "const status=getCell(row,map,['订单商品状态']);",
-        "const qty=parseNumber(getCell(row,map,['商品数量']),0);",
-        "const productName=getCell(row,map,['商品名称']);",
-        "const spec=getCell(row,map,['商品规格']);",
-        "const specCode=getCell(row,map,['规格编码']);",
-        "const productCode=getCell(row,map,['商品编码']);",
-        "const barcode=getCell(row,map,['商品条码','规格条码']);",
-        "const time=formatDateValue(getCell(row,map,['订单创建时间','下单时间','成交时间','支付时间']));",
-        "if(!time||!/^\\d{4}-\\d{2}-\\d{2}/.test(time))continue;",
-        "if(qty<=0)continue;",
-        "if(status==='关闭'||status==='取消'||status==='退款成功')continue;",
-        "if(!productName&&!barcode&&!specCode)continue;",
-        "if(isAggregateLabel(productName)||isAggregateLabel(barcode))continue;",
-        "result.push({key:makeBarcodeKey({barcode,sku:specCode||productCode,specCode,productCode,productName,spec}),productName,barcode,sku:specCode||productCode,spec,date:time,onlineQty:0,offlineQty:Math.max(0,qty)});",
-        "}",
-        "usedSheets.push(sn);",
-        "}",
-        "}",
-        "self.postMessage({ok:true,sheetName:usedSheets.length?usedSheets.join(' + '):(name||''),rows:result});",
-        "}catch(err){self.postMessage({ok:false,error:(err&&err.message)?err.message:String(err)});}",
-        "};",
-      ].join("\n");
-    }
-
-    function getSalesTrendWorker() {
-      if (salesTrendWorker) return salesTrendWorker;
-      const blob = new Blob([buildSalesTrendWorkerSource()], { type: "application/javascript" });
-      salesTrendWorker = new Worker(URL.createObjectURL(blob));
-      return salesTrendWorker;
-    }
-
-    function parseSalesTrendInWorker(buffer, name) {
-      return new Promise((resolve, reject) => {
-        const worker = getSalesTrendWorker();
-        worker.onmessage = (e) => {
-          const data = e.data;
-          if (data && data.ok) resolve({ sheetName: data.sheetName, rows: data.rows });
-          else reject(new Error((data && data.error) || "销售趋势文件解析失败"));
-        };
-        worker.onerror = (err) => reject(new Error((err && err.message) || "销售趋势文件解析失败"));
-        worker.postMessage({ buffer, name }, [buffer]);
-      });
+    // 每日销量趋势文件解析见 parseSalesTrendRowsFromFile（主线程，复用已加载的 XLSX）
+    // 兼容多种日期格式：Date / Excel 序号 / YYYY-MM-DD / YYYY/MM/DD / YYYYMMDD(紧凑)
+    function parseTrendDate(value) {
+      if (!value) return "";
+      if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+      if (typeof value === "number" && value > 20000 && value < 70000) {
+        const base = new Date(Date.UTC(1899, 11, 30));
+        base.setUTCDate(base.getUTCDate() + value);
+        return base.toISOString().slice(0, 10);
+      }
+      const text = String(value).trim();
+      let m = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+      if (m) return `${m[1]}-${String(m[2]).padStart(2, "0")}-${String(m[3]).padStart(2, "0")}`;
+      m = text.match(/^(\d{4})(\d{2})(\d{2})$/);
+      if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+      return "";
     }
 
     async function parseSalesTrendRowsFromFile(file) {
@@ -2794,18 +2711,103 @@ sources: Object.fromEntries(
         throw new Error("Excel 解析库没有加载成功，请刷新页面后重试。");
       }
       const buffer = await file.arrayBuffer();
-      let parsed;
-      try {
-        parsed = await parseSalesTrendInWorker(buffer, file.name);
-      } catch (err) {
-        throw err;
+      // 让「解析中」状态先渲染出来，再开始同步解析，避免大文件解析时长时间白屏
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      const workbook = XLSX.read(buffer, { type: "array", cellDates: true, raw: true });
+      // 按 商品+日期 即时聚合，降低大文件的内存占用
+      const agg = new Map();
+      const usedSheets = [];
+      const addRow = (key, info, date, onlineQty, offlineQty) => {
+        if (!key || !date) return;
+        if (onlineQty <= 0 && offlineQty <= 0) return;
+        const k = key + "__" + date;
+        let entry = agg.get(k);
+        if (!entry) {
+          entry = { key, productName: info.productName, barcode: info.barcode, sku: info.sku, spec: info.spec, date, onlineQty: 0, offlineQty: 0 };
+          agg.set(k, entry);
+        }
+        entry.onlineQty += onlineQty;
+        entry.offlineQty += offlineQty;
+        if (!entry.productName && info.productName) entry.productName = info.productName;
+        if (!entry.barcode && info.barcode) entry.barcode = info.barcode;
+        if (!entry.sku && info.sku) entry.sku = info.sku;
+      };
+
+      for (const sheetName of (workbook.SheetNames || [])) {
+        const sheet = workbook.Sheets[sheetName];
+        if (!sheet) continue;
+        const rows = getSheetRows(sheet);
+        if (!rows.length) continue;
+        const headers = rows[0] || [];
+        const hnorm = headers.map((h) => normalizeText(h));
+        const nameNorm = normalizeText(sheetName);
+        const isChuhuo = hnorm.some((h) => h.includes("出库时间") || h.includes("出库单号")) || nameNorm.includes("出库");
+        const isMendian = hnorm.some((h) => h.includes("归属店铺") || h.includes("订单号") || h.includes("商品数量")) || nameNorm.includes("门店") || nameNorm.includes("店铺");
+
+        if (isChuhuo && !isMendian) {
+          // 出库单：AZ 列(第52列, index 51)为"线上"的行计入线上销量
+          const map = headerIndex(headers);
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            const productName = getCell(row, map, ["货品名称", "商品名称"]);
+            const sku = getCell(row, map, ["货品编号", "商品编码", "规格编码"]);
+            const spec = getCell(row, map, ["规格"]);
+            const barcode = getCell(row, map, ["条码", "商品条码", "规格条码"]);
+            const qty = parseNumber(getCell(row, map, ["数量", "商品数量"]), 0);
+            const time = parseTrendDate(getCell(row, map, ["出库时间", "日期"]));
+            const channel = getCell(row, map, ["销售渠道"]);
+            if (!time) continue;
+            if (!productName && !barcode && !sku) continue;
+            if (isAggregateLabel(productName) || isAggregateLabel(barcode)) continue;
+            const az = row[51] != null ? row[51] : "";
+            const azStr = String(az).trim();
+            let onlineQty = 0;
+            if (azStr && !isNaN(Number(azStr)) && Number(azStr) > 0) {
+              onlineQty = Number(azStr);
+            } else if (normalizeText(azStr).includes("线上")) {
+              onlineQty = qty;
+            } else {
+              const ch = normalizeText(channel);
+              if (ch && (ch.includes("线上") || ch.includes("电商") || ch.includes("淘宝") || ch.includes("天猫") || ch.includes("抖音") || ch.includes("京东"))) onlineQty = qty;
+            }
+            if (onlineQty <= 0) continue;
+            const key = makeBarcodeKey({ barcode, sku, specCode: sku, productCode: sku, productName, spec });
+            addRow(key, { productName, barcode, sku, spec }, time, onlineQty, 0);
+          }
+          usedSheets.push(sheetName);
+        } else if (isMendian) {
+          // 门店销售单：全部计入线下销量
+          const map = headerIndex(headers);
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            const status = getCell(row, map, ["订单商品状态"]);
+            const qty = parseNumber(getCell(row, map, ["商品数量"]), 0);
+            const productName = getCell(row, map, ["商品名称"]);
+            const spec = getCell(row, map, ["商品规格"]);
+            const specCode = getCell(row, map, ["规格编码"]);
+            const productCode = getCell(row, map, ["商品编码"]);
+            const barcode = getCell(row, map, ["商品条码", "规格条码"]);
+            const time = parseTrendDate(getCell(row, map, ["日期", "订单创建时间", "下单时间", "成交时间", "支付时间"]));
+            if (!time) continue;
+            if (qty <= 0) continue;
+            if (status === "关闭" || status === "取消" || status === "退款成功") continue;
+            if (!productName && !barcode && !specCode) continue;
+            if (isAggregateLabel(productName) || isAggregateLabel(barcode)) continue;
+            const key = makeBarcodeKey({ barcode, sku: specCode || productCode, specCode, productCode, productName, spec });
+            addRow(key, { productName, barcode, sku: specCode || productCode, spec }, time, 0, qty);
+          }
+          usedSheets.push(sheetName);
+        }
       }
-      // 未识别到双子表时，回退到单表宽/长格式解析（主线程）
-      if (!parsed.rows.length) {
+
+      let rows = Array.from(agg.values());
+      if (!rows.length) {
+        // 未识别到双子表时，回退到单表宽/长格式解析
         const fd = await readRowsFromFile(file);
-        return { sheetName: fd.sheetName, rows: parseSalesTrendRows(fd.rows) };
+        rows = parseSalesTrendRows(fd.rows);
+        return { sheetName: fd.sheetName, rows };
       }
-      return parsed;
+      return { sheetName: usedSheets.length ? usedSheets.join(" + ") : file.name, rows };
     }
 
     function parseInventorySalesRows(rows) {
@@ -5709,6 +5711,13 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
 
     function bindTrendInteractions() {
       if (state.activeTab !== "salesTrend") return;
+      // 内容区「重新上传每日销量文件」按钮：无论是否有数据都需可点击，触发隐藏文件选择框
+      document.querySelectorAll('[data-open-source="salesTrend"]').forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const input = document.getElementById("input-salesTrend");
+          if (input) input.click();
+        });
+      });
       const listEl = document.getElementById("trend-product-list");
       const chartEl = document.getElementById("trend-chart-area");
       if (!listEl || !chartEl) return;
@@ -5803,13 +5812,6 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         });
       }
 
-      // 侧边栏「重新上传」按钮
-      document.querySelectorAll('[data-open-source="salesTrend"]').forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const input = document.getElementById("input-salesTrend");
-          if (input) input.click();
-        });
-      });
     }
 
     function renderEmptyTabContent() {
