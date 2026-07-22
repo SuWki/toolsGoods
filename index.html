@@ -1170,6 +1170,203 @@ pointer-events: none;
       border-color: var(--accent);
       color: #fff;
     }
+
+    /* ===== 销售趋势 ===== */
+    .trend-panel {
+      display: grid;
+      gap: 16px;
+      padding: 18px;
+      border: 1px solid rgba(20, 99, 86, .12);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, .82), rgba(255, 255, 255, .72)),
+        radial-gradient(circle at top right, rgba(20, 99, 86, .06), transparent 28%);
+    }
+
+    .trend-toolbar {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .trend-toolbar label {
+      display: grid;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .trend-toolbar input,
+    .trend-toolbar select {
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0 10px;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .trend-picker {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .trend-picker-col {
+      display: grid;
+      gap: 10px;
+    }
+
+    .trend-search {
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0 12px;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .trend-product-list {
+      max-height: 280px;
+      overflow: auto;
+      border: 1px solid rgba(216, 205, 191, .72);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, .7);
+      padding: 6px 8px;
+      display: grid;
+      gap: 4px;
+    }
+
+    .trend-product-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .trend-product-item:hover {
+      background: rgba(20, 99, 86, .06);
+    }
+
+    .trend-product-item input {
+      cursor: pointer;
+    }
+
+    .trend-product-item .trend-product-name {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .trend-product-item .trend-product-sub {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .trend-product-empty {
+      padding: 18px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .trend-chart-wrap {
+      border: 1px solid rgba(216, 205, 191, .72);
+      border-radius: 10px;
+      background: #fff;
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .trend-chart-wrap svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .trend-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .trend-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .trend-legend-swatch {
+      display: inline-block;
+      width: 22px;
+      height: 3px;
+      border-radius: 2px;
+    }
+
+    .trend-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .trend-stat {
+      border: 1px solid rgba(216, 205, 191, .72);
+      border-radius: 10px;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, .7);
+    }
+
+    .trend-stat small {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .trend-stat strong {
+      display: block;
+      font-size: 20px;
+      margin-top: 4px;
+    }
+
+    .trend-mode-toggle {
+      display: inline-flex;
+      gap: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px;
+    }
+
+    .trend-mode-toggle button {
+      padding: 6px 14px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    .trend-mode-toggle button.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    @media (max-width: 1100px) {
+      .trend-toolbar { grid-template-columns: 1fr 1fr; }
+      .trend-picker { grid-template-columns: 1fr; }
+      .trend-summary { grid-template-columns: 1fr 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -1184,6 +1381,7 @@ pointer-events: none;
         <div class="mode-switch" id="mode-switch">
           <button class="mode-btn active" data-mode="cockpit">驾驶舱</button>
           <button class="mode-btn" data-mode="matrix">九宫格</button>
+          <button class="mode-btn" data-mode="salesTrend">销售趋势</button>
         </div>
         <div class="actions">
           <button id="batch-upload" class="ghost">批量上传</button>
@@ -1294,6 +1492,13 @@ pointer-events: none;
         preferredSheets: ["近30天店铺销售"],
         parser: parseStoreSalesRows,
       },
+      {
+        key: "salesTrend",
+        label: "每日销量趋势",
+        hint: "各商品每天线上 / 线下销售数量，用于趋势对比",
+        preferredSheets: [],
+        parser: parseSalesTrendRows,
+      },
     ];
 
 const TABS = [
@@ -1334,6 +1539,13 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       matrixHistory: {}, // 商品九宫格位置历史 {key: {nodeLabel: position}}
       matrixHistoryNodes: [], // 所有历史时间节点标签列表
       historyCompareNodes: ["", "", ""], // 用户选择对比的三个时间节点
+      salesTrendFilters: {
+        selectedKeys: [], // 选中的商品 key，空表示未选(渲染时自动取全部)
+        startDate: "",
+        endDate: "",
+        search: "", // 商品搜索文本
+        mode: "split", // split=分商品对比, merge=合并求和
+      },
     };
 
     const columnResizeState = {
@@ -1397,6 +1609,7 @@ sidebarCollapsed: state.sidebarCollapsed,
 matrixHistory: state.matrixHistory,
 matrixHistoryNodes: state.matrixHistoryNodes,
 historyCompareNodes: state.historyCompareNodes,
+salesTrendFilters: state.salesTrendFilters,
 sources: Object.fromEntries(
             Object.entries(state.sources).map(([key, source]) => [key, cloneSourceForCache(source)])
           ),
@@ -1452,6 +1665,13 @@ sources: Object.fromEntries(
         }
         if (payload && Array.isArray(payload.historyCompareNodes)) {
           state.historyCompareNodes = payload.historyCompareNodes;
+        }
+        if (payload && payload.salesTrendFilters && typeof payload.salesTrendFilters === "object") {
+          state.salesTrendFilters = {
+            ...state.salesTrendFilters,
+            ...payload.salesTrendFilters,
+            selectedKeys: Array.isArray(payload.salesTrendFilters.selectedKeys) ? payload.salesTrendFilters.selectedKeys : [],
+          };
         }
         if (payload && payload.activeTab) {
           state.activeTab = payload.activeTab;
@@ -1805,6 +2025,7 @@ sources: Object.fromEntries(
     function inferSourceKeyFromFileName(fileName) {
       const text = normalizeText(fileName);
       const rules = [
+        ["salesTrend", ["每日销量", "销量趋势", "销售趋势", "线上线下销量", "每日销售", "线上线下一周", "趋势"]],
         ["storeSales", ["门店销售", "自营门店销售", "门店销售数据"]],
         ["channelSales", ["渠道销售", "线上销售", "批发销售", "经销商销售"]],
         ["warehouse", ["仓库库存和保质期", "仓库库存", "保质期数据", "仓库库存数据"]],
@@ -2399,6 +2620,192 @@ sources: Object.fromEntries(
           raw: row,
         };
       }).filter((row) => row.qty > 0 && row.status !== "关闭" && row.status !== "取消" && row.status !== "退款成功" && (row.productName || row.barcode || row.specCode) && !isAggregateLabel(row.productName) && !isAggregateLabel(row.barcode));
+    }
+
+    // 解析「每日销量趋势」文件：每行一个商品某天的线上/线下销量
+    // 兼容两种格式：
+    //   1) 宽格式：含「线上销量/线下销量」两列
+    //   2) 长格式：含「渠道」列(线上/线下) + 「数量」列
+    function parseSalesTrendRows(rows) {
+      const [headers, ...body] = rows;
+      const map = headerIndex(headers || []);
+      const result = [];
+      for (const row of body) {
+        const productName = getCell(row, map, ["品名", "商品名称", "货品名称", "SKU名称", "商品"]);
+        const barcode = getCell(row, map, ["条码", "商品条码", "规格条码"]);
+        const sku = getCell(row, map, ["货品编号", "商品编码", "规格编码", "规格编号", "SKU", "商品/规格编码"]);
+        const spec = getCell(row, map, ["规格", "商品规格"]);
+        const date = formatDateValue(getCell(row, map, ["日期", "销售日期", "统计日期", "时间", "出库时间", "下单时间", "date"]));
+        if (!date || !/^\d{4}-\d{2}-\d{2}/.test(date)) continue;
+        if (!productName && !barcode && !sku) continue;
+        if (isAggregateLabel(productName) || isAggregateLabel(barcode)) continue;
+
+        const key = makeBarcodeKey({ barcode, sku, specCode: sku, productCode: sku, productName, spec });
+        const channelRaw = String(getCell(row, map, ["渠道", "销售渠道", "渠道类型", "线上/线下"])).trim();
+        const qty = parseNumber(getCell(row, map, ["数量", "销售数量", "销量", "销售量"]), 0);
+
+        let onlineQty = 0;
+        let offlineQty = 0;
+
+        const channelNorm = normalizeText(channelRaw);
+        if (channelNorm) {
+          // 长格式：按渠道归类
+          if (channelNorm.includes("线上") || channelNorm.includes("online") || channelNorm.includes("电商") || channelNorm.includes("淘宝") || channelNorm.includes("天猫") || channelNorm.includes("抖音") || channelNorm.includes("京东")) {
+            onlineQty = qty;
+          } else if (channelNorm.includes("线下") || channelNorm.includes("offline") || channelNorm.includes("门店") || channelNorm.includes("实体") || channelNorm.includes("自营")) {
+            offlineQty = qty;
+          } else {
+            // 未知渠道，默认计入线下
+            offlineQty = qty;
+          }
+        } else {
+          // 宽格式：直接读取线上/线下两列
+          onlineQty = parseNumber(getCell(row, map, ["线上销量", "线上销售数量", "线上数量", "线上", "线上销售", "online", "电商销量"]), 0);
+          offlineQty = parseNumber(getCell(row, map, ["线下销量", "线下销售数量", "线下数量", "线下", "线下销售", "offline", "门店销量"]), 0);
+        }
+
+        if (onlineQty <= 0 && offlineQty <= 0) continue;
+
+        result.push({
+          key,
+          productName,
+          barcode,
+          sku,
+          spec,
+          date,
+          onlineQty: Math.max(0, onlineQty),
+          offlineQty: Math.max(0, offlineQty),
+          raw: row,
+        });
+      }
+      return result;
+    }
+
+    // 「每日销量趋势」文件解析：读取 Excel 的两张子表
+    //   - 出库单子表：AZ 列(第52列, index 51)为"线上"的行计入线上销量（兼容 AZ 列本身为线上销量数值）
+    //   - 门店销售单子表：全部计入线下销量
+    // 使用 Web Worker 解析，避免大文件阻塞主线程导致页面卡死
+    const SALES_TREND_XLSX_CDN = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    let salesTrendWorker = null;
+
+    function buildSalesTrendWorkerSource() {
+      return [
+        '"use strict";',
+        "importScripts(" + JSON.stringify(SALES_TREND_XLSX_CDN) + ");",
+        "const normalizeText=(v)=>String(v==null?'':v).trim().replace(/\\s+/g,'').toLowerCase();",
+        "const isAggregateLabel=(v)=>{const t=normalizeText(v);if(!t)return false;return['总计','合计','小计','汇总','总合计'].some(l=>t.startsWith(normalizeText(l)));};",
+        "const parseNumber=(v,fb=0)=>{if(v==null||v==='')return fb;const t=String(v).replace(/,/g,'').trim();const m=t.match(/-?\\d+(?:\\.\\d+)?/);if(!m)return fb;const n=Number(m[0]);return Number.isFinite(n)?n:fb;};",
+        "const formatDateValue=(v)=>{if(!v)return '';if(v instanceof Date&&!Number.isNaN(v.getTime()))return v.toISOString().slice(0,10);if(typeof v==='number'&&v>20000&&v<70000){const b=new Date(Date.UTC(1899,11,30));b.setUTCDate(b.getUTCDate()+v);return b.toISOString().slice(0,10);}const t=String(v).trim();const m=t.match(/^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})/);if(m)return m[1]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[3]).padStart(2,'0');return t;};",
+        "const keyFrom=(...parts)=>parts.map(p=>normalizeText(p)).filter(Boolean).join('|');",
+        "const makeBarcodeKey=(r)=>normalizeText(r.barcode)||keyFrom(r.sku,r.specCode,r.productCode,r.productName,r.spec);",
+        "const headerIndex=(headers)=>{const m=new Map();(headers||[]).forEach((h,i)=>m.set(normalizeText(h),i));return m;};",
+        "const getCell=(row,map,aliases)=>{for(const a of aliases){const idx=map.get(normalizeText(a));if(idx!==undefined){const v=row[idx];if(v!==undefined&&v!==null&&String(v).trim()!=='')return v;}}return '';};",
+        "const cleanSheetRows=(rows)=>(rows||[]).filter(r=>Array.isArray(r)&&r.some(c=>String(c==null?'':c).trim()!==''));",
+        "self.onmessage=(e)=>{",
+        "const {buffer,name}=e.data;",
+        "try{",
+        "const wb=XLSX.read(buffer,{type:'array',cellDates:true,raw:true});",
+        "const result=[];const usedSheets=[];",
+        "for(const sn of (wb.SheetNames||[])){",
+        "const sheet=wb.Sheets[sn];if(!sheet)continue;",
+        "const rows=cleanSheetRows(XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:''}));",
+        "if(!rows.length)continue;",
+        "const headers=rows[0]||[];const hnorm=headers.map(h=>normalizeText(h));const nameNorm=normalizeText(sn);",
+        "const isChuhuo=hnorm.some(h=>h.includes('出库时间')||h.includes('出库单号'))||nameNorm.includes('出库');",
+        "const isMendian=hnorm.some(h=>h.includes('订单创建时间')||h.includes('归属店铺')||h.includes('订单号'))||nameNorm.includes('门店')||nameNorm.includes('店铺');",
+        "if(isChuhuo&&!isMendian){",
+        "const map=headerIndex(headers);",
+        "for(let i=1;i<rows.length;i++){const row=rows[i];",
+        "const productName=getCell(row,map,['货品名称','商品名称']);",
+        "const sku=getCell(row,map,['货品编号','商品编码','规格编码']);",
+        "const spec=getCell(row,map,['规格']);",
+        "const barcode=getCell(row,map,['条码','商品条码','规格条码']);",
+        "const qty=parseNumber(getCell(row,map,['数量','商品数量']),0);",
+        "const time=formatDateValue(getCell(row,map,['出库时间']));",
+        "const channel=getCell(row,map,['销售渠道']);",
+        "if(!time||!/^\\d{4}-\\d{2}-\\d{2}/.test(time))continue;",
+        "if(!productName&&!barcode&&!sku)continue;",
+        "if(isAggregateLabel(productName)||isAggregateLabel(barcode))continue;",
+        "const az=row[51]!=null?row[51]:'';const azStr=String(az).trim();",
+        "let onlineQty=0;",
+        "if(azStr&&!isNaN(Number(azStr))&&Number(azStr)>0)onlineQty=Number(azStr);",
+        "else if(normalizeText(azStr).includes('线上'))onlineQty=qty;",
+        "else{const ch=normalizeText(channel);if(ch&&(ch.includes('线上')||ch.includes('电商')||ch.includes('淘宝')||ch.includes('天猫')||ch.includes('抖音')||ch.includes('京东')))onlineQty=qty;}",
+        "if(onlineQty<=0)continue;",
+        "result.push({key:makeBarcodeKey({barcode,sku,specCode:sku,productCode:sku,productName,spec}),productName,barcode,sku,spec,date:time,onlineQty:Math.max(0,onlineQty),offlineQty:0});",
+        "}",
+        "usedSheets.push(sn);",
+        "}else if(isMendian){",
+        "const map=headerIndex(headers);",
+        "for(let i=1;i<rows.length;i++){const row=rows[i];",
+        "const status=getCell(row,map,['订单商品状态']);",
+        "const qty=parseNumber(getCell(row,map,['商品数量']),0);",
+        "const productName=getCell(row,map,['商品名称']);",
+        "const spec=getCell(row,map,['商品规格']);",
+        "const specCode=getCell(row,map,['规格编码']);",
+        "const productCode=getCell(row,map,['商品编码']);",
+        "const barcode=getCell(row,map,['商品条码','规格条码']);",
+        "const time=formatDateValue(getCell(row,map,['订单创建时间','下单时间','成交时间','支付时间']));",
+        "if(!time||!/^\\d{4}-\\d{2}-\\d{2}/.test(time))continue;",
+        "if(qty<=0)continue;",
+        "if(status==='关闭'||status==='取消'||status==='退款成功')continue;",
+        "if(!productName&&!barcode&&!specCode)continue;",
+        "if(isAggregateLabel(productName)||isAggregateLabel(barcode))continue;",
+        "result.push({key:makeBarcodeKey({barcode,sku:specCode||productCode,specCode,productCode,productName,spec}),productName,barcode,sku:specCode||productCode,spec,date:time,onlineQty:0,offlineQty:Math.max(0,qty)});",
+        "}",
+        "usedSheets.push(sn);",
+        "}",
+        "}",
+        "self.postMessage({ok:true,sheetName:usedSheets.length?usedSheets.join(' + '):(name||''),rows:result});",
+        "}catch(err){self.postMessage({ok:false,error:(err&&err.message)?err.message:String(err)});}",
+        "};",
+      ].join("\n");
+    }
+
+    function getSalesTrendWorker() {
+      if (salesTrendWorker) return salesTrendWorker;
+      const blob = new Blob([buildSalesTrendWorkerSource()], { type: "application/javascript" });
+      salesTrendWorker = new Worker(URL.createObjectURL(blob));
+      return salesTrendWorker;
+    }
+
+    function parseSalesTrendInWorker(buffer, name) {
+      return new Promise((resolve, reject) => {
+        const worker = getSalesTrendWorker();
+        worker.onmessage = (e) => {
+          const data = e.data;
+          if (data && data.ok) resolve({ sheetName: data.sheetName, rows: data.rows });
+          else reject(new Error((data && data.error) || "销售趋势文件解析失败"));
+        };
+        worker.onerror = (err) => reject(new Error((err && err.message) || "销售趋势文件解析失败"));
+        worker.postMessage({ buffer, name }, [buffer]);
+      });
+    }
+
+    async function parseSalesTrendRowsFromFile(file) {
+      const lower = file.name.toLowerCase();
+      // CSV：单表，主线程通用解析
+      if (lower.endsWith(".csv")) {
+        const text = await file.text();
+        const rows = parseCsvText(text);
+        return { sheetName: file.name, rows: parseSalesTrendRows(rows) };
+      }
+      if (!window.XLSX) {
+        throw new Error("Excel 解析库没有加载成功，请刷新页面后重试。");
+      }
+      const buffer = await file.arrayBuffer();
+      let parsed;
+      try {
+        parsed = await parseSalesTrendInWorker(buffer, file.name);
+      } catch (err) {
+        throw err;
+      }
+      // 未识别到双子表时，回退到单表宽/长格式解析（主线程）
+      if (!parsed.rows.length) {
+        const fd = await readRowsFromFile(file);
+        return { sheetName: fd.sheetName, rows: parseSalesTrendRows(fd.rows) };
+      }
+      return parsed;
     }
 
     function parseInventorySalesRows(rows) {
@@ -3180,6 +3587,50 @@ inventoryQty,
       ].join("|");
     }
 
+    // 聚合每日销量趋势数据：按商品 key 聚合，每商品保留按日期的线上/线下销量
+    function buildSalesTrendModel(rows) {
+      const productMap = new Map();
+      const dateSet = new Set();
+      (rows || []).forEach((row) => {
+        if (!row.key || !row.date) return;
+        dateSet.add(row.date);
+        let entry = productMap.get(row.key);
+        if (!entry) {
+          entry = {
+            key: row.key,
+            productName: row.productName || "",
+            barcode: row.barcode || "",
+            sku: row.sku || "",
+            spec: row.spec || "",
+            dates: {},
+            totalOnline: 0,
+            totalOffline: 0,
+          };
+          productMap.set(row.key, entry);
+        }
+        const slot = entry.dates[row.date] || { online: 0, offline: 0 };
+        slot.online += row.onlineQty || 0;
+        slot.offline += row.offlineQty || 0;
+        entry.dates[row.date] = slot;
+        entry.totalOnline += row.onlineQty || 0;
+        entry.totalOffline += row.offlineQty || 0;
+        if (!entry.productName && row.productName) entry.productName = row.productName;
+        if (!entry.barcode && row.barcode) entry.barcode = row.barcode;
+        if (!entry.sku && row.sku) entry.sku = row.sku;
+      });
+      const allDates = Array.from(dateSet).sort();
+      const products = Array.from(productMap.values()).sort(
+        (a, b) => (b.totalOnline + b.totalOffline) - (a.totalOnline + a.totalOffline)
+      );
+      return {
+        products,
+        allDates,
+        dateMin: allDates[0] || "",
+        dateMax: allDates[allDates.length - 1] || "",
+        productCount: products.length,
+      };
+    }
+
     function buildModel() {
       const signature = getModelSignature();
       if (modelCache.signature === signature && modelCache.model) {
@@ -3257,6 +3708,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
         replenishmentRows,
         slowRows,
         expiryRows,
+        salesTrendModel: buildSalesTrendModel(state.sources.salesTrend.rows),
       };
       modelCache.signature = signature;
       modelCache.model = model;
@@ -3285,8 +3737,12 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
         // 九宫格Tab只显示九宫格文件
         return SOURCE_CONFIGS.filter(cfg => cfg.key === "matrixWorkbook");
       }
-      // 驾驶舱Tab显示除九宫格外的所有文件
-      return SOURCE_CONFIGS.filter(cfg => cfg.key !== "matrixWorkbook");
+      if (state.activeTab === "salesTrend") {
+        // 销售趋势Tab只显示每日销量趋势文件
+        return SOURCE_CONFIGS.filter(cfg => cfg.key === "salesTrend");
+      }
+      // 驾驶舱Tab显示除九宫格与销售趋势外的所有文件
+      return SOURCE_CONFIGS.filter(cfg => cfg.key !== "matrixWorkbook" && cfg.key !== "salesTrend");
     }
 
     function renderSourceList(model) {
@@ -3362,6 +3818,14 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
         // 九宫格Tab只显示九宫格文件状态
         items = [
           { label: "九宫格文件", value: empty(model.sources.matrixWorkbook) ? "未上传" : `${formatInteger(model.sources.matrixWorkbook.rows.length)} 条` },
+        ];
+      } else if (state.activeTab === "salesTrend") {
+        // 销售趋势Tab只显示每日销量趋势文件状态
+        const trend = model.salesTrendModel;
+        items = [
+          { label: "每日销量趋势", value: empty(model.sources.salesTrend) ? "未上传" : `${formatInteger(model.sources.salesTrend.rows.length)} 条` },
+          { label: "商品数", value: trend.productCount ? `${formatInteger(trend.productCount)} 个` : "未上传" },
+          { label: "日期范围", value: trend.dateMin ? `${trend.dateMin} ~ ${trend.dateMax}` : "未上传" },
         ];
       } else {
         // 驾驶舱Tab显示驾驶舱相关文件状态
@@ -3459,6 +3923,17 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
           <div class="note">6. 点击商品图片可跳转到联动总表查看明细。</div>
           <div class="note">7. 点击格子可查看大宫格弹窗，含图例说明。</div>
           <div class="note">8. 页面会在本地缓存已上传文件，刷新后可自动恢复。</div>
+        `;
+      } else if (state.activeTab === "salesTrend") {
+        titleEl.textContent = "每日销量趋势文件";
+        subtitleEl.textContent = "销售趋势模式：上传一份各商品每天线上/线下销售数量文件，查看销量折线趋势，可多商品对比、按日期段筛选。";
+        notesEl.innerHTML = `
+          <div class="note">1. 文件需包含：商品(品名/条码/编码)、日期、线上销量、线下销量。</div>
+          <div class="note">2. 也支持长格式：商品、日期、渠道(线上/线下)、数量。</div>
+          <div class="note">3. 横轴=日期，纵轴=销量；蓝色=线上，橙色=线下。</div>
+          <div class="note">4. 可在商品列表中多选对比，可调整起止日期。</div>
+          <div class="note">5. 「分商品」模式下每个商品各画两条线(线上/线下)；「合并」模式下把选中商品汇总成两条线。</div>
+          <div class="note">6. 页面会在本地缓存已上传文件，刷新后可自动恢复。</div>
         `;
       } else {
         titleEl.textContent = "驾驶舱文件";
@@ -4836,6 +5311,9 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         case "matrix":
           host.innerHTML = renderMatrixTab(model);
           break;
+        case "salesTrend":
+          host.innerHTML = renderSalesTrendTab(model);
+          break;
         case "cockpit":
           // 驾驶舱 Tab 根据子 Tab 渲染内容
           switch (state.cockpitSubtab) {
@@ -4879,6 +5357,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       }
       bindTableInteractions();
       bindMatrixInteractions();
+      bindTrendInteractions();
     }
 
     function renderCockpitEmpty() {
@@ -4934,12 +5413,440 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       `;
     }
 
+    // ===== 销售趋势：折线图与交互 =====
+    const TREND_ONLINE_COLOR = "#2563eb"; // 线上 蓝
+    const TREND_OFFLINE_COLOR = "#f97316"; // 线下 橙
+    const TREND_DASH_PATTERNS = ["", "6 4", "2 5", "10 4 2 4", "12 2 4 2", "4 2"];
+
+    function getTrendFilteredDates(model) {
+      const trend = model.salesTrendModel;
+      const f = state.salesTrendFilters;
+      let dates = trend.allDates;
+      if (f.startDate) dates = dates.filter((d) => d >= f.startDate);
+      if (f.endDate) dates = dates.filter((d) => d <= f.endDate);
+      return dates;
+    }
+
+    function getTrendSelectedProducts(model) {
+      const trend = model.salesTrendModel;
+      const f = state.salesTrendFilters;
+      const keySet = new Set(f.selectedKeys);
+      return trend.products.filter((p) => keySet.has(p.key));
+    }
+
+    function buildTrendSeries(model) {
+      const dates = getTrendFilteredDates(model);
+      const selected = getTrendSelectedProducts(model);
+      const f = state.salesTrendFilters;
+      const series = [];
+
+      if (f.mode === "merge") {
+        // 合并：把选中商品汇总成 线上 / 线下 两条线
+        const onlineValues = new Array(dates.length).fill(0);
+        const offlineValues = new Array(dates.length).fill(0);
+        selected.forEach((p) => {
+          dates.forEach((d, i) => {
+            const slot = p.dates[d];
+            if (slot) {
+              onlineValues[i] += slot.online || 0;
+              offlineValues[i] += slot.offline || 0;
+            }
+          });
+        });
+        series.push({ label: "线上(合计)", color: TREND_ONLINE_COLOR, dash: "", values: onlineValues });
+        series.push({ label: "线下(合计)", color: TREND_OFFLINE_COLOR, dash: "", values: offlineValues });
+      } else {
+        // 分商品：每个商品各画 线上 / 线下 两条线，用 dash 区分商品
+        selected.forEach((p, idx) => {
+          const dash = TREND_DASH_PATTERNS[idx % TREND_DASH_PATTERNS.length];
+          const onlineValues = dates.map((d) => (p.dates[d] ? p.dates[d].online || 0 : 0));
+          const offlineValues = dates.map((d) => (p.dates[d] ? p.dates[d].offline || 0 : 0));
+          const name = p.productName || p.barcode || p.sku || p.key;
+          series.push({ label: `${name}·线上`, color: TREND_ONLINE_COLOR, dash, values: onlineValues, product: name });
+          series.push({ label: `${name}·线下`, color: TREND_OFFLINE_COLOR, dash, values: offlineValues, product: name });
+        });
+      }
+      return { dates, series, selected };
+    }
+
+    function niceCeil(value) {
+      if (value <= 0) return 10;
+      const exponent = Math.floor(Math.log10(value));
+      const fraction = value / Math.pow(10, exponent);
+      let niceFraction;
+      if (fraction <= 1) niceFraction = 1;
+      else if (fraction <= 2) niceFraction = 2;
+      else if (fraction <= 5) niceFraction = 5;
+      else niceFraction = 10;
+      return niceFraction * Math.pow(10, exponent);
+    }
+
+    function renderTrendSvg(dates, series) {
+      const hasData = dates.length > 0 && series.some((s) => s.values.some((v) => v > 0));
+      if (!hasData) {
+        return `<div class="trend-product-empty">当前筛选条件下没有销量数据，请调整商品或日期段。</div>`;
+      }
+
+      const n = dates.length;
+      const padL = 56, padR = 22, padT = 18, padB = 46;
+      const minW = 700, maxW = 1600;
+      const W = Math.min(maxW, Math.max(minW, n * 36 + padL + padR));
+      const H = 380;
+      const plotW = W - padL - padR;
+      const plotH = H - padT - padB;
+
+      const yMaxRaw = Math.max(1, ...series.flatMap((s) => s.values));
+      const yMax = niceCeil(yMaxRaw);
+
+      const x = (i) => padL + (n <= 1 ? plotW / 2 : (i * plotW) / (n - 1));
+      const y = (v) => padT + plotH - (v / yMax) * plotH;
+
+      // 横向网格 + y 轴刻度
+      const yTicks = 5;
+      let gridHtml = "";
+      for (let t = 0; t <= yTicks; t++) {
+        const val = (yMax / yTicks) * t;
+        const yy = y(val);
+        gridHtml += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#ececec" stroke-width="1"/>`;
+        gridHtml += `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="11" fill="#736454">${formatInteger(val)}</text>`;
+      }
+
+      // x 轴刻度(日期)，太多时跳着显示
+      const xStep = Math.max(1, Math.ceil(n / 12));
+      let xLabelsHtml = "";
+      for (let i = 0; i < n; i += xStep) {
+        const xx = x(i);
+        const label = dates[i].slice(5); // MM-DD
+        xLabelsHtml += `<text x="${xx}" y="${H - padB + 18}" text-anchor="middle" font-size="11" fill="#736454">${label}</text>`;
+        xLabelsHtml += `<line x1="${xx}" y1="${padT + plotH}" x2="${xx}" y2="${padT + plotH + 4}" stroke="#c9bdaa" stroke-width="1"/>`;
+      }
+      // 起止日期完整标注
+      xLabelsHtml += `<text x="${padL}" y="${H - 8}" text-anchor="start" font-size="11" fill="#2d241d">${dates[0]}</text>`;
+      xLabelsHtml += `<text x="${W - padR}" y="${H - 8}" text-anchor="end" font-size="11" fill="#2d241d">${dates[n - 1]}</text>`;
+
+      // 折线
+      let linesHtml = "";
+      series.forEach((s) => {
+        if (!s.values.some((v) => v > 0)) return;
+        const pts = s.values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+        const dashAttr = s.dash ? ` stroke-dasharray="${s.dash}"` : "";
+        linesHtml += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"${dashAttr} opacity="0.92"/>`;
+        // 数据点(数据量不大时显示)
+        if (n <= 60) {
+          s.values.forEach((v, i) => {
+            if (v > 0) {
+              linesHtml += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.4" fill="${s.color}" opacity="0.92"/>`;
+            }
+          });
+        }
+      });
+
+      // 坐标轴
+      const axesHtml = `
+        <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="#c9bdaa" stroke-width="1"/>
+        <line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="#c9bdaa" stroke-width="1"/>
+        <text x="${padL - 44}" y="${padT + plotH / 2}" text-anchor="middle" font-size="11" fill="#736454" transform="rotate(-90 ${padL - 44} ${padT + plotH / 2})">销量</text>
+      `;
+
+      return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="销量趋势折线图">
+        ${gridHtml}
+        ${axesHtml}
+        ${linesHtml}
+        ${xLabelsHtml}
+      </svg>`;
+    }
+
+    function renderTrendLegendHtml(series, selected, mode) {
+      const items = [];
+      items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch" style="background:${TREND_ONLINE_COLOR}"></span>线上</span>`);
+      items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch" style="background:${TREND_OFFLINE_COLOR}"></span>线下</span>`);
+      if (mode === "split" && selected.length > 1) {
+        selected.forEach((p, idx) => {
+          const dash = TREND_DASH_PATTERNS[idx % TREND_DASH_PATTERNS.length];
+          const dashStyle = dash ? `border-top:2px dashed ${TREND_ONLINE_COLOR};background:transparent;height:0;` : `background:${TREND_ONLINE_COLOR};`;
+          const name = p.productName || p.barcode || p.sku || p.key;
+          items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch" style="${dashStyle}"></span>${escapeHtml(name)}</span>`);
+        });
+      } else if (mode === "split" && selected.length === 1) {
+        const name = selected[0].productName || selected[0].barcode || selected[0].sku || selected[0].key;
+        items.push(`<span class="trend-legend-item">${escapeHtml(name)}</span>`);
+      }
+      return `<div class="trend-legend">${items.join("")}</div>`;
+    }
+
+    function renderTrendSummaryHtml(dates, series) {
+      let totalOnline = 0, totalOffline = 0;
+      series.forEach((s) => {
+        const sum = s.values.reduce((a, b) => a + b, 0);
+        if (s.color === TREND_ONLINE_COLOR) totalOnline += sum;
+        else totalOffline += sum;
+      });
+      // 找单日总量最高
+      let peakVal = 0, peakDate = "";
+      for (let i = 0; i < dates.length; i++) {
+        let dayTotal = 0;
+        series.forEach((s) => { dayTotal += s.values[i] || 0; });
+        if (dayTotal > peakVal) { peakVal = dayTotal; peakDate = dates[i]; }
+      }
+      const dayCount = dates.length || 1;
+      const avg = (totalOnline + totalOffline) / dayCount;
+      return `
+        <div class="trend-summary">
+          <div class="trend-stat"><small>线上销量合计</small><strong style="color:${TREND_ONLINE_COLOR}">${formatInteger(totalOnline)}</strong></div>
+          <div class="trend-stat"><small>线下销量合计</small><strong style="color:${TREND_OFFLINE_COLOR}">${formatInteger(totalOffline)}</strong></div>
+          <div class="trend-stat"><small>单日峰值</small><strong>${formatInteger(peakVal)}</strong><div class="note">${escapeHtml(peakDate || "-")}</div></div>
+          <div class="trend-stat"><small>日均总销量</small><strong>${avg.toFixed(1)}</strong><div class="note">${dayCount} 天</div></div>
+        </div>
+      `;
+    }
+
+    function renderTrendChartAreaHtml(model) {
+      const { dates, series, selected } = buildTrendSeries(model);
+      const f = state.salesTrendFilters;
+      const svg = renderTrendSvg(dates, series);
+      const legend = renderTrendLegendHtml(series, selected, f.mode);
+      const summary = renderTrendSummaryHtml(dates, series);
+      return `${summary}<div class="trend-chart-wrap">${svg}</div>${legend}`;
+    }
+
+    function renderTrendProductListHtml(model) {
+      const trend = model.salesTrendModel;
+      const f = state.salesTrendFilters;
+      const search = normalizeText(f.search);
+      const keySet = new Set(f.selectedKeys);
+      const filtered = trend.products.filter((p) => {
+        if (!search) return true;
+        return normalizeText(p.productName).includes(search)
+          || normalizeText(p.barcode).includes(search)
+          || normalizeText(p.sku).includes(search);
+      });
+      if (!filtered.length) {
+        return `<div class="trend-product-empty">没有匹配的商品</div>`;
+      }
+      return filtered.map((p) => {
+        const checked = keySet.has(p.key) ? "checked" : "";
+        const name = p.productName || p.barcode || p.sku || p.key;
+        const sub = [p.barcode, p.sku].filter(Boolean).join(" / ");
+        return `
+          <label class="trend-product-item" data-trend-key="${escapeHtml(p.key)}">
+            <input type="checkbox" ${checked} data-trend-key="${escapeHtml(p.key)}">
+            <span class="trend-product-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+            <span class="trend-product-sub">${escapeHtml(sub)}</span>
+          </label>
+        `;
+      }).join("");
+    }
+
+    function renderSalesTrendTab(model) {
+      const trend = model.salesTrendModel;
+      const f = state.salesTrendFilters;
+      if (!trend.productCount) {
+        return `
+          <div class="panel trend-panel">
+            <div class="block-head">
+              <div>
+                <h2>每日销量趋势对比</h2>
+                <div class="note">已切换到销售趋势模式，但还没有解析到有效数据。请检查文件是否包含商品、日期和线上/线下销量列。</div>
+              </div>
+              <button class="primary" data-open-source="salesTrend">重新上传每日销量文件</button>
+            </div>
+          </div>
+        `;
+      }
+
+      const startVal = f.startDate || trend.dateMin;
+      const endVal = f.endDate || trend.dateMax;
+      const selectedCount = f.selectedKeys.length;
+
+      return `
+        <div class="panel trend-panel">
+          <div class="block-head">
+            <div>
+              <h2>每日销量趋势对比</h2>
+              <div class="note">横轴=日期，纵轴=销量；蓝色=线上，橙色=线下。可在左侧多选商品对比，右侧调整日期段。</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <span class="badge neutral">共 ${formatInteger(trend.productCount)} 个商品 · 已选 ${formatInteger(selectedCount)}</span>
+              <div class="trend-mode-toggle">
+                <button type="button" class="trend-mode-btn ${f.mode === "split" ? "active" : ""}" data-trend-mode="split">分商品</button>
+                <button type="button" class="trend-mode-btn ${f.mode === "merge" ? "active" : ""}" data-trend-mode="merge">合并</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="trend-toolbar">
+            <label>
+              商品搜索
+              <input type="text" id="trend-search" class="trend-search" placeholder="输入品名 / 条码 / 编码" value="${escapeHtml(f.search)}">
+            </label>
+            <label>
+              开始日期
+              <input type="date" id="trend-start" value="${escapeHtml(startVal)}" min="${escapeHtml(trend.dateMin)}" max="${escapeHtml(trend.dateMax)}">
+            </label>
+            <label>
+              结束日期
+              <input type="date" id="trend-end" value="${escapeHtml(endVal)}" min="${escapeHtml(trend.dateMin)}" max="${escapeHtml(trend.dateMax)}">
+            </label>
+            <div style="display:flex;gap:8px;align-items:flex-end;">
+              <button type="button" class="ghost" id="trend-select-all">全选</button>
+              <button type="button" class="ghost" id="trend-select-top10">前10</button>
+              <button type="button" class="ghost" id="trend-clear">清空</button>
+            </div>
+          </div>
+
+          <div class="trend-picker">
+            <div class="trend-picker-col">
+              <div class="note">商品列表（按总销量排序，可多选对比）</div>
+              <div id="trend-product-list" class="trend-product-list">${renderTrendProductListHtml(model)}</div>
+            </div>
+            <div class="trend-picker-col">
+              <div id="trend-chart-area">${renderTrendChartAreaHtml(model)}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function bindTrendInteractions() {
+      if (state.activeTab !== "salesTrend") return;
+      const listEl = document.getElementById("trend-product-list");
+      const chartEl = document.getElementById("trend-chart-area");
+      if (!listEl || !chartEl) return;
+      const model = buildModel();
+
+      const refreshList = () => {
+        listEl.innerHTML = renderTrendProductListHtml(model);
+        bindCheckboxes();
+      };
+      const refreshChart = () => {
+        chartEl.innerHTML = renderTrendChartAreaHtml(model);
+      };
+
+      const bindCheckboxes = () => {
+        listEl.querySelectorAll('input[type="checkbox"][data-trend-key]').forEach((cb) => {
+          cb.addEventListener("change", () => {
+            const key = cb.dataset.trendKey;
+            const set = new Set(state.salesTrendFilters.selectedKeys);
+            if (cb.checked) set.add(key); else set.delete(key);
+            state.salesTrendFilters.selectedKeys = Array.from(set);
+            refreshChart();
+            cacheAppState();
+          });
+        });
+      };
+
+      bindCheckboxes();
+
+      const searchEl = document.getElementById("trend-search");
+      if (searchEl) {
+        searchEl.addEventListener("input", () => {
+          state.salesTrendFilters.search = searchEl.value || "";
+          refreshList();
+          cacheAppState();
+        });
+      }
+
+      const startEl = document.getElementById("trend-start");
+      const endEl = document.getElementById("trend-end");
+      if (startEl) {
+        startEl.addEventListener("change", () => {
+          state.salesTrendFilters.startDate = startEl.value || "";
+          refreshChart();
+          cacheAppState();
+        });
+      }
+      if (endEl) {
+        endEl.addEventListener("change", () => {
+          state.salesTrendFilters.endDate = endEl.value || "";
+          refreshChart();
+          cacheAppState();
+        });
+      }
+
+      document.querySelectorAll(".trend-mode-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.salesTrendFilters.mode = btn.dataset.trendMode || "split";
+          refreshChart();
+          // 更新按钮高亮
+          document.querySelectorAll(".trend-mode-btn").forEach((b) => {
+            b.classList.toggle("active", b.dataset.trendMode === state.salesTrendFilters.mode);
+          });
+          cacheAppState();
+        });
+      });
+
+      const selectAllBtn = document.getElementById("trend-select-all");
+      if (selectAllBtn) {
+        selectAllBtn.addEventListener("click", () => {
+          state.salesTrendFilters.selectedKeys = model.salesTrendModel.products.map((p) => p.key);
+          refreshList();
+          refreshChart();
+          cacheAppState();
+        });
+      }
+      const top10Btn = document.getElementById("trend-select-top10");
+      if (top10Btn) {
+        top10Btn.addEventListener("click", () => {
+          state.salesTrendFilters.selectedKeys = model.salesTrendModel.products.slice(0, 10).map((p) => p.key);
+          refreshList();
+          refreshChart();
+          cacheAppState();
+        });
+      }
+      const clearBtn = document.getElementById("trend-clear");
+      if (clearBtn) {
+        clearBtn.addEventListener("click", () => {
+          state.salesTrendFilters.selectedKeys = [];
+          refreshList();
+          refreshChart();
+          cacheAppState();
+        });
+      }
+
+      // 侧边栏「重新上传」按钮
+      document.querySelectorAll('[data-open-source="salesTrend"]').forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const input = document.getElementById("input-salesTrend");
+          if (input) input.click();
+        });
+      });
+    }
+
     function renderEmptyTabContent() {
       // 根据当前选中的 Tab 显示对应的空状态
       if (state.activeTab === "matrix") {
         return renderMatrixEmpty();
       }
+      if (state.activeTab === "salesTrend") {
+        return renderSalesTrendEmpty();
+      }
       return renderCockpitEmpty();
+    }
+
+    function renderSalesTrendEmpty() {
+      return `
+        <div class="panel trend-panel" id="trend-empty-panel">
+          <div class="block-head">
+            <div>
+              <h2>每日销量趋势对比</h2>
+              <div class="note">请先上传一份各商品每天线上 / 线下销售数量文件，系统会绘制折线趋势图。</div>
+            </div>
+            <button class="primary" id="trend-upload-btn">上传每日销量文件</button>
+          </div>
+          <div class="soft-card">
+            <div style="display:grid;gap:12px;">
+              <div class="note">文件要求：</div>
+              <ul style="margin:0;padding-left:20px;color:var(--muted);">
+                <li>格式：Excel (.xlsx/.xls) 或 CSV</li>
+                <li>必需列：商品(品名/条码/编码)、日期</li>
+                <li>销量列：线上销量 + 线下销量（或「渠道 + 数量」长格式）</li>
+              </ul>
+              <div class="note" style="margin-top:8px;">上传后，横轴=日期、纵轴=销量，蓝色线=线上、橙色线=线下，可多商品对比、按日期段筛选。</div>
+            </div>
+          </div>
+          <input id="trend-empty-input" type="file" accept=".xlsx,.xls,.csv" hidden>
+        </div>
+      `;
     }
 
     function renderEmptyState(model) {
@@ -5025,6 +5932,22 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
             });
           }
         }
+        // 绑定销售趋势空状态的上传按钮事件
+        if (state.activeTab === "salesTrend") {
+          const uploadBtn = document.getElementById("trend-upload-btn");
+          const fileInput = document.getElementById("trend-empty-input");
+          if (uploadBtn && fileInput) {
+            uploadBtn.addEventListener("click", () => {
+              fileInput.click();
+            });
+            fileInput.addEventListener("change", async () => {
+              const file = fileInput.files && fileInput.files[0];
+              if (!file) return;
+              await handleUpload("salesTrend", file);
+              fileInput.value = "";
+            });
+          }
+        }
         return;
       }
 
@@ -5078,6 +6001,19 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
           if (fileData.salesPeriod) {
             state.salesPeriod = fileData.salesPeriod;
           }
+        } else if (key === "salesTrend") {
+          const fileData = await parseSalesTrendRowsFromFile(file);
+          state.sources[key] = {
+            ...createEmptySourceState(cfg),
+            key,
+            label: cfg.label,
+            fileName: file.name,
+            sheetName: fileData.sheetName,
+            importedAt: new Date().toISOString(),
+            rows: fileData.rows,
+            loading: false,
+            error: "",
+          };
         } else {
           const fileData = await readRowsFromFile(file, cfg.preferredSheets);
           const parsed = cfg.parser(fileData.rows);
@@ -5107,6 +6043,20 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         if (periodFromData) {
           state.salesPeriod = periodFromData;
         }
+      }
+
+      // 销售趋势文件上传后：自动设置日期段并默认选中销量最高的商品
+      if (key === "salesTrend") {
+        const trend = buildSalesTrendModel(state.sources.salesTrend.rows);
+        state.salesTrendFilters.startDate = trend.dateMin || "";
+        state.salesTrendFilters.endDate = trend.dateMax || "";
+        state.salesTrendFilters.search = "";
+        state.salesTrendFilters.mode = trend.products.length <= 1 ? "split" : "split";
+        // 默认选中总销量(线上+线下)最高的商品
+        const topKey = trend.products
+          .slice()
+          .sort((a, b) => (b.totalOnline + b.totalOffline) - (a.totalOnline + a.totalOffline))[0]?.key || "";
+        state.salesTrendFilters.selectedKeys = topKey ? [topKey] : [];
       }
 
       if (!skipFinalRender) render();
@@ -5154,6 +6104,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       state.matrixFocusKey = "";
       state.matrixExpandedCells = {};
       state.matrixFilters = { category: "全部", isRegularPrice: "全部", kpiFilter: "all" };
+      state.salesTrendFilters = { selectedKeys: [], startDate: "", endDate: "", search: "", mode: "split" };
       setBatchNote("");
       render();
     }
