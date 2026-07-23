@@ -3884,14 +3884,38 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
 
     function renderProgressPills(model) {
       const host = document.getElementById("progress-pills");
-      host.innerHTML = [
-        `<span class="pill">已上传 ${formatInteger(model.uploadedCount)} 个文件</span>`,
-        `<span class="pill">商品条码 ${formatInteger(model.productUnique)}</span>`,
-        `<span class="pill">库存数量 ${formatInteger(model.warehouseQty + model.storeQty)}</span>`,
-        `<span class="pill">销售数量 ${formatInteger(model.channelQty + model.storeSalesQty)}</span>`,
-        `<span class="pill">联动商品 ${formatInteger(model.linkedCount)}</span>`,
-        `<span class="pill">建议补货 ${formatInteger(model.replenishmentRows.reduce((sum, row) => sum + (row.replenishmentQty || 0), 0))}</span>`,
-      ].join("");
+      let pills = [];
+      if (state.activeTab === "salesTrend") {
+        const t = model.salesTrendModel;
+        if (t.productCount) {
+          let totalOn = 0, totalOff = 0;
+          t.products.forEach((p) => { totalOn += p.totalOnline; totalOff += p.totalOffline; });
+          pills = [
+            `<span class="pill">商品数 ${formatInteger(t.productCount)}</span>`,
+            `<span class="pill">日期范围 ${t.dateMin || "-"} ~ ${t.dateMax || "-"}</span>`,
+            `<span class="pill">线上净销售 ${formatInteger(Math.max(0, totalOn))}</span>`,
+            `<span class="pill">线下净销售 ${formatInteger(Math.max(0, totalOff))}</span>`,
+          ];
+        }
+      } else if (state.activeTab === "matrix") {
+        if (model.matrixRows && model.matrixRows.length) {
+          const cats = new Set(model.matrixRows.map((r) => r.category).filter(Boolean));
+          pills = [
+            `<span class="pill">商品 ${formatInteger(model.matrixRows.length)}</span>`,
+            `<span class="pill">分类 ${formatInteger(cats.size)}</span>`,
+          ];
+        }
+      } else {
+        pills = [
+          `<span class="pill">已上传 ${formatInteger(model.uploadedCount)} 个文件</span>`,
+          `<span class="pill">商品条码 ${formatInteger(model.productUnique)}</span>`,
+          `<span class="pill">库存数量 ${formatInteger(model.warehouseQty + model.storeQty)}</span>`,
+          `<span class="pill">销售数量 ${formatInteger(model.channelQty + model.storeSalesQty)}</span>`,
+          `<span class="pill">联动商品 ${formatInteger(model.linkedCount)}</span>`,
+          `<span class="pill">建议补货 ${formatInteger(model.replenishmentRows.reduce((sum, row) => sum + (row.replenishmentQty || 0), 0))}</span>`,
+        ];
+      }
+      host.innerHTML = pills.join("");
     }
 
     // 根据当前Tab获取需要显示的文件配置
@@ -4089,14 +4113,16 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
         `;
       } else if (state.activeTab === "salesTrend") {
         titleEl.textContent = "每日销量趋势文件";
-        subtitleEl.textContent = "销售趋势模式：上传一份各商品每天线上/线下销售数量文件，查看销量折线趋势，可多商品对比、按日期段筛选。";
+        subtitleEl.textContent = "销售趋势模式：上传《趋势图数据源》文件，自动解析线上销售/退货/线下销售，生成每日销量趋势对比折线图。";
         notesEl.innerHTML = `
-          <div class="note">1. 文件需包含：商品(品名/条码/编码)、日期、线上销量、线下销量。</div>
-          <div class="note">2. 也支持长格式：商品、日期、渠道(线上/线下)、数量。</div>
-          <div class="note">3. 横轴=日期，纵轴=销量；蓝色=线上，橙色=线下。</div>
-          <div class="note">4. 可在商品列表中多选对比，可调整起止日期。</div>
-          <div class="note">5. 「分商品」模式下每个商品各画两条线(线上/线下)；「合并」模式下把选中商品汇总成两条线。</div>
-          <div class="note">6. 页面会在本地缓存已上传文件，刷新后可自动恢复。</div>
+          <div class="note">1. 文件需包含4个子表：商品资料、线上销售、线上退货、线下销售。</div>
+          <div class="note">2. 商品资料：条码(A列)、产品名称(D列)，用于关联品名。</div>
+          <div class="note">3. 线上销售：I列条码、AX列日期、J列数量（线上出库）。</div>
+          <div class="note">4. 线上退货：L列条码、AY列日期、M列数量（线上入库/退货）。</div>
+          <div class="note">5. 线下销售：O列规格条码、AY列日期、T列数量。</div>
+          <div class="note">6. 线上净销售 = 线上销售 - 线上退货；线下净销售 = 线下销售。</div>
+          <div class="note">7. 横轴=日期，纵轴=销量；可多商品对比、按日期段筛选。</div>
+          <div class="note">8. 页面会在本地缓存已上传文件，刷新后可自动恢复。</div>
         `;
       } else {
         titleEl.textContent = "驾驶舱文件";
@@ -6192,6 +6218,13 @@ bindTrendTooltip(chartEl);
       renderSourceList(model);
       renderDataQuality(model);
       renderEmptyState(model);
+
+      // 按 tab 控制顶部按钮：批量上传/清空全部只在驾驶舱显示
+      const batchBtn = document.getElementById("batch-upload");
+      const clearBtn = document.getElementById("clear-all");
+      const isCockpit = state.activeTab === "cockpit";
+      if (batchBtn) batchBtn.style.display = isCockpit ? "" : "none";
+      if (clearBtn) clearBtn.style.display = isCockpit ? "" : "none";
 
       const kpiGrid = document.getElementById("kpi-grid");
       const tabsPanel = document.getElementById("tabs-panel");
