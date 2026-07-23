@@ -2838,12 +2838,24 @@ sources: Object.fromEntries(
 
         // 子表1：商品资料 —— 建立条码→品名映射
         if (nameNorm.includes("商品资料") || nameNorm.includes("商品信息") || nameNorm.includes("产品资料")) {
-          for (let i = 1; i < rows.length; i++) {
+          // 商品资料表可能有标题行/时间戳行，真正表头不一定在第0行
+          // 找到包含"条码"的那一行作为表头
+          let headerRowIdx = 0;
+          let map = headerIndex(rows[0] || []);
+          if (!map.has(normalizeText("条码"))) {
+            for (let h = 1; h < Math.min(5, rows.length); h++) {
+              const testMap = headerIndex(rows[h] || []);
+              if (testMap.has(normalizeText("条码"))) {
+                headerRowIdx = h;
+                map = testMap;
+                break;
+              }
+            }
+          }
+          for (let i = headerRowIdx + 1; i < rows.length; i++) {
             const row = rows[i];
-            // 商品资料表通常有条码和商品名称列，尝试多种列名
-            const map = headerIndex(rows[0] || []);
             const barcode = pickTrendBarcode(getCell(row, map, ["条码", "商品条码", "规格条码", "69码"]));
-            const productName = getCell(row, map, ["商品名称", "货品名称", "品名", "产品名称"]);
+            const productName = getCell(row, map, ["产品名称", "商品名称", "货品名称", "品名"]);
             const sku = getCell(row, map, ["货号", "商品编码", "规格编码", "SKU"]);
             if (barcode) {
               productMap.set(barcode, { productName: productName || "", sku: sku || "" });
@@ -2863,7 +2875,9 @@ sources: Object.fromEntries(
             if (!barcode || !date || qty <= 0) continue;
             const key = barcode;
             const pInfo = productMap.get(barcode) || {};
-            addRow(key, { productName: pInfo.productName || "", barcode, sku: pInfo.sku || "" }, date, qty, 0);
+            // 商品资料表查到的品名优先，否则用本表 col[6] 货品名称
+            const fallbackName = String(row[6] != null ? row[6] : "").trim();
+            addRow(key, { productName: pInfo.productName || fallbackName || "", barcode, sku: pInfo.sku || "" }, date, qty, 0);
           }
           usedSheets.push(sheetName);
           continue;
@@ -2879,8 +2893,9 @@ sources: Object.fromEntries(
             if (!barcode || !date || qty <= 0) continue;
             const key = barcode;
             const pInfo = productMap.get(barcode) || {};
+            const fallbackName = String(row[9] != null ? row[9] : "").trim();
             // 退货扣减线上销量
-            addRow(key, { productName: pInfo.productName || "", barcode, sku: pInfo.sku || "" }, date, -qty, 0);
+            addRow(key, { productName: pInfo.productName || fallbackName || "", barcode, sku: pInfo.sku || "" }, date, -qty, 0);
           }
           usedSheets.push(sheetName);
           continue;
@@ -2894,9 +2909,13 @@ sources: Object.fromEntries(
             const date = parseTrendDate(row[50]);
             const qty = parseNumber(row[19], 0);
             if (!barcode || !date || qty <= 0) continue;
+            // 跳过已关闭/取消/退款的订单
+            const status = String(row[2] != null ? row[2] : "").trim();
+            if (status === "关闭" || status === "取消" || status === "退款成功") continue;
             const key = barcode;
             const pInfo = productMap.get(barcode) || {};
-            addRow(key, { productName: pInfo.productName || "", barcode, sku: pInfo.sku || "" }, date, 0, qty);
+            const fallbackName = String(row[3] != null ? row[3] : "").trim();
+            addRow(key, { productName: pInfo.productName || fallbackName || "", barcode, sku: pInfo.sku || "" }, date, 0, qty);
           }
           usedSheets.push(sheetName);
           continue;
@@ -2904,8 +2923,13 @@ sources: Object.fromEntries(
       }
 
       let rows = Array.from(agg.values());
-      // 过滤掉线上净销售为负的记录（退货>销售）
-      rows = rows.filter((r) => r.onlineQty !== 0 || r.offlineQty !== 0);
+      // 线上净销售 = 销售 - 退货，如果退货>销售则净值为负，限制为0
+      rows.forEach((r) => {
+        if (r.onlineQty < 0) r.onlineQty = 0;
+        if (r.offlineQty < 0) r.offlineQty = 0;
+      });
+      // 过滤掉全部为0的记录
+      rows = rows.filter((r) => r.onlineQty > 0 || r.offlineQty > 0);
 
       if (!rows.length) {
         // 未识别到新结构子表时，回退到旧解析逻辑
