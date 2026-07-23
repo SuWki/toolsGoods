@@ -2,3 +2,6 @@ node_modules/
 package.json
 package-lock.json
 work/
+_scan*.js
+_scan*.txt
+_gitlog.txt
