@@ -2784,16 +2784,58 @@ sources: Object.fromEntries(
       return keyFrom(row.productName, row.spec);
     }
 
-    // 用 Web Worker 在后台线程解析 xlsx，避免 99MB 大文件阻塞 UI
-    function parseWorkbookAsync(buffer) {
+    // 用 Web Worker 在后台线程完成 xlsx 读取 + 解析 + 聚合，避免 99MB 大文件阻塞 UI
+    // Worker 内部完成全部逻辑，只传回聚合后的 rows（数据量小，避免大对象 postMessage 超时）
+    function parseSalesTrendWorker(buffer) {
       return new Promise((resolve, reject) => {
-        const src = "importScripts('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');" +
-          "self.onmessage=function(e){try{var w=XLSX.read(e.data,{type:'array',cellDates:false,raw:true,cellFormula:false});" +
-          "var s={};w.SheetNames.forEach(function(n){s[n]=XLSX.utils.sheet_to_json(w.Sheets[n],{header:1,raw:true,defval:''})});" +
-          "self.postMessage({ok:1,names:w.SheetNames,sheets:s})}catch(err){self.postMessage({ok:0,err:String(err.message||err)})}};";
+        // Worker 内部代码：包含全部解析逻辑
+        const workerCode = [
+          "importScripts('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');",
+          "function norm(v){return String(v==null?'':v).trim().replace(/\\s+/g,'').replace(/[()（）【】\\[\\]\\/\\\\,，。:：;；._-]/g,'').toLowerCase();}",
+          "function pDate(v){if(!v)return'';if(v instanceof Date&&!isNaN(v.getTime()))return v.toISOString().slice(0,10);if(typeof v==='number'&&v>20000&&v<70000){var b=new Date(Date.UTC(1899,11,30));b.setUTCDate(b.getUTCDate()+v);return b.toISOString().slice(0,10);}var t=String(v).trim();var m=t.match(/^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})/);if(m)return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');m=t.match(/^(\\d{4})(\\d{2})(\\d{2})$/);if(m)return m[1]+'-'+m[2]+'-'+m[3];return'';}",
+          "function pNum(v,f){f=f||0;if(v==null||v==='')return f;var m=String(v).replace(/,/g,'').trim().match(/-?\\d+(?:\\.\\d+)?/);return m?Number(m[0]):f;}",
+          "function pickBc(){var c=Array.prototype.slice.call(arguments);for(var i=0;i<c.length;i++){var s=String(c[i]==null?'':c[i]).trim();if(s&&/^69\\d{11}$/.test(s))return s;}for(var i=0;i<c.length;i++){var s=String(c[i]==null?'':c[i]).trim();if(s)return s;}return'';}",
+          "function headerIdx(hdrs){var m={};(hdrs||[]).forEach(function(h,i){var nh=norm(h);if(nh&&!(nh in m))m[nh]=i;});return m;}",
+          "function getCell(row,map,aliases){for(var i=0;i<aliases.length;i++){var key=norm(aliases[i]);if(key in map){var v=row[map[key]];return v==null?'':v;}}return'';}",
+          "self.onmessage=function(e){try{",
+          "  var w=XLSX.read(e.data,{type:'array',cellDates:false,raw:true,cellFormula:false});",
+          "  var pm=new Map(),agg=new Map(),used=[];",
+          "  function addR(k,pn,d,on,off){if(!k||!d)return;var kk=k+'__'+d;var en=agg.get(kk);if(!en){en={key:k,productName:pn||'',barcode:k,sku:'',spec:'',date:d,onlineQty:0,offlineQty:0};agg.set(kk,en);}en.onlineQty+=on;en.offlineQty+=off;if(!en.productName&&pn)en.productName=pn;}",
+          "  w.SheetNames.forEach(function(sn){",
+          "    var ws=w.Sheets[sn];if(!ws)return;",
+          "    var rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});",
+          "    rows=rows.filter(function(r){return Array.isArray(r)&&r.some(function(c){return String(c!=null?c:'').trim()!=='';});});",
+          "    if(!rows.length)return;var nn=norm(sn);",
+          "    if(nn.indexOf('商品资料')>=0||nn.indexOf('商品信息')>=0){",
+          "      var hi=0,map=headerIdx(rows[0]||[]);if(!('条码' in map)){for(var h=1;h<Math.min(5,rows.length);h++){var tm=headerIdx(rows[h]||[]);if('条码' in map){hi=h;map=tm;break;}}}",
+          "      for(var i=hi+1;i<rows.length;i++){var r=rows[i];var bc=pickBc(getCell(r,map,['条码','商品条码','规格条码','69码']));var pn=getCell(r,map,['产品名称','商品名称','货品名称','品名']);if(bc)pm.set(bc,pn);}",
+          "      used.push(sn);return;",
+          "    }",
+          "    if((nn.indexOf('线上销售')>=0||nn.indexOf('线上销量')>=0)&&nn.indexOf('退货')<0){",
+          "      for(var i=1;i<rows.length;i++){var r=rows[i];var bc=String(r[8]!=null?r[8]:'').trim();var d=pDate(r[49]);var q=pNum(r[9],0);if(!bc||!d||q<=0)continue;var pn=pm.get(bc)||String(r[6]!=null?r[6]:'').trim();addR(bc,pn,d,q,0);}",
+          "      used.push(sn);return;",
+          "    }",
+          "    if(nn.indexOf('退货')>=0){",
+          "      for(var i=1;i<rows.length;i++){var r=rows[i];var bc=String(r[11]!=null?r[11]:'').trim();var d=pDate(r[50]);var q=pNum(r[12],0);if(!bc||!d||q<=0)continue;var pn=pm.get(bc)||String(r[9]!=null?r[9]:'').trim();addR(bc,pn,d,-q,0);}",
+          "      used.push(sn);return;",
+          "    }",
+          "    if(nn.indexOf('线下销售')>=0||nn.indexOf('线下销量')>=0||nn.indexOf('门店')>=0){",
+          "      for(var i=1;i<rows.length;i++){var r=rows[i];var bc=pickBc(String(r[14]!=null?r[14]:'').trim());var d=pDate(r[50]);var q=pNum(r[19],0);var st=String(r[2]!=null?r[2]:'').trim();if(st==='关闭'||st==='取消'||st==='退款成功')continue;if(!bc||!d||q<=0)continue;var pn=pm.get(bc)||String(r[3]!=null?r[3]:'').trim();addR(bc,pn,d,0,q);}",
+          "      used.push(sn);return;",
+          "    }",
+          "  });",
+          "  var all=Array.from(agg.values());",
+          "  all.forEach(function(r){if(r.onlineQty<0)r.onlineQty=0;if(r.offlineQty<0)r.offlineQty=0;});",
+          "  all=all.filter(function(r){return r.onlineQty>0||r.offlineQty>0;});",
+          "  self.postMessage({ok:1,sheetName:used.join(' + '),rows:all});",
+          "}catch(err){self.postMessage({ok:0,err:String(err.message||err)});}",
+          "};"
+        ].join("\n");
+
         let done = false;
         function fallback() {
           if (done) return; done = true;
+          // fallback 在主线程解析（较慢但不依赖 Worker）
           try {
             const wb = XLSX.read(buffer, { type: "array", cellDates: false, raw: true, cellFormula: false });
             const sheets = {};
@@ -2802,18 +2844,30 @@ sources: Object.fromEntries(
           } catch (err) { reject(err); }
         }
         try {
-          const blob = new Blob([src], { type: "application/javascript" });
+          const blob = new Blob([workerCode], { type: "application/javascript" });
           const worker = new Worker(URL.createObjectURL(blob));
-          const timer = setTimeout(() => { try { worker.terminate(); } catch (_) {} fallback(); }, 120000);
+          const timer = setTimeout(() => { try { worker.terminate(); } catch (_) {} fallback(); }, 180000);
           worker.onmessage = (e) => {
             clearTimeout(timer); try { worker.terminate(); } catch (_) {}
             if (done) return; done = true;
-            if (e.data.ok === 1) resolve({ sheetNames: e.data.names, sheets: e.data.sheets });
+            if (e.data.ok === 1) resolve({ directResult: { sheetName: e.data.sheetName, rows: e.data.rows } });
             else reject(new Error(e.data.err || "worker error"));
           };
-          worker.onerror = () => { clearTimeout(timer); try { worker.terminate(); } catch (_) {} fallback(); };
+          worker.onerror = (err) => { clearTimeout(timer); try { worker.terminate(); } catch (_) {} fallback(); };
           worker.postMessage(buffer);
         } catch (_) { fallback(); }
+      });
+    }
+
+    // 保留旧函数名兼容（主线程 fallback 用）
+    function parseWorkbookAsync(buffer) {
+      return new Promise((resolve, reject) => {
+        try {
+          const wb = XLSX.read(buffer, { type: "array", cellDates: false, raw: true, cellFormula: false });
+          const sheets = {};
+          wb.SheetNames.forEach((sn) => { sheets[sn] = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: "" }); });
+          resolve({ sheetNames: wb.SheetNames, sheets });
+        } catch (err) { reject(err); }
       });
     }
 
@@ -2831,7 +2885,17 @@ sources: Object.fromEntries(
       const buffer = await file.arrayBuffer();
       // 让「解析中」状态先渲染出来，再开始解析
       await new Promise((resolve) => setTimeout(resolve, 30));
-      const { sheetNames: wbSheetNames, sheets: wbSheets } = await parseWorkbookAsync(buffer);
+
+      // 优先用 Web Worker 在后台完成全部解析（读取+聚合），避免大文件阻塞 UI
+      // Worker 只传回聚合后的 rows，避免大对象 postMessage 超时
+      const workerResult = await parseSalesTrendWorker(buffer);
+      if (workerResult.directResult) {
+        // Worker 成功完成全部解析，直接返回结果
+        return workerResult.directResult;
+      }
+
+      // Worker 失败，回退到主线程解析
+      const { sheetNames: wbSheetNames, sheets: wbSheets } = workerResult;
 
       // ===== 新数据源结构（趋势图数据源 0630.xlsx）=====
       // 子表1 商品资料：商品主档，用条码关联品名
