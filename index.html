@@ -5892,12 +5892,8 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         for (let i = 0; i < labels.length; i++) {
           if (!labels[i]) continue;
           const val = values[i] || 0;
-          if (val <= 0) continue;
           const color = colors[i] || "#fff";
           html += `<div style="display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;"></span><span>${escapeHtml(labels[i])}: <strong>${formatInteger(val)}</strong></span></div>`;
-        }
-        if (html === `<div style="font-weight:600;margin-bottom:4px;">${escapeHtml(date)}</div>`) {
-          html += `<div style="opacity:.7;">无销量</div>`;
         }
         tip.innerHTML = html;
         tip.style.display = "block";
