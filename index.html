@@ -2799,16 +2799,25 @@ sources: Object.fromEntries(
       // 让「解析中」状态先渲染出来，再开始同步解析，避免大文件解析时长时间白屏
       await new Promise((resolve) => setTimeout(resolve, 30));
       const workbook = XLSX.read(buffer, { type: "array", cellDates: true, raw: true });
-      // 按 商品+日期 即时聚合，降低大文件的内存占用
+
+      // ===== 新数据源结构（趋势图数据源 0630.xlsx）=====
+      // 子表1 商品资料：商品主档，用条码关联品名
+      // 子表2 线上销售：I列(8)条码、AX列(49)日期、J列(9)数量
+      // 子表3 线上退货：L列(11)条码、AY列(50)日期、M列(12)数量
+      // 子表4 线下销售：O列(14)规格条码、AY列(50)日期、T列(19)数量
+      // 线上净销售 = 线上销售 - 线上退货；线下净销售 = 线下销售
+
+      // 商品资料：条码 -> 品名
+      const productMap = new Map();
+
+      // 按 商品key+日期 聚合
       const agg = new Map();
-      const usedSheets = [];
       const addRow = (key, info, date, onlineQty, offlineQty) => {
         if (!key || !date) return;
-        if (onlineQty <= 0 && offlineQty <= 0) return;
         const k = key + "__" + date;
         let entry = agg.get(k);
         if (!entry) {
-          entry = { key, productName: info.productName, barcode: info.barcode, sku: info.sku, spec: info.spec, date, onlineQty: 0, offlineQty: 0 };
+          entry = { key, productName: info.productName || "", barcode: info.barcode || "", sku: info.sku || "", spec: info.spec || "", date, onlineQty: 0, offlineQty: 0 };
           agg.set(k, entry);
         }
         entry.onlineQty += onlineQty;
@@ -2818,76 +2827,88 @@ sources: Object.fromEntries(
         if (!entry.sku && info.sku) entry.sku = info.sku;
       };
 
+      const usedSheets = [];
+
       for (const sheetName of (workbook.SheetNames || [])) {
         const sheet = workbook.Sheets[sheetName];
         if (!sheet) continue;
         const rows = getSheetRows(sheet);
         if (!rows.length) continue;
-        const headers = rows[0] || [];
-        const hnorm = headers.map((h) => normalizeText(h));
         const nameNorm = normalizeText(sheetName);
-        const isChuhuo = hnorm.some((h) => h.includes("出库时间") || h.includes("出库单号")) || nameNorm.includes("出库");
-        const isMendian = hnorm.some((h) => h.includes("归属店铺") || h.includes("订单号") || h.includes("商品数量")) || nameNorm.includes("门店") || nameNorm.includes("店铺");
 
-        if (isChuhuo && !isMendian) {
-          // 出库单：AZ 列(第52列, index 51)为"线上"的行计入线上销量
-          const map = headerIndex(headers);
+        // 子表1：商品资料 —— 建立条码→品名映射
+        if (nameNorm.includes("商品资料") || nameNorm.includes("商品信息") || nameNorm.includes("产品资料")) {
           for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
-            const productName = getCell(row, map, ["货品名称", "商品名称"]);
-            const sku = getCell(row, map, ["货品编号", "商品编码", "规格编码"]);
-            const spec = getCell(row, map, ["规格"]);
-            const barcode = pickTrendBarcode(getCell(row, map, ["条码"]), getCell(row, map, ["商品条码"]), getCell(row, map, ["规格条码"]));
-            const qty = parseNumber(getCell(row, map, ["数量", "商品数量"]), 0);
-            const time = parseTrendDate(getCell(row, map, ["出库时间", "日期"]));
-            const channel = getCell(row, map, ["销售渠道"]);
-            if (!time) continue;
-            if (!productName && !barcode && !sku) continue;
-            if (isAggregateLabel(productName) || isAggregateLabel(barcode)) continue;
-            const az = row[51] != null ? row[51] : "";
-            const azStr = String(az).trim();
-            let onlineQty = 0;
-            if (azStr && !isNaN(Number(azStr)) && Number(azStr) > 0) {
-              onlineQty = Number(azStr);
-            } else if (normalizeText(azStr).includes("线上")) {
-              onlineQty = qty;
-            } else {
-              const ch = normalizeText(channel);
-              if (ch && (ch.includes("线上") || ch.includes("电商") || ch.includes("淘宝") || ch.includes("天猫") || ch.includes("抖音") || ch.includes("京东"))) onlineQty = qty;
+            // 商品资料表通常有条码和商品名称列，尝试多种列名
+            const map = headerIndex(rows[0] || []);
+            const barcode = pickTrendBarcode(getCell(row, map, ["条码", "商品条码", "规格条码", "69码"]));
+            const productName = getCell(row, map, ["商品名称", "货品名称", "品名", "产品名称"]);
+            const sku = getCell(row, map, ["货号", "商品编码", "规格编码", "SKU"]);
+            if (barcode) {
+              productMap.set(barcode, { productName: productName || "", sku: sku || "" });
             }
-            if (onlineQty <= 0) continue;
-            const key = makeTrendKey({ barcode, sku, specCode: sku, productCode: sku, productName, spec });
-            addRow(key, { productName, barcode, sku, spec }, time, onlineQty, 0);
           }
           usedSheets.push(sheetName);
-        } else if (isMendian) {
-          // 门店销售单：全部计入线下销量
-          const map = headerIndex(headers);
+          continue;
+        }
+
+        // 子表2：线上销售 —— I列(8)条码、AX列(49)日期、J列(9)数量
+        if (nameNorm.includes("线上销售") || nameNorm.includes("线上销量")) {
           for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
-            const status = getCell(row, map, ["订单商品状态"]);
-            const qty = parseNumber(getCell(row, map, ["商品数量"]), 0);
-            const productName = getCell(row, map, ["商品名称"]);
-            const spec = getCell(row, map, ["商品规格"]);
-            const specCode = getCell(row, map, ["规格编码"]);
-            const productCode = getCell(row, map, ["商品编码"]);
-            const barcode = pickTrendBarcode(getCell(row, map, ["规格条码"]), getCell(row, map, ["商品条码"]));
-            const time = parseTrendDate(getCell(row, map, ["日期", "订单创建时间", "下单时间", "成交时间", "支付时间"]));
-            if (!time) continue;
-            if (qty <= 0) continue;
-            if (status === "关闭" || status === "取消" || status === "退款成功") continue;
-            if (!productName && !barcode && !specCode) continue;
-            if (isAggregateLabel(productName) || isAggregateLabel(barcode)) continue;
-            const key = makeTrendKey({ barcode, sku: specCode || productCode, specCode, productCode, productName, spec });
-            addRow(key, { productName, barcode, sku: specCode || productCode, spec }, time, 0, qty);
+            const barcode = String(row[8] != null ? row[8] : "").trim();
+            const date = parseTrendDate(row[49]);
+            const qty = parseNumber(row[9], 0);
+            if (!barcode || !date || qty <= 0) continue;
+            const key = barcode;
+            const pInfo = productMap.get(barcode) || {};
+            addRow(key, { productName: pInfo.productName || "", barcode, sku: pInfo.sku || "" }, date, qty, 0);
           }
           usedSheets.push(sheetName);
+          continue;
+        }
+
+        // 子表3：线上退货 —— L列(11)条码、AY列(50)日期、M列(12)数量
+        if (nameNorm.includes("线上退货") || nameNorm.includes("退货")) {
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            const barcode = String(row[11] != null ? row[11] : "").trim();
+            const date = parseTrendDate(row[50]);
+            const qty = parseNumber(row[12], 0);
+            if (!barcode || !date || qty <= 0) continue;
+            const key = barcode;
+            const pInfo = productMap.get(barcode) || {};
+            // 退货扣减线上销量
+            addRow(key, { productName: pInfo.productName || "", barcode, sku: pInfo.sku || "" }, date, -qty, 0);
+          }
+          usedSheets.push(sheetName);
+          continue;
+        }
+
+        // 子表4：线下销售 —— O列(14)规格条码、AY列(50)日期、T列(19)数量
+        if (nameNorm.includes("线下销售") || nameNorm.includes("线下销量") || nameNorm.includes("门店")) {
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            const barcode = pickTrendBarcode(String(row[14] != null ? row[14] : "").trim());
+            const date = parseTrendDate(row[50]);
+            const qty = parseNumber(row[19], 0);
+            if (!barcode || !date || qty <= 0) continue;
+            const key = barcode;
+            const pInfo = productMap.get(barcode) || {};
+            addRow(key, { productName: pInfo.productName || "", barcode, sku: pInfo.sku || "" }, date, 0, qty);
+          }
+          usedSheets.push(sheetName);
+          continue;
         }
       }
 
       let rows = Array.from(agg.values());
+      // 过滤掉线上净销售为负的记录（退货>销售）
+      rows = rows.filter((r) => r.onlineQty !== 0 || r.offlineQty !== 0);
+
       if (!rows.length) {
-        // 未识别到双子表时，回退到单表宽/长格式解析
+        // 未识别到新结构子表时，回退到旧解析逻辑
         const fd = await readRowsFromFile(file);
         rows = parseSalesTrendRows(fd.rows);
         return { sheetName: fd.sheetName, rows };
@@ -5650,7 +5671,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         for (let i = 0; i < n; i++) {
           const cx = x(i);
           const rx = Math.max(colW / 2, 10);
-          overlayHtml += `<rect x="${cx - rx}" y="${padT}" width="${rx * 2}" height="${plotH}" fill="transparent" data-trend-tip="1" data-date="${dates[i]}" data-values="${series.map((s) => s.values[i] || 0).join(",")}" data-labels="${series.map((s) => s.label).join(",")}" data-colors="${series.map((s) => s.color).join(",")}"/>`;
+          overlayHtml += `<rect x="${cx - rx}" y="${padT}" width="${rx * 2}" height="${plotH}" fill="white" fill-opacity="0" pointer-events="all" data-trend-tip="1" data-date="${dates[i]}" data-values="${series.map((s) => s.values[i] || 0).join(",")}" data-labels="${series.map((s) => s.label).join(",")}" data-colors="${series.map((s) => s.color).join(",")}"/>`;
         }
       }
 
@@ -5770,6 +5791,8 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
 
     // 销售趋势 tooltip 交互
     function bindTrendTooltip(container) {
+      if (container._trendTooltipBound) return;
+      container._trendTooltipBound = true;
       let tip = document.getElementById("trend-tooltip");
       if (!tip) {
         tip = document.createElement("div");
@@ -5779,7 +5802,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       }
       container.addEventListener("mouseover", (e) => {
         const rect = e.target.closest("[data-trend-tip]");
-        if (!rect) return;
+        if (!rect) { tip.style.display = "none"; return; }
         const date = rect.dataset.date || "";
         const values = (rect.dataset.values || "").split(",").map((v) => Number(v) || 0);
         const labels = (rect.dataset.labels || "").split(",");
@@ -5807,10 +5830,8 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         tip.style.left = Math.min(x, maxX) + "px";
         tip.style.top = Math.min(y, maxY) + "px";
       });
-      container.addEventListener("mouseout", (e) => {
-        if (e.target.closest("[data-trend-tip]")) {
-          tip.style.display = "none";
-        }
+      container.addEventListener("mouseleave", () => {
+        tip.style.display = "none";
       });
     }
 
