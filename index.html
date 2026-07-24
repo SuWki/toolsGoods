@@ -2562,7 +2562,7 @@ sources: Object.fromEntries(
           spec,
           imageUrl,
           scentFamily: getCell(row, map, ["香型"]),
-          category: getCell(row, map, ["分类", "商品类目", "一级分类"]),
+          category: getCell(row, map, ["分类", "商品类目", "一级分类", "类别", "商品分类", "类目"]),
           brand: getCell(row, map, ["品牌"]),
           unit: getCell(row, map, ["基础单位", "单位"]),
           retailPrice: maybeNumber(getCell(row, map, ["零售价", "建议零售价(元)", "最新采购单价(元)"])),
@@ -2825,27 +2825,27 @@ sources: Object.fromEntries(
           "  var wbXml=await zip.file('xl/workbook.xml').async('string');",
           "  var relsXml=await zip.file('xl/_rels/workbook.xml.rels').async('string');",
           "  var sheets=parseWB(wbXml,relsXml);",
-          "  var pm=new Map(),agg=new Map(),used=[];",
-          "  function addR(k,pn,d,on,off){if(!k||!d)return;var kk=k+'__'+d;var en=agg.get(kk);if(!en){en={key:k,productName:pn||'',barcode:k,sku:'',spec:'',date:d,onlineQty:0,offlineQty:0};agg.set(kk,en);}en.onlineQty+=on;en.offlineQty+=off;if(!en.productName&&pn)en.productName=pn;}",
+          "  var pm=new Map(),cm=new Map(),agg=new Map(),used=[];",
+          "  function addR(k,pn,d,on,off,cat){if(!k||!d)return;var kk=k+'__'+d;var en=agg.get(kk);if(!en){en={key:k,productName:pn||'',barcode:k,sku:'',spec:'',date:d,onlineQty:0,offlineQty:0,category:cat||''};agg.set(kk,en);}en.onlineQty+=on;en.offlineQty+=off;if(!en.productName&&pn)en.productName=pn;if(!en.category&&cat)en.category=cat;}",
           "  for(var si=0;si<sheets.length;si++){",
           "    var sh=sheets[si];var file=zip.file('xl/'+sh.file);if(!file)continue;",
           "    var xml=await file.async('string');var nn=norm(sh.name);",
           "    if(nn.indexOf('商品资料')>=0||nn.indexOf('商品信息')>=0){",
-          "      var tc=new Set([0,3]);var hi=0;var rows=xml.split('</row>');",
+          "      var tc=new Set([0,3,6]);var hi=0;var rows=xml.split('</row>');",
           "      for(var h=0;h<Math.min(3,rows.length);h++){if(rows[h].indexOf('条码')>=0){hi=h;break;}}",
-          "      for(var i=hi+1;i<rows.length-1;i++){var c=extractRow(rows[i],tc,ss);var bc=String(c[0]||'').trim();var pn=String(c[3]||'').trim();if(bc&&/^\\d{12,14}$/.test(bc))pm.set(bc,pn);}",
+          "      for(var i=hi+1;i<rows.length-1;i++){var c=extractRow(rows[i],tc,ss);var bc=String(c[0]||'').trim();var pn=String(c[3]||'').trim();var cat=String(c[6]||'').trim();if(bc&&/^\\d{12,14}$/.test(bc)){pm.set(bc,pn);if(cat)cm.set(bc,cat);}}",
           "      used.push(sh.name);continue;",
           "    }",
           "    if((nn.indexOf('线上销售')>=0||nn.indexOf('线上销量')>=0)&&nn.indexOf('退货')<0){",
-          "      var tc=new Set([8,9,49,6]);forEachRow(xml,function(rx){var c=extractRow(rx,tc,ss);var bc=String(c[8]||'').trim();var d=pDate(c[49]);var q=pNum(c[9],0);if(!bc||!d||q<=0)return;var pn=pm.get(bc)||String(c[6]||'').trim();addR(bc,pn,d,q,0);});",
+          "      var tc=new Set([8,9,49,6]);forEachRow(xml,function(rx){var c=extractRow(rx,tc,ss);var bc=String(c[8]||'').trim();var d=pDate(c[49]);var q=pNum(c[9],0);if(!bc||!d||q<=0)return;var pn=pm.get(bc)||String(c[6]||'').trim();addR(bc,pn,d,q,0,cm.get(bc)||'');});",
           "      used.push(sh.name);continue;",
           "    }",
           "    if(nn.indexOf('退货')>=0){",
-          "      var tc=new Set([11,12,50,9]);forEachRow(xml,function(rx){var c=extractRow(rx,tc,ss);var bc=String(c[11]||'').trim();var d=pDate(c[50]);var q=pNum(c[12],0);if(!bc||!d||q<=0)return;var pn=pm.get(bc)||String(c[9]||'').trim();addR(bc,pn,d,-q,0);});",
+          "      var tc=new Set([11,12,50,9]);forEachRow(xml,function(rx){var c=extractRow(rx,tc,ss);var bc=String(c[11]||'').trim();var d=pDate(c[50]);var q=pNum(c[12],0);if(!bc||!d||q<=0)return;var pn=pm.get(bc)||String(c[9]||'').trim();addR(bc,pn,d,-q,0,cm.get(bc)||'');});",
           "      used.push(sh.name);continue;",
           "    }",
           "    if(nn.indexOf('线下销售')>=0||nn.indexOf('线下销量')>=0||nn.indexOf('门店')>=0){",
-          "      var tc=new Set([14,19,50,3,2]);forEachRow(xml,function(rx){var c=extractRow(rx,tc,ss);var bc=String(c[14]||'').trim();var d=pDate(c[50]);var q=pNum(c[19],0);var st=String(c[2]||'').trim();if(st==='关闭'||st==='取消'||st==='退款成功')return;if(!bc||!d||q<=0)return;var pn=pm.get(bc)||String(c[3]||'').trim();addR(bc,pn,d,0,q);});",
+          "      var tc=new Set([14,19,50,3,2]);forEachRow(xml,function(rx){var c=extractRow(rx,tc,ss);var bc=String(c[14]||'').trim();var d=pDate(c[50]);var q=pNum(c[19],0);var st=String(c[2]||'').trim();if(st==='关闭'||st==='取消'||st==='退款成功')return;if(!bc||!d||q<=0)return;var pn=pm.get(bc)||String(c[3]||'').trim();addR(bc,pn,d,0,q,cm.get(bc)||'');});",
           "      used.push(sh.name);continue;",
           "    }",
           "  }",
@@ -2938,7 +2938,7 @@ sources: Object.fromEntries(
         const k = key + "__" + date;
         let entry = agg.get(k);
         if (!entry) {
-          entry = { key, productName: info.productName || "", barcode: info.barcode || "", sku: info.sku || "", spec: info.spec || "", date, onlineQty: 0, offlineQty: 0 };
+          entry = { key, productName: info.productName || "", barcode: info.barcode || "", sku: info.sku || "", spec: info.spec || "", category: info.category || "", date, onlineQty: 0, offlineQty: 0 };
           agg.set(k, entry);
         }
         entry.onlineQty += onlineQty;
@@ -2946,6 +2946,7 @@ sources: Object.fromEntries(
         if (!entry.productName && info.productName) entry.productName = info.productName;
         if (!entry.barcode && info.barcode) entry.barcode = info.barcode;
         if (!entry.sku && info.sku) entry.sku = info.sku;
+        if (!entry.category && info.category) entry.category = info.category;
       };
 
       const usedSheets = [];
@@ -2976,8 +2977,9 @@ sources: Object.fromEntries(
             const barcode = pickTrendBarcode(getCell(row, map, ["条码", "商品条码", "规格条码", "69码"]));
             const productName = getCell(row, map, ["产品名称", "商品名称", "货品名称", "品名"]);
             const sku = getCell(row, map, ["货号", "商品编码", "规格编码", "SKU"]);
+            const category = getCell(row, map, ["分类", "商品类目", "一级分类", "类别", "商品分类", "类目"]);
             if (barcode) {
-              productMap.set(barcode, { productName: productName || "", sku: sku || "" });
+              productMap.set(barcode, { productName: productName || "", sku: sku || "", category: category || "" });
             }
           }
           usedSheets.push(sheetName);
@@ -2996,7 +2998,7 @@ sources: Object.fromEntries(
             const pInfo = productMap.get(barcode) || {};
             // 商品资料表查到的品名优先，否则用本表 col[6] 货品名称
             const fallbackName = String(row[6] != null ? row[6] : "").trim();
-            addRow(key, { productName: pInfo.productName || fallbackName || "", barcode, sku: pInfo.sku || "" }, date, qty, 0);
+            addRow(key, { productName: pInfo.productName || fallbackName || "", barcode, sku: pInfo.sku || "", category: pInfo.category || "" }, date, qty, 0);
           }
           usedSheets.push(sheetName);
           continue;
@@ -3014,7 +3016,7 @@ sources: Object.fromEntries(
             const pInfo = productMap.get(barcode) || {};
             const fallbackName = String(row[9] != null ? row[9] : "").trim();
             // 退货扣减线上销量
-            addRow(key, { productName: pInfo.productName || fallbackName || "", barcode, sku: pInfo.sku || "" }, date, -qty, 0);
+            addRow(key, { productName: pInfo.productName || fallbackName || "", barcode, sku: pInfo.sku || "", category: pInfo.category || "" }, date, -qty, 0);
           }
           usedSheets.push(sheetName);
           continue;
@@ -3034,7 +3036,7 @@ sources: Object.fromEntries(
             const key = barcode;
             const pInfo = productMap.get(barcode) || {};
             const fallbackName = String(row[3] != null ? row[3] : "").trim();
-            addRow(key, { productName: pInfo.productName || fallbackName || "", barcode, sku: pInfo.sku || "" }, date, 0, qty);
+            addRow(key, { productName: pInfo.productName || fallbackName || "", barcode, sku: pInfo.sku || "", category: pInfo.category || "" }, date, 0, qty);
           }
           usedSheets.push(sheetName);
           continue;
@@ -3849,7 +3851,7 @@ inventoryQty,
         if (r.key) catMap.set(r.key, r.category);
         if (r.barcode) catMap.set(normalizeText(r.barcode), r.category);
       });
-      const lookupCat = (row) => catMap.get(row.key) || (row.barcode ? catMap.get(normalizeText(row.barcode)) : "") || "";
+      const lookupCat = (row) => row.category || catMap.get(row.key) || (row.barcode ? catMap.get(normalizeText(row.barcode)) : "") || "";
       const productMap = new Map();
       const dateSet = new Set();
       (rows || []).forEach((row) => {
