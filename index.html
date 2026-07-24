@@ -1821,6 +1821,12 @@ sources: Object.fromEntries(
       return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 }).format(Math.round(Number(value)));
     }
 
+    // 趋势线数值格式化：保留一位小数（避免 0.x 被取整为 0）
+    function formatTrendFloat(value) {
+      if (value === null || value === undefined || value === "") return "-";
+      return new Intl.NumberFormat("zh-CN", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Number(value));
+    }
+
     function formatCurrency(value) {
       if (value === null || value === undefined || value === "") return "-";
       return "¥" + new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(Number(value));
@@ -6051,6 +6057,13 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
             const tPts = tv.map((v, i) => `${x(i).toFixed(1)},${y(v, ch).toFixed(1)}`).join(" ");
             const tLabel = trendMethod === "ma" ? "移动平均" : "线性回归";
             linesHtml += `<polyline points="${tPts}" fill="none" stroke="${s.color}" stroke-width="${(strokeW * 0.8).toFixed(2)}" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="7 4" opacity="0.6" data-trend-line="1" data-trend-label="${tLabel}"/>`;
+            // 趋势线起止数值标注：保留一位小数（避免 0.x 被取整为 0）
+            const tFirst = tv[0];
+            const tLast = tv[n - 1];
+            const tfy = y(tFirst, ch);
+            const tly = y(tLast, ch);
+            linesHtml += `<text x="${(x(0) - 6).toFixed(1)}" y="${(tfy + 14).toFixed(1)}" text-anchor="end" font-size="10" fill="${s.color}" opacity="0.85">${formatTrendFloat(tFirst)}</text>`;
+            linesHtml += `<text x="${(x(n - 1) + 6).toFixed(1)}" y="${(tly + 14).toFixed(1)}" text-anchor="start" font-size="10" fill="${s.color}" opacity="0.85">${formatTrendFloat(tLast)}</text>`;
           }
         }
       });
