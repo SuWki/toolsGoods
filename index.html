@@ -6010,8 +6010,12 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       // 双纵轴：左轴=线上(蓝)，右轴=线下(橙)；右轴需要额外留白
       const dualAxis = series.some((s) => s.channel === "offline");
       const padL = 64, padR = dualAxis ? 64 : 24, padT = 20, padB = 50;
-      const minW = opts.minW || 700, maxW = opts.maxW || 1600, H = opts.height || 380;
+      const minW = opts.minW || 700, maxW = opts.maxW || 1600;
       const W = Math.min(maxW, Math.max(minW, n * 36 + padL + padR));
+      // 固定宽高比：H 随 W 按比例计算，确保不同粒度（按天/月/季度）图表渲染大小一致
+      // 配合 CSS width:100%;height:auto，viewBox 比例固定后浏览器渲染高度才会统一
+      const aspectRatio = opts.aspectRatio || 4;
+      const H = Math.round(W / aspectRatio);
       const pointR = opts.pointR || 2.4;
       const strokeW = opts.strokeWidth || 2;
       const plotW = W - padL - padR;
@@ -6275,7 +6279,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       const { dates, series, selected, granularity } = buildTrendSeries(model);
       const f = state.salesTrendFilters;
       const svg = renderTrendSvg(dates, series, {
-        minW: 960, maxW: 2400, height: 640, pointR: 3, strokeWidth: 2.4,
+        minW: 960, maxW: 2400, aspectRatio: 3, pointR: 3, strokeWidth: 2.4,
         granularity, showTrendLine: f.showTrendLine, trendMethod: f.trendMethod,
       });
       const legend = renderTrendLegendHtml(series, selected, f.mode, f);
