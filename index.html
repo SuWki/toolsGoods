@@ -6027,6 +6027,23 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
             }
           });
         }
+        // 起止数值标注：用该线对应的轴颜色，标在起点左侧和终点右侧
+        const firstIdx = s.values.findIndex((v) => v > 0);
+        const lastIdx = s.values.length - 1 - [...s.values].reverse().findIndex((v) => v > 0);
+        if (firstIdx >= 0 && firstIdx < n) {
+          const fv = s.values[firstIdx];
+          const fx = x(firstIdx);
+          const fy = y(fv, ch);
+          // 起点：标在线点左侧，用同色背景块避免与网格刻度重叠
+          linesHtml += `<text x="${(fx - 6).toFixed(1)}" y="${(fy - 6).toFixed(1)}" text-anchor="end" font-size="11" font-weight="600" fill="${s.color}">${formatInteger(fv)}</text>`;
+        }
+        if (lastIdx > firstIdx && lastIdx < n) {
+          const lv = s.values[lastIdx];
+          const lx = x(lastIdx);
+          const ly = y(lv, ch);
+          // 终点：标在线点右侧
+          linesHtml += `<text x="${(lx + 6).toFixed(1)}" y="${(ly - 6).toFixed(1)}" text-anchor="start" font-size="11" font-weight="600" fill="${s.color}">${formatInteger(lv)}</text>`;
+        }
         // 趋势线：用同色虚线，半透明，叠加在原折线之上
         if (showTrendLine) {
           const tv = trendValuesList[sIdx];
