@@ -1633,7 +1633,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         endDate: "",
         search: "", // 商品搜索文本
         mode: "split", // split=分商品对比, merge=合并求和
-        granularity: "daily", // daily=每日, quarterly=按季度
+        granularity: "daily", // daily=每日, monthly=按月, quarterly=按季度
         showTrendLine: false, // 是否叠加趋势线
         trendMethod: "linear", // linear=线性回归, ma=移动平均
         category: "全部", // 分类筛选（来自商品资料G列）
@@ -5732,6 +5732,12 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       return `${y}-Q${q}`;
     }
 
+    // 日期 "YYYY-MM-DD" -> 月份标识 "YYYY-MM"
+    function dateToMonth(dateStr) {
+      if (!dateStr || dateStr.length < 7) return "";
+      return dateStr.slice(0, 7);
+    }
+
     // 线性回归（最小二乘法）：返回 { slope, intercept }，y = slope*x + intercept
     // 用于拟合长期趋势线，能反映"稳定微微向上/向下"
     function linearRegression(values) {
@@ -5832,6 +5838,9 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       if (f.granularity === "quarterly") {
         return buildTrendSeriesQuarterly(model);
       }
+      if (f.granularity === "monthly") {
+        return buildTrendSeriesMonthly(model);
+      }
       return buildTrendSeriesDaily(model);
     }
 
@@ -5914,6 +5923,66 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         });
       }
       return { dates: quarters, series, selected, granularity: "quarterly" };
+    }
+
+    // 按月维度系列：把每日销量按月聚合（YYYY-MM），介于每日与季度之间
+    function getTrendFilteredMonths(model) {
+      const trend = model.salesTrendModel;
+      const f = state.salesTrendFilters;
+      const mSet = new Set();
+      trend.products.forEach((p) => {
+        Object.keys(p.dates).forEach((d) => {
+          if (f.startDate && d < f.startDate) return;
+          if (f.endDate && d > f.endDate) return;
+          const m = dateToMonth(d);
+          if (m) mSet.add(m);
+        });
+      });
+      return Array.from(mSet).sort();
+    }
+
+    function buildTrendSeriesMonthly(model) {
+      const months = getTrendFilteredMonths(model);
+      const selected = getTrendSelectedProducts(model);
+      const f = state.salesTrendFilters;
+
+      // 把商品的每日销量按月聚合
+      const aggregateMonth = (p, m) => {
+        let online = 0, offline = 0;
+        for (const d in p.dates) {
+          if (dateToMonth(d) !== m) continue;
+          if (f.startDate && d < f.startDate) continue;
+          if (f.endDate && d > f.endDate) continue;
+          online += p.dates[d].online || 0;
+          offline += p.dates[d].offline || 0;
+        }
+        return { online, offline };
+      };
+
+      const series = [];
+      if (f.mode === "merge") {
+        const onlineValues = new Array(months.length).fill(0);
+        const offlineValues = new Array(months.length).fill(0);
+        selected.forEach((p) => {
+          months.forEach((m, i) => {
+            const agg = aggregateMonth(p, m);
+            onlineValues[i] += agg.online;
+            offlineValues[i] += agg.offline;
+          });
+        });
+        series.push({ label: "线上(合计)", color: TREND_ONLINE_COLOR, dash: "", values: onlineValues, channel: "online" });
+        series.push({ label: "线下(合计)", color: TREND_OFFLINE_COLOR, dash: "", values: offlineValues, channel: "offline" });
+      } else {
+        selected.forEach((p, idx) => {
+          const pair = TREND_PRODUCT_PAIRS[idx % TREND_PRODUCT_PAIRS.length];
+          const onlineValues = months.map((m) => aggregateMonth(p, m).online);
+          const offlineValues = months.map((m) => aggregateMonth(p, m).offline);
+          const name = shortenProductName(p.productName || p.barcode || p.sku || p.key) || (p.productName || p.barcode || p.sku || p.key);
+          series.push({ label: `${name}·线上`, color: pair.online, dash: "", values: onlineValues, product: name, channel: "online" });
+          series.push({ label: `${name}·线下`, color: pair.offline, dash: "", values: offlineValues, product: name, channel: "offline" });
+        });
+      }
+      return { dates: months, series, selected, granularity: "monthly" };
     }
 
     function niceCeil(value) {
@@ -6008,8 +6077,8 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       let xLabelsHtml = "";
       for (let i = 0; i < n; i += xStep) {
         const xx = x(i);
-        // 季度模式直接显示 "YYYY-Qn"，日维度显示 MM-DD
-        const label = granularity === "quarterly" ? dates[i] : dates[i].slice(5);
+        // 季度显示 "YYYY-Qn"，月份显示 "YYYY-MM"，日维度显示 "MM-DD"
+        const label = (granularity === "quarterly" || granularity === "monthly") ? dates[i] : dates[i].slice(5);
         xLabelsHtml += `<text x="${xx}" y="${H - padB + 18}" text-anchor="middle" font-size="11" fill="#736454">${label}</text>`;
         xLabelsHtml += `<line x1="${xx}" y1="${padT + plotH}" x2="${xx}" y2="${padT + plotH + 4}" stroke="#c9bdaa" stroke-width="1"/>`;
       }
@@ -6132,9 +6201,10 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       const periodCount = dates.length || 1;
       const avg = (totalOnline + totalOffline) / periodCount;
       const isQuarterly = granularity === "quarterly";
-      const peakLabel = isQuarterly ? "单季峰值" : "单日峰值";
-      const avgLabel = isQuarterly ? "季均总销量" : "日均总销量";
-      const periodUnit = isQuarterly ? "个季度" : "天";
+      const isMonthly = granularity === "monthly";
+      const peakLabel = isQuarterly ? "单季峰值" : isMonthly ? "单月峰值" : "单日峰值";
+      const avgLabel = isQuarterly ? "季均总销量" : isMonthly ? "月均总销量" : "日均总销量";
+      const periodUnit = isQuarterly ? "个季度" : isMonthly ? "个月" : "天";
       return `
         <div class="trend-summary">
           <div class="trend-stat"><small>线上销量合计</small><strong style="color:${TREND_ONLINE_COLOR}">${formatInteger(totalOnline)}</strong></div>
@@ -6317,9 +6387,12 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       const endVal = f.endDate || trend.dateMax;
       const selectedCount = f.selectedKeys.length;
       const isQuarterly = f.granularity === "quarterly";
-      const titleText = isQuarterly ? "销量趋势对比·按季度" : "每日销量趋势对比";
+      const isMonthly = f.granularity === "monthly";
+      const titleText = isQuarterly ? "销量趋势对比·按季度" : isMonthly ? "销量趋势对比·按月" : "每日销量趋势对比";
       const subNote = isQuarterly
         ? "横轴=季度（YYYY-Qn），纵轴=销量；同一产品不同季度对比，可叠加趋势线。"
+        : isMonthly
+        ? "横轴=月份（YYYY-MM），纵轴=销量；同一产品不同月份对比，可叠加趋势线。"
         : "横轴=日期，纵轴=销量；最多选择 2 个商品两两对比，4 条折线 4 种颜色。";
 
       return `
@@ -6341,6 +6414,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
           <div class="trend-view-bar">
             <div class="trend-mode-toggle">
               <button type="button" class="trend-mode-btn ${f.granularity === "daily" ? "active" : ""}" data-trend-granularity="daily">每日</button>
+              <button type="button" class="trend-mode-btn ${f.granularity === "monthly" ? "active" : ""}" data-trend-granularity="monthly">按月</button>
               <button type="button" class="trend-mode-btn ${f.granularity === "quarterly" ? "active" : ""}" data-trend-granularity="quarterly">按季度</button>
             </div>
             <div class="trend-mode-toggle">
@@ -6867,6 +6941,7 @@ bindTrendTooltip(chartEl);
       state.matrixExpandedCells = {};
       state.matrixFilters = { category: "全部", isRegularPrice: "全部", kpiFilter: "all" };
       state.salesTrendFilters = { selectedKeys: [], startDate: "", endDate: "", search: "", mode: "split", granularity: "daily", showTrendLine: false, trendMethod: "linear", category: "全部" };
+      // 注: granularity 支持 daily / monthly / quarterly
       setBatchNote("");
       render();
     }
