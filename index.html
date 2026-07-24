@@ -6131,12 +6131,13 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
             const tLabel = trendMethod === "ma" ? "移动平均" : "线性回归";
             linesHtml += `<polyline points="${tPts}" fill="none" stroke="${s.color}" stroke-width="${(strokeW * 0.8).toFixed(2)}" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="7 4" opacity="0.6" data-trend-line="1" data-trend-label="${tLabel}"/>`;
             // 趋势线起止数值标注：保留一位小数（避免 0.x 被取整为 0）
+            // 放在图表内部（绘图区域内），避免与左右 Y 轴刻度重叠
             const tFirst = tv[0];
             const tLast = tv[n - 1];
             const tfy = y(tFirst, ch);
             const tly = y(tLast, ch);
-            linesHtml += `<text x="${(x(0) - 6).toFixed(1)}" y="${(tfy + 14).toFixed(1)}" text-anchor="end" font-size="10" fill="${s.color}" opacity="0.85">${formatTrendFloat(tFirst)}</text>`;
-            linesHtml += `<text x="${(x(n - 1) + 6).toFixed(1)}" y="${(tly + 14).toFixed(1)}" text-anchor="start" font-size="10" fill="${s.color}" opacity="0.85">${formatTrendFloat(tLast)}</text>`;
+            linesHtml += `<text x="${(x(0) + 8).toFixed(1)}" y="${(tfy + 14).toFixed(1)}" text-anchor="start" font-size="10" fill="${s.color}" opacity="0.85">${formatTrendFloat(tFirst)}</text>`;
+            linesHtml += `<text x="${(x(n - 1) - 8).toFixed(1)}" y="${(tly + 14).toFixed(1)}" text-anchor="end" font-size="10" fill="${s.color}" opacity="0.85">${formatTrendFloat(tLast)}</text>`;
           }
         }
       });
