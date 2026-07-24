@@ -1189,6 +1189,22 @@ pointer-events: none;
       align-items: end;
     }
 
+    .trend-view-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border: 1px dashed rgba(20, 99, 86, .18);
+      border-radius: 10px;
+      background: rgba(20, 99, 86, .04);
+    }
+
+    .trend-view-bar-hint {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
     .trend-toolbar label {
       display: grid;
       gap: 6px;
@@ -1617,6 +1633,9 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         endDate: "",
         search: "", // 商品搜索文本
         mode: "split", // split=分商品对比, merge=合并求和
+        granularity: "daily", // daily=每日, quarterly=按季度
+        showTrendLine: false, // 是否叠加趋势线
+        trendMethod: "linear", // linear=线性回归, ma=移动平均
       },
     };
 
@@ -5682,6 +5701,67 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       { online: "#ca8a04", offline: "#0891b2" }, // 金 / 青
     ];
 
+    // 日期 "YYYY-MM-DD" -> 季度标识 "YYYY-Qn"
+    function dateToQuarter(dateStr) {
+      if (!dateStr || dateStr.length < 7) return "";
+      const y = dateStr.slice(0, 4);
+      const m = Number(dateStr.slice(5, 7));
+      if (!y || !m) return "";
+      const q = Math.ceil(m / 3);
+      return `${y}-Q${q}`;
+    }
+
+    // 线性回归（最小二乘法）：返回 { slope, intercept }，y = slope*x + intercept
+    // 用于拟合长期趋势线，能反映"稳定微微向上/向下"
+    function linearRegression(values) {
+      const n = values.length;
+      if (n < 2) return { slope: 0, intercept: values[0] || 0 };
+      let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+      for (let i = 0; i < n; i++) {
+        sumX += i;
+        sumY += values[i];
+        sumXY += i * values[i];
+        sumX2 += i * i;
+      }
+      const denom = n * sumX2 - sumX * sumX;
+      if (denom === 0) return { slope: 0, intercept: sumY / n };
+      const slope = (n * sumXY - sumX * sumY) / denom;
+      const intercept = (sumY - slope * sumX) / n;
+      return { slope, intercept };
+    }
+
+    // 居中移动平均：平滑短期波动，凸显中期趋势
+    function movingAverage(values, window = 5) {
+      const n = values.length;
+      if (n === 0) return [];
+      const result = new Array(n).fill(0);
+      const half = Math.floor(window / 2);
+      for (let i = 0; i < n; i++) {
+        let sum = 0, count = 0;
+        for (let j = -half; j <= half; j++) {
+          const k = i + j;
+          if (k < 0 || k >= n) continue;
+          sum += values[k];
+          count++;
+        }
+        result[i] = count > 0 ? sum / count : 0;
+      }
+      return result;
+    }
+
+    // 计算趋势线数据：根据算法返回每个 x 点的趋势值
+    function computeTrendValues(values, method) {
+      if (!values || values.length < 2) return values ? values.slice() : [];
+      if (method === "ma") {
+        // 窗口随数据量自适应：日维度用 7（周），季度维度用 3
+        const window = values.length <= 8 ? 3 : 7;
+        return movingAverage(values, window);
+      }
+      // 默认线性回归
+      const { slope, intercept } = linearRegression(values);
+      return values.map((_, i) => slope * i + intercept);
+    }
+
     function getTrendFilteredDates(model) {
       const trend = model.salesTrendModel;
       const f = state.salesTrendFilters;
@@ -5689,6 +5769,22 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       if (f.startDate) dates = dates.filter((d) => d >= f.startDate);
       if (f.endDate) dates = dates.filter((d) => d <= f.endDate);
       return dates;
+    }
+
+    // 按季度聚合：返回筛选日期段内的季度列表（升序）
+    function getTrendFilteredQuarters(model) {
+      const trend = model.salesTrendModel;
+      const f = state.salesTrendFilters;
+      const qSet = new Set();
+      trend.products.forEach((p) => {
+        Object.keys(p.dates).forEach((d) => {
+          if (f.startDate && d < f.startDate) return;
+          if (f.endDate && d > f.endDate) return;
+          const q = dateToQuarter(d);
+          if (q) qSet.add(q);
+        });
+      });
+      return Array.from(qSet).sort();
     }
 
     function getTrendSelectedProducts(model) {
@@ -5699,6 +5795,15 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
     }
 
     function buildTrendSeries(model) {
+      const f = state.salesTrendFilters;
+      if (f.granularity === "quarterly") {
+        return buildTrendSeriesQuarterly(model);
+      }
+      return buildTrendSeriesDaily(model);
+    }
+
+    // 每日维度系列
+    function buildTrendSeriesDaily(model) {
       const dates = getTrendFilteredDates(model);
       const selected = getTrendSelectedProducts(model);
       const f = state.salesTrendFilters;
@@ -5730,7 +5835,52 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
           series.push({ label: `${name}·线下`, color: pair.offline, dash: "", values: offlineValues, product: name, channel: "offline" });
         });
       }
-      return { dates, series, selected };
+      return { dates, series, selected, granularity: "daily" };
+    }
+
+    // 季度维度系列：把每日销量按季度聚合，同一产品不同季度对比
+    function buildTrendSeriesQuarterly(model) {
+      const quarters = getTrendFilteredQuarters(model);
+      const selected = getTrendSelectedProducts(model);
+      const f = state.salesTrendFilters;
+
+      // 把商品的每日销量按季度聚合
+      const aggregateQuarter = (p, q) => {
+        let online = 0, offline = 0;
+        for (const d in p.dates) {
+          if (dateToQuarter(d) !== q) continue;
+          if (f.startDate && d < f.startDate) continue;
+          if (f.endDate && d > f.endDate) continue;
+          online += p.dates[d].online || 0;
+          offline += p.dates[d].offline || 0;
+        }
+        return { online, offline };
+      };
+
+      const series = [];
+      if (f.mode === "merge") {
+        const onlineValues = new Array(quarters.length).fill(0);
+        const offlineValues = new Array(quarters.length).fill(0);
+        selected.forEach((p) => {
+          quarters.forEach((q, i) => {
+            const agg = aggregateQuarter(p, q);
+            onlineValues[i] += agg.online;
+            offlineValues[i] += agg.offline;
+          });
+        });
+        series.push({ label: "线上(合计)", color: TREND_ONLINE_COLOR, dash: "", values: onlineValues, channel: "online" });
+        series.push({ label: "线下(合计)", color: TREND_OFFLINE_COLOR, dash: "", values: offlineValues, channel: "offline" });
+      } else {
+        selected.forEach((p, idx) => {
+          const pair = TREND_PRODUCT_PAIRS[idx % TREND_PRODUCT_PAIRS.length];
+          const onlineValues = quarters.map((q) => aggregateQuarter(p, q).online);
+          const offlineValues = quarters.map((q) => aggregateQuarter(p, q).offline);
+          const name = shortenProductName(p.productName || p.barcode || p.sku || p.key) || (p.productName || p.barcode || p.sku || p.key);
+          series.push({ label: `${name}·线上`, color: pair.online, dash: "", values: onlineValues, product: name, channel: "online" });
+          series.push({ label: `${name}·线下`, color: pair.offline, dash: "", values: offlineValues, product: name, channel: "offline" });
+        });
+      }
+      return { dates: quarters, series, selected, granularity: "quarterly" };
     }
 
     function niceCeil(value) {
@@ -5752,6 +5902,9 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       }
 
       const n = dates.length;
+      const granularity = opts.granularity || "daily";
+      const showTrendLine = !!opts.showTrendLine;
+      const trendMethod = opts.trendMethod || "linear";
       const padL = 64, padR = 24, padT = 20, padB = 50;
       const minW = opts.minW || 700, maxW = opts.maxW || 1600, H = opts.height || 380;
       const W = Math.min(maxW, Math.max(minW, n * 36 + padL + padR));
@@ -5760,11 +5913,15 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       const plotW = W - padL - padR;
       const plotH = H - padT - padB;
 
-      const yMaxRaw = Math.max(1, ...series.flatMap((s) => s.values));
+      // 趋势线值参与 y 轴上限计算（线性回归可能略高于原始最大值）
+      const trendValuesList = showTrendLine
+        ? series.map((s) => computeTrendValues(s.values, trendMethod))
+        : [];
+      const yMaxRaw = Math.max(1, ...series.flatMap((s) => s.values), ...(showTrendLine ? trendValuesList.flat() : []));
       const yMax = niceCeil(yMaxRaw);
 
       const x = (i) => padL + (n <= 1 ? plotW / 2 : (i * plotW) / (n - 1));
-      const y = (v) => padT + plotH - (v / yMax) * plotH;
+      const y = (v) => padT + plotH - (Math.max(0, v) / yMax) * plotH;
 
       // 横向网格 + y 轴刻度
       const yTicks = 5;
@@ -5776,22 +5933,23 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         gridHtml += `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="11" fill="#736454">${formatInteger(val)}</text>`;
       }
 
-      // x 轴刻度(日期)，太多时跳着显示
+      // x 轴刻度(日期/季度)，太多时跳着显示
       const xStep = Math.max(1, Math.ceil(n / 12));
       let xLabelsHtml = "";
       for (let i = 0; i < n; i += xStep) {
         const xx = x(i);
-        const label = dates[i].slice(5); // MM-DD
+        // 季度模式直接显示 "YYYY-Qn"，日维度显示 MM-DD
+        const label = granularity === "quarterly" ? dates[i] : dates[i].slice(5);
         xLabelsHtml += `<text x="${xx}" y="${H - padB + 18}" text-anchor="middle" font-size="11" fill="#736454">${label}</text>`;
         xLabelsHtml += `<line x1="${xx}" y1="${padT + plotH}" x2="${xx}" y2="${padT + plotH + 4}" stroke="#c9bdaa" stroke-width="1"/>`;
       }
-      // 起止日期完整标注
+      // 起止完整标注
       xLabelsHtml += `<text x="${padL}" y="${H - 8}" text-anchor="start" font-size="11" fill="#2d241d">${dates[0]}</text>`;
       xLabelsHtml += `<text x="${W - padR}" y="${H - 8}" text-anchor="end" font-size="11" fill="#2d241d">${dates[n - 1]}</text>`;
 
       // 折线
       let linesHtml = "";
-      series.forEach((s) => {
+      series.forEach((s, sIdx) => {
         if (!s.values.some((v) => v > 0)) return;
         const pts = s.values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
         const dashAttr = s.dash ? ` stroke-dasharray="${s.dash}"` : "";
@@ -5803,6 +5961,15 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
               linesHtml += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="${pointR}" fill="${s.color}" opacity="0.92"/>`;
             }
           });
+        }
+        // 趋势线：用同色虚线，半透明，叠加在原折线之上
+        if (showTrendLine) {
+          const tv = trendValuesList[sIdx];
+          if (tv && tv.length === n) {
+            const tPts = tv.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+            const tLabel = trendMethod === "ma" ? "移动平均" : "线性回归";
+            linesHtml += `<polyline points="${tPts}" fill="none" stroke="${s.color}" stroke-width="${(strokeW * 0.8).toFixed(2)}" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="7 4" opacity="0.6" data-trend-line="1" data-trend-label="${tLabel}"/>`;
+          }
         }
       });
 
@@ -5833,7 +6000,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       </svg>`;
     }
 
-    function renderTrendLegendHtml(series, selected, mode) {
+    function renderTrendLegendHtml(series, selected, mode, f) {
       const items = [];
       if (mode === "merge") {
         items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch" style="background:${TREND_ONLINE_COLOR}"></span>线上(合计)</span>`);
@@ -5844,41 +6011,53 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
           items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch" style="background:${s.color}"></span>${escapeHtml(s.label)}</span>`);
         });
       }
+      if (f && f.showTrendLine) {
+        const tName = f.trendMethod === "ma" ? "移动平均" : "线性回归";
+        items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch trend-legend-swatch--dash" style="background:repeating-linear-gradient(90deg,#736454 0 6px,transparent 6px 10px);"></span>趋势线(${tName})</span>`);
+      }
       return `<div class="trend-legend">${items.join("")}</div>`;
     }
 
-    function renderTrendSummaryHtml(dates, series) {
+    function renderTrendSummaryHtml(dates, series, granularity) {
       let totalOnline = 0, totalOffline = 0;
       series.forEach((s) => {
         const sum = s.values.reduce((a, b) => a + b, 0);
         if (s.channel === "online") totalOnline += sum;
         else totalOffline += sum;
       });
-      // 找单日总量最高
+      // 找单点总量最高
       let peakVal = 0, peakDate = "";
       for (let i = 0; i < dates.length; i++) {
         let dayTotal = 0;
         series.forEach((s) => { dayTotal += s.values[i] || 0; });
         if (dayTotal > peakVal) { peakVal = dayTotal; peakDate = dates[i]; }
       }
-      const dayCount = dates.length || 1;
-      const avg = (totalOnline + totalOffline) / dayCount;
+      const periodCount = dates.length || 1;
+      const avg = (totalOnline + totalOffline) / periodCount;
+      const isQuarterly = granularity === "quarterly";
+      const peakLabel = isQuarterly ? "单季峰值" : "单日峰值";
+      const avgLabel = isQuarterly ? "季均总销量" : "日均总销量";
+      const periodUnit = isQuarterly ? "个季度" : "天";
       return `
         <div class="trend-summary">
           <div class="trend-stat"><small>线上销量合计</small><strong style="color:${TREND_ONLINE_COLOR}">${formatInteger(totalOnline)}</strong></div>
           <div class="trend-stat"><small>线下销量合计</small><strong style="color:${TREND_OFFLINE_COLOR}">${formatInteger(totalOffline)}</strong></div>
-          <div class="trend-stat"><small>单日峰值</small><strong>${formatInteger(peakVal)}</strong><div class="note">${escapeHtml(peakDate || "-")}</div></div>
-          <div class="trend-stat"><small>日均总销量</small><strong>${avg.toFixed(1)}</strong><div class="note">${dayCount} 天</div></div>
+          <div class="trend-stat"><small>${peakLabel}</small><strong>${formatInteger(peakVal)}</strong><div class="note">${escapeHtml(peakDate || "-")}</div></div>
+          <div class="trend-stat"><small>${avgLabel}</small><strong>${avg.toFixed(1)}</strong><div class="note">${periodCount} ${periodUnit}</div></div>
         </div>
       `;
     }
 
     function renderTrendChartAreaHtml(model) {
-      const { dates, series, selected } = buildTrendSeries(model);
+      const { dates, series, selected, granularity } = buildTrendSeries(model);
       const f = state.salesTrendFilters;
-      const svg = renderTrendSvg(dates, series);
-      const legend = renderTrendLegendHtml(series, selected, f.mode);
-      const summary = renderTrendSummaryHtml(dates, series);
+      const svg = renderTrendSvg(dates, series, {
+        granularity,
+        showTrendLine: f.showTrendLine,
+        trendMethod: f.trendMethod,
+      });
+      const legend = renderTrendLegendHtml(series, selected, f.mode, f);
+      const summary = renderTrendSummaryHtml(dates, series, granularity);
       return `${summary}<div class="trend-chart-wrap" data-trend-chart="1" title="点击放大查看">${svg}<div class="trend-chart-zoom-hint">点击图表可放大查看</div></div>${legend}`;
     }
 
@@ -5926,11 +6105,14 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
 
     function openTrendChartModal(model) {
       const modal = ensureTrendModal();
-      const { dates, series, selected } = buildTrendSeries(model);
+      const { dates, series, selected, granularity } = buildTrendSeries(model);
       const f = state.salesTrendFilters;
-      const svg = renderTrendSvg(dates, series, { minW: 960, maxW: 2400, height: 640, pointR: 3, strokeWidth: 2.4 });
-      const legend = renderTrendLegendHtml(series, selected, f.mode);
-      const summary = renderTrendSummaryHtml(dates, series);
+      const svg = renderTrendSvg(dates, series, {
+        minW: 960, maxW: 2400, height: 640, pointR: 3, strokeWidth: 2.4,
+        granularity, showTrendLine: f.showTrendLine, trendMethod: f.trendMethod,
+      });
+      const legend = renderTrendLegendHtml(series, selected, f.mode, f);
+      const summary = renderTrendSummaryHtml(dates, series, granularity);
       document.getElementById("trend-modal-body").innerHTML = `${summary}<div class="trend-chart-wrap trend-chart-wrap--modal">${svg}</div>${legend}`;
       modal.classList.add("open");
       // 弹窗内的 tooltip 也要绑定
@@ -6036,21 +6218,39 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       const startVal = f.startDate || trend.dateMin;
       const endVal = f.endDate || trend.dateMax;
       const selectedCount = f.selectedKeys.length;
+      const isQuarterly = f.granularity === "quarterly";
+      const titleText = isQuarterly ? "销量趋势对比·按季度" : "每日销量趋势对比";
+      const subNote = isQuarterly
+        ? "横轴=季度（YYYY-Qn），纵轴=销量；同一产品不同季度对比，可叠加趋势线。"
+        : "横轴=日期，纵轴=销量；最多选择 2 个商品两两对比，4 条折线 4 种颜色。";
 
       return `
         <div class="panel trend-panel">
           <div class="block-head">
             <div>
-              <h2>每日销量趋势对比</h2>
-              <div class="note">横轴=日期，纵轴=销量；最多选择 2 个商品两两对比，4 条折线 4 种颜色。</div>
+              <h2>${titleText}</h2>
+              <div class="note">${subNote}</div>
             </div>
-            <div style="display:flex;gap:10px;align-items:center;">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
               <span class="badge neutral">共 ${formatInteger(trend.productCount)} 个商品 · 已选 ${formatInteger(selectedCount)}</span>
               <div class="trend-mode-toggle">
                 <button type="button" class="trend-mode-btn ${f.mode === "split" ? "active" : ""}" data-trend-mode="split">分商品</button>
                 <button type="button" class="trend-mode-btn ${f.mode === "merge" ? "active" : ""}" data-trend-mode="merge">合并</button>
               </div>
             </div>
+          </div>
+
+          <div class="trend-view-bar">
+            <div class="trend-mode-toggle">
+              <button type="button" class="trend-mode-btn ${f.granularity === "daily" ? "active" : ""}" data-trend-granularity="daily">每日</button>
+              <button type="button" class="trend-mode-btn ${f.granularity === "quarterly" ? "active" : ""}" data-trend-granularity="quarterly">按季度</button>
+            </div>
+            <div class="trend-mode-toggle">
+              <button type="button" class="trend-mode-btn ${!f.showTrendLine ? "active" : ""}" data-trend-trendline="off">无趋势线</button>
+              <button type="button" class="trend-mode-btn ${f.showTrendLine && f.trendMethod === "linear" ? "active" : ""}" data-trend-trendline="linear">线性趋势</button>
+              <button type="button" class="trend-mode-btn ${f.showTrendLine && f.trendMethod === "ma" ? "active" : ""}" data-trend-trendline="ma">移动平均</button>
+            </div>
+            <span class="note trend-view-bar-hint">趋势线算法：线性回归(最小二乘)反映长期方向；移动平均平滑短期波动。</span>
           </div>
 
           <div class="trend-toolbar">
@@ -6158,13 +6358,46 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         });
       }
 
-      document.querySelectorAll(".trend-mode-btn").forEach((btn) => {
+      document.querySelectorAll(".trend-mode-btn[data-trend-mode]").forEach((btn) => {
         btn.addEventListener("click", () => {
           state.salesTrendFilters.mode = btn.dataset.trendMode || "split";
           refreshChart();
           // 更新按钮高亮
-          document.querySelectorAll(".trend-mode-btn").forEach((b) => {
+          document.querySelectorAll(".trend-mode-btn[data-trend-mode]").forEach((b) => {
             b.classList.toggle("active", b.dataset.trendMode === state.salesTrendFilters.mode);
+          });
+          cacheAppState();
+        });
+      });
+
+      // 视图粒度切换：每日 / 按季度
+      document.querySelectorAll(".trend-mode-btn[data-trend-granularity]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.salesTrendFilters.granularity = btn.dataset.trendGranularity || "daily";
+          // 切换粒度时刷新整个面板（标题/提示文案需同步更新）
+          render();
+          cacheAppState();
+        });
+      });
+
+      // 趋势线开关与算法切换
+      document.querySelectorAll(".trend-mode-btn[data-trend-trendline]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const v = btn.dataset.trendTrendline;
+          if (v === "off") {
+            state.salesTrendFilters.showTrendLine = false;
+          } else {
+            state.salesTrendFilters.showTrendLine = true;
+            state.salesTrendFilters.trendMethod = v === "ma" ? "ma" : "linear";
+          }
+          refreshChart();
+          // 同步按钮高亮
+          const f = state.salesTrendFilters;
+          document.querySelectorAll(".trend-mode-btn[data-trend-trendline]").forEach((b) => {
+            const bv = b.dataset.trendTrendline;
+            const active = bv === "off" ? !f.showTrendLine
+              : (f.showTrendLine && (bv === "linear" ? f.trendMethod === "linear" : f.trendMethod === "ma"));
+            b.classList.toggle("active", active);
           });
           cacheAppState();
         });
@@ -6507,7 +6740,7 @@ bindTrendTooltip(chartEl);
       state.matrixFocusKey = "";
       state.matrixExpandedCells = {};
       state.matrixFilters = { category: "全部", isRegularPrice: "全部", kpiFilter: "all" };
-      state.salesTrendFilters = { selectedKeys: [], startDate: "", endDate: "", search: "", mode: "split" };
+      state.salesTrendFilters = { selectedKeys: [], startDate: "", endDate: "", search: "", mode: "split", granularity: "daily", showTrendLine: false, trendMethod: "linear" };
       setBatchNote("");
       render();
     }
