@@ -1470,6 +1470,7 @@ pointer-events: none;
           <button class="mode-btn active" data-mode="cockpit">驾驶舱</button>
           <button class="mode-btn" data-mode="matrix">九宫格</button>
           <button class="mode-btn" data-mode="salesTrend">销售趋势</button>
+          <button class="mode-btn" data-mode="kttImport">快团团导入</button>
         </div>
         <div class="actions">
           <button id="batch-upload" class="ghost">批量上传</button>
@@ -1638,6 +1639,7 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
         trendMethod: "linear", // linear=线性回归, ma=移动平均
         category: "全部", // 分类筛选（来自商品资料G列）
       },
+      kttImportData: [], // 快团团导入解析结果 [{importNo, name, phone, address, csNote, productName, qty}]
     };
 
     const columnResizeState = {
@@ -4120,6 +4122,15 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
             `<span class="pill">线下净销售 ${formatInteger(Math.max(0, totalOff))}</span>`,
           ];
         }
+      } else if (state.activeTab === "kttImport") {
+        const rows = state.kttImportData;
+        if (rows.length) {
+          const orderCount = new Set(rows.map((r) => r.importNo)).size;
+          pills = [
+            `<span class="pill">已解析 ${formatInteger(orderCount)} 单</span>`,
+            `<span class="pill">${formatInteger(rows.length)} 条商品</span>`,
+          ];
+        }
       } else if (state.activeTab === "matrix") {
         if (model.matrixRows && model.matrixRows.length) {
           const cats = new Set(model.matrixRows.map((r) => r.category).filter(Boolean));
@@ -4150,6 +4161,10 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       if (state.activeTab === "salesTrend") {
         // 销售趋势Tab只显示每日销量趋势文件
         return SOURCE_CONFIGS.filter(cfg => cfg.key === "salesTrend");
+      }
+      if (state.activeTab === "kttImport") {
+        // 快团团导入Tab不需要文件上传
+        return [];
       }
       // 驾驶舱Tab显示除九宫格与销售趋势外的所有文件
       return SOURCE_CONFIGS.filter(cfg => cfg.key !== "matrixWorkbook" && cfg.key !== "salesTrend");
@@ -4223,7 +4238,12 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       const host = document.getElementById("data-quality");
       const empty = (source) => source.rows.length === 0;
       let items = [];
-      
+
+      if (state.activeTab === "kttImport") {
+        // 快团团导入不需要数据质量面板
+        host.innerHTML = "";
+        return;
+      }
       if (state.activeTab === "matrix") {
         // 九宫格Tab只显示九宫格文件状态
         items = [
@@ -4346,6 +4366,16 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
           <div class="note">6. 线上净销售 = 线上销售 - 线上退货；线下净销售 = 线下销售。</div>
           <div class="note">7. 横轴=日期，纵轴=销量；可多商品对比、按日期段筛选。</div>
           <div class="note">8. 页面会在本地缓存已上传文件，刷新后可自动恢复。</div>
+        `;
+      } else if (state.activeTab === "kttImport") {
+        titleEl.textContent = "快团团销售单导入";
+        subtitleEl.textContent = "快团团导入模式：粘贴聊天记录，自动解析生成导入模板 Excel。无需上传文件。";
+        notesEl.innerHTML = `
+          <div class="note">1. 复制快团团订单聊天记录（含跟团号、订单编号、商品信息、收货信息等）。</div>
+          <div class="note">2. 粘贴到输入框，支持一次粘贴多笔订单。</div>
+          <div class="note">3. 点击"解析"预览结果，确认后点击"下载 Excel"。</div>
+          <div class="note">4. 货品名称规则：含"香型备注"取团员备注名称；否则取商品信息产品名。</div>
+          <div class="note">5. 同一订单多商品共享同一导入编号。</div>
         `;
       } else {
         titleEl.textContent = "驾驶舱文件";
@@ -5733,6 +5763,10 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         case "salesTrend":
           host.innerHTML = renderSalesTrendTab(model);
           break;
+        case "kttImport":
+          host.innerHTML = renderKttImportTab();
+          bindKttImportInteractions();
+          break;
         case "cockpit":
           // 驾驶舱 Tab 根据子 Tab 渲染内容
           switch (state.cockpitSubtab) {
@@ -6493,6 +6527,269 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       }).join("");
     }
 
+    // ===== 快团团销售单导入 =====
+
+    // 解析快团团聊天记录为导入行
+    // 输入：多订单聊天记录文本
+    // 输出：[{importNo, name, phone, address, csNote, productName, qty}]
+    function parseKttChatLog(text) {
+      if (!text || !text.trim()) return [];
+      // 按"跟团号："分割订单块
+      const blocks = text.split(/跟团号[：:]/).slice(1);
+      const rows = [];
+      let importNo = 0;
+      blocks.forEach((block) => {
+        const orderText = block.trim();
+        if (!orderText) return;
+        // 提取跟团号（块开头的数字）
+        const groupMatch = orderText.match(/^(\d+)/);
+        const groupNo = groupMatch ? groupMatch[1] : "";
+        // 提取订单编号
+        const orderMatch = orderText.match(/订单编号[：:]\s*([^\n\r]+)/);
+        const orderNo = orderMatch ? orderMatch[1].trim() : "";
+        // 提取商品信息
+        const productMatch = orderText.match(/商品信息[：:]\s*\n([\s\S]*?)(?=\n快递信息[：:]|$)/);
+        const productInfo = productMatch ? productMatch[1].trim() : "";
+        // 提取收货信息
+        const addrMatch = orderText.match(/收货信息[：:]\s*([^\n\r]+)/);
+        const addrInfo = addrMatch ? addrMatch[1].trim() : "";
+        // 提取团员备注
+        const memberNoteMatch = orderText.match(/团员备注[：:]\s*([^\n\r]+)/);
+        const memberNote = memberNoteMatch ? memberNoteMatch[1].trim() : "";
+
+        // 解析收货信息：姓名 手机号 地址
+        let name = "", phone = "", address = "";
+        if (addrInfo) {
+          const parts = addrInfo.split(/\s+/);
+          if (parts.length >= 3) {
+            name = parts[0];
+            phone = parts[1];
+            address = parts.slice(2).join(" ");
+          } else if (parts.length === 2) {
+            name = parts[0];
+            phone = parts[1];
+          } else {
+            name = parts[0] || "";
+          }
+        }
+
+        // 客服备注：跟团号 + 订单编号
+        const csNote = `跟团号：${groupNo}\n订单编号：${orderNo}`;
+
+        importNo += 1;
+
+        // 判断是否香型备注
+        const isFragranceNote = productInfo.includes("香型备注");
+
+        if (isFragranceNote) {
+          // 香型备注：从团员备注解析商品和数量
+          const items = parseKttMemberNotes(memberNote);
+          if (items.length === 0) {
+            // 备注为"暂无"等无效内容，回退用商品信息名称
+            const fallback = extractKttProductName(productInfo);
+            rows.push({ importNo, name, phone, address, csNote, productName: fallback, qty: 1 });
+          } else {
+            items.forEach((item) => {
+              rows.push({ importNo, name, phone, address, csNote, productName: item.name, qty: item.qty });
+            });
+          }
+        } else {
+          // 非香型备注：直接用商品信息
+          const product = extractKttProductInfo(productInfo);
+          rows.push({ importNo, name, phone, address, csNote, productName: product.name, qty: product.qty });
+        }
+      });
+      return rows;
+    }
+
+    // 解析团员备注为商品项数组 [{name, qty}]
+    function parseKttMemberNotes(note) {
+      if (!note || note === "暂无" || note === "无") return [];
+      // 先按逗号（中英文）分割
+      let parts = note.split(/[，,]/).map((s) => s.trim()).filter(Boolean);
+      // 如果只有一段且包含空格，再按空格分割
+      if (parts.length === 1 && parts[0].includes(" ")) {
+        parts = parts[0].split(/\s+/).map((s) => s.trim()).filter(Boolean);
+      }
+      return parts.map((part) => {
+        // 解析 "xN" 或 "×N" 后缀
+        const m = part.match(/^(.+?)[x×](\d+)$/);
+        if (m) {
+          return { name: m[1].trim(), qty: parseInt(m[2], 10) };
+        }
+        return { name: part, qty: 1 };
+      });
+    }
+
+    // 从商品信息提取产品名（非香型备注情况）
+    // 格式如 "黑爪：风雅色香水x1瓶(月影) +1" → {name: "风雅色香水(月影)", qty: 1}
+    function extractKttProductInfo(info) {
+      if (!info) return { name: "", qty: 1 };
+      let text = info.trim();
+      // 去除品牌前缀（"黑爪："等）
+      const colonIdx = text.indexOf("：");
+      if (colonIdx >= 0) text = text.slice(colonIdx + 1).trim();
+      const colonIdx2 = text.indexOf(":");
+      if (colonIdx2 >= 0 && colonIdx2 < 10) text = text.slice(colonIdx2 + 1).trim();
+      // 提取括号内容（香型规格）
+      const parenMatch = text.match(/[（(]([^)）]+)[)）]/);
+      const fragrance = parenMatch ? parenMatch[1].trim() : "";
+      // 去除括号及之后内容
+      text = text.replace(/[（(][^)）]+[)）]/g, "").trim();
+      // 提取数量 xN 或 ×N
+      const qtyMatch = text.match(/[x×](\d+)/);
+      const qty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
+      // 去除 xN 和后缀
+      text = text.replace(/[x×]\d+.*$/, "").trim();
+      // 拼接香型规格
+      const name = fragrance ? `${text}(${fragrance})` : text;
+      return { name: name || info, qty };
+    }
+
+    // 从商品信息提取产品名（简版，用于香型备注回退）
+    function extractKttProductName(info) {
+      if (!info) return "";
+      let text = info.trim();
+      const colonIdx = text.indexOf("：");
+      if (colonIdx >= 0) text = text.slice(colonIdx + 1).trim();
+      const qtyMatch = text.match(/[x×](\d+)/);
+      text = text.replace(/[（(][^)）]+[)）]/g, "").replace(/[x×]\d+.*$/, "").trim();
+      return text || info;
+    }
+
+    // 导出快团团导入数据为 Excel
+    function exportKttImportExcel(rows) {
+      if (!rows || !rows.length) {
+        alert("没有可导出的数据，请先粘贴并解析聊天记录");
+        return;
+      }
+      const headers = ["导入编号", "收货人", "手机", "收货地址", "客服备注", "货品名称", "数量"];
+      const data = [headers];
+      rows.forEach((row) => {
+        data.push([
+          row.importNo,
+          row.name,
+          row.phone,
+          row.address,
+          row.csNote,
+          row.productName,
+          row.qty,
+        ]);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "快团团导入");
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
+      XLSX.writeFile(wb, `快团团导入_${timestamp}.xlsx`);
+    }
+
+    // 渲染快团团导入 Tab
+    function renderKttImportTab() {
+      const rows = state.kttImportData;
+      const previewRows = rows.slice(0, 200);
+      const orderCount = rows.length ? new Set(rows.map((r) => r.importNo)).size : 0;
+
+      let tableHtml = "";
+      if (rows.length) {
+        tableHtml = `
+          <div class="soft-card" style="overflow-x:auto;">
+            <table class="data-table" style="width:100%;font-size:13px;">
+              <thead>
+                <tr>
+                  <th>导入编号</th>
+                  <th>收货人</th>
+                  <th>手机</th>
+                  <th>收货地址</th>
+                  <th>客服备注</th>
+                  <th>货品名称</th>
+                  <th>数量</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${previewRows.map((row) => `
+                  <tr>
+                    <td>${escapeHtml(row.importNo)}</td>
+                    <td>${escapeHtml(row.name)}</td>
+                    <td>${escapeHtml(row.phone)}</td>
+                    <td style="max-width:280px;word-break:break-all;">${escapeHtml(row.address)}</td>
+                    <td style="white-space:pre-line;max-width:200px;">${escapeHtml(row.csNote)}</td>
+                    <td>${escapeHtml(row.productName)}</td>
+                    <td>${escapeHtml(row.qty)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+          ${rows.length > 200 ? `<div class="note" style="margin-top:8px;">预览仅显示前 200 条，导出 Excel 包含全部 ${formatInteger(rows.length)} 条。</div>` : ""}
+        `;
+      }
+
+      return `
+        <div class="panel">
+          <div class="block-head">
+            <div>
+              <h2>快团团销售单导入</h2>
+              <div class="note">粘贴快团团聊天记录，自动解析生成导入模板 Excel。同一订单的商品共享同一导入编号。</div>
+            </div>
+          </div>
+          <div class="soft-card" style="display:grid;gap:12px;">
+            <div class="note" style="line-height:1.7;">
+              <strong>使用说明：</strong><br>
+              1. 复制快团团订单聊天记录（包含跟团号、订单编号、商品信息、收货信息、团员备注等字段）<br>
+              2. 粘贴到下方输入框，支持一次粘贴多笔订单<br>
+              3. 点击"解析"按钮预览结果，确认无误后点击"下载 Excel"<br>
+              4. <strong>货品名称规则：</strong>商品信息含"香型备注"时取团员备注的香型名称；否则取商品信息中的产品名
+            </div>
+            <textarea id="ktt-input" placeholder="在此粘贴快团团聊天记录..." style="width:100%;min-height:200px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;resize:vertical;font-family:inherit;" rows="10"></textarea>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <button class="primary" id="ktt-parse-btn">解析</button>
+              <button class="ghost" id="ktt-clear-btn">清空</button>
+              ${rows.length ? `<button class="primary" id="ktt-export-btn">下载 Excel</button>` : ""}
+              ${rows.length ? `<span class="note">已解析 ${formatInteger(orderCount)} 单 / ${formatInteger(rows.length)} 条商品</span>` : ""}
+            </div>
+          </div>
+          ${tableHtml}
+        </div>
+      `;
+    }
+
+    // 绑定快团团导入交互
+    function bindKttImportInteractions() {
+      const parseBtn = document.getElementById("ktt-parse-btn");
+      const clearBtn = document.getElementById("ktt-clear-btn");
+      const exportBtn = document.getElementById("ktt-export-btn");
+      const input = document.getElementById("ktt-input");
+
+      if (parseBtn && input) {
+        parseBtn.addEventListener("click", () => {
+          const text = input.value;
+          if (!text || !text.trim()) {
+            alert("请先粘贴聊天记录");
+            return;
+          }
+          const rows = parseKttChatLog(text);
+          if (!rows.length) {
+            alert("未能解析出任何订单，请检查格式是否正确（需包含"跟团号："字段）");
+            return;
+          }
+          state.kttImportData = rows;
+          render();
+        });
+      }
+      if (clearBtn) {
+        clearBtn.addEventListener("click", () => {
+          state.kttImportData = [];
+          if (input) input.value = "";
+          render();
+        });
+      }
+      if (exportBtn) {
+        exportBtn.addEventListener("click", () => {
+          exportKttImportExcel(state.kttImportData);
+        });
+      }
+    }
+
     function renderSalesTrendTab(model) {
       const trend = model.salesTrendModel;
       const f = state.salesTrendFilters;
@@ -6871,6 +7168,14 @@ bindTrendTooltip(chartEl);
         kpiGrid.style.display = "none";
         tabsBar.style.display = "none";
         document.getElementById("tab-content").innerHTML = renderSalesTrendLoading();
+        return;
+      }
+
+      // 快团团导入不需要上传文件，直接渲染
+      if (state.activeTab === "kttImport") {
+        kpiGrid.style.display = "none";
+        tabsBar.style.display = "none";
+        renderTabContent(model);
         return;
       }
 
