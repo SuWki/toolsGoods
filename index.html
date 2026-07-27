@@ -6603,15 +6603,13 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
     }
 
     // 解析团员备注为商品项数组 [{name, qty}]
-    // 支持分隔符：逗号(，,)、加号(+)、&、空格
+    // 支持分隔符：逗号(，,)、加号(+)、&、空格、中文"和"
     function parseKttMemberNotes(note) {
       if (!note || note === "暂无" || note === "无") return [];
-      // 按逗号/加号/& 分割
-      let parts = note.split(/[，,+&]/).map((s) => s.trim()).filter(Boolean);
-      // 如果只有一段且包含空格，再按空格分割
-      if (parts.length === 1 && parts[0].includes(" ")) {
-        parts = parts[0].split(/\s+/).map((s) => s.trim()).filter(Boolean);
-      }
+      // 按逗号/加号/&/和 分割
+      let parts = note.split(/[，,+&]|和/).map((s) => s.trim()).filter(Boolean);
+      // 对每段再按空格分割（处理"月影和琥珀 薄荷"等混合分隔）
+      parts = parts.flatMap((p) => p.includes(" ") ? p.split(/\s+/).map((s) => s.trim()).filter(Boolean) : [p]);
       return parts.map((part) => {
         // 解析 "xN" 或 "×N" 后缀
         const m = part.match(/^(.+?)[x×](\d+)$/);
