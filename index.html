@@ -6603,10 +6603,11 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
     }
 
     // 解析团员备注为商品项数组 [{name, qty}]
+    // 支持分隔符：逗号(，,)、加号(+)、&、空格
     function parseKttMemberNotes(note) {
       if (!note || note === "暂无" || note === "无") return [];
-      // 先按逗号（中英文）分割
-      let parts = note.split(/[，,]/).map((s) => s.trim()).filter(Boolean);
+      // 按逗号/加号/& 分割
+      let parts = note.split(/[，,+&]/).map((s) => s.trim()).filter(Boolean);
       // 如果只有一段且包含空格，再按空格分割
       if (parts.length === 1 && parts[0].includes(" ")) {
         parts = parts[0].split(/\s+/).map((s) => s.trim()).filter(Boolean);
