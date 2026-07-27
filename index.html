@@ -3476,6 +3476,8 @@ sources: Object.fromEntries(
     // 消化周期(天) → X+Y系数之和
     function getDigestionSum(sellOutDays) {
       if (sellOutDays === null || sellOutDays === undefined || Number.isNaN(sellOutDays)) return 6;
+      // 负数消化周期为异常情况（如库存或销量为负），当作无法消化丢到9号位（sum=6）
+      if (sellOutDays < 0) return 6;
       if (sellOutDays <= 90) return 2;
       if (sellOutDays <= 180) return 3;
       if (sellOutDays <= 360) return 4;
