@@ -2423,14 +2423,20 @@ sources: Object.fromEntries(
       const imageTargets = new Map();
       const rows = [];
 
-      // 销售时间段识别：优先读取 E1 单元格日期（c=4, r=0），失败则回退到净出库列扫描
+      // 销售时间段识别：起点固定 2026-01-01，终点读取 E1 单元格日期（c=4, r=0）
+      // E1 解析失败时回退到净出库列扫描
       let salesPeriod = null;
       let periodMonths = 7;
+      const FIXED_START = "2026-01-01";
       const e1Cell = sheet[XLSX.utils.encode_cell({ r: 0, c: 4 })];
       if (e1Cell) {
-        salesPeriod = parseSalesPeriodFromCell(e1Cell);
+        const parsed = parseSalesPeriodFromCell(e1Cell);
+        if (parsed && parsed.end) {
+          // 起点固定，终点取 E1 解析出的 end
+          salesPeriod = { start: FIXED_START, end: parsed.end };
+        }
       }
-      // 回退：从AP列扫描净出库数据确定时间段
+      // 回退：从AP列扫描净出库数据确定终点（起点仍固定）
       if (!salesPeriod) {
         const headerRow = sheetRows[2] || [];
         const totalsRow = sheetRows[1] || [];
@@ -2447,18 +2453,17 @@ sources: Object.fromEntries(
           }
         }
         if (netOutboundMonths.length > 0) {
-          const startMonth = Math.min(...netOutboundMonths);
           const endMonth = Math.max(...netOutboundMonths);
           const year = new Date().getFullYear();
           const endDay = new Date(year, endMonth, 0).getDate();
           salesPeriod = {
-            start: `${year}-${String(startMonth).padStart(2, "0")}-01`,
+            start: FIXED_START,
             end: `${year}-${String(endMonth).padStart(2, "0")}-${String(endDay).padStart(2, "0")}`,
           };
-          periodMonths = endMonth - startMonth + 1;
         }
-      } else if (salesPeriod.start && salesPeriod.end) {
-        // 根据 E1 日期范围计算 periodMonths
+      }
+      // 根据 start~end 计算 periodMonths
+      if (salesPeriod && salesPeriod.start && salesPeriod.end) {
         const start = new Date(salesPeriod.start);
         const end = new Date(salesPeriod.end);
         if (!isNaN(start) && !isNaN(end)) {
@@ -2499,7 +2504,10 @@ sources: Object.fromEntries(
         const sellOutDays = (stockMonths !== null && stockMonths !== undefined)
           ? stockMonths * 30
           : (monthlyAverage > 0 ? (currentStock / monthlyAverage) * 30 : Infinity);
-        const canSellBeforeExpiry = sellOutDays !== null && remainingDays !== null ? sellOutDays <= remainingDays : null;
+        // 负数消化周期为异常情况：能否卖完直接判定为 false（卖不完）
+        const canSellBeforeExpiry = (sellOutDays !== null && sellOutDays < 0)
+          ? false
+          : (sellOutDays !== null && remainingDays !== null ? sellOutDays <= remainingDays : null);
 
         // 图片：DISPIMG 公式存在 cell.f 或 cell.v 中
         const imageCell = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: 2 })];
@@ -3491,6 +3499,14 @@ sources: Object.fromEntries(
       return labels[sum] || "未知";
     }
 
+    // 判断消化周期是否"无法消化"：负数（异常）或 Infinity（有库存无销量）
+    // 用于表格统一显示"无法消化"，避免负数被显示为"-100 天"
+    function isIndigestible(sellOutDays) {
+      return sellOutDays === Infinity
+        || (typeof sellOutDays === "number" && sellOutDays < 0)
+        || (sellOutDays !== null && sellOutDays !== undefined && Number(sellOutDays) < 0);
+    }
+
     // 九宫格位置编号：先横再竖，1~9号位
     // gridOrder: (1,1)=1号位 (2,1)=2号位 (3,1)=3号位 (1,2)=4号位 ... (3,3)=9号位
     const GRID_ORDER = [
@@ -3660,9 +3676,12 @@ sources: Object.fromEntries(
           const derivedStockMonths = stockMonths !== null && stockMonths !== undefined
             ? stockMonths
             : (salesQty > 0 ? (stockQty / salesQty) * periodMonths : null);
-          const canSellBeforeExpiry = row.canSellBeforeExpiry !== null && row.canSellBeforeExpiry !== undefined
-            ? row.canSellBeforeExpiry
-            : (remainingDays !== null && sellOutDays !== null ? sellOutDays <= remainingDays : null);
+          // 负数消化周期为异常情况：能否卖完直接判定为 false（卖不完）
+          const canSellBeforeExpiry = (sellOutDays !== null && sellOutDays < 0)
+            ? false
+            : (row.canSellBeforeExpiry !== null && row.canSellBeforeExpiry !== undefined
+              ? row.canSellBeforeExpiry
+              : (remainingDays !== null && sellOutDays !== null ? sellOutDays <= remainingDays : null));
 
           // 保质期：剩余天数 / 365，保留1位小数
           const remainingDaysForExpiry = maybeNumber(row.remainingDays);
@@ -4614,7 +4633,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
               { label: "分类", render: (row) => escapeHtml(row.category || "-") },
               { label: "日销系数", render: (row) => row.dailySalesCoef !== null && row.dailySalesCoef !== undefined ? formatNumber(row.dailySalesCoef) : "-", sortValue: (row) => row.dailySalesCoef ?? 0 },
               { label: "消化周期", render: (row) => {
-                if (row.sellOutDays === Infinity) return "无法消化";
+                if (isIndigestible(row.sellOutDays)) return "无法消化";
                 if (row.sellOutDays !== null && row.sellOutDays !== undefined) return `${Math.round(row.sellOutDays)} 天`;
                 return "-";
               }, sortValue: (row) => row.sellOutDays === Infinity ? Number.MAX_SAFE_INTEGER : (row.sellOutDays ?? 0) },
@@ -4623,7 +4642,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
               { label: "补单备注", render: (row) => escapeHtml(row.reorderNote || "-") },
               { label: "保质期", render: (row) => row.avgExpiryDate ? `${escapeHtml(row.avgExpiryDate)} 年` : "-" },
               { label: "能否卖完", render: (row) => badge(row.canSellBeforeExpiry === false ? "danger" : "good", row.canSellBeforeExpiry === false ? "卖不完" : "可卖完") },
-              { label: "九宫格位置", key: "matrixPos", render: (row) => escapeHtml(getMatrixPosition(row.salesCoef, row.inventoryCoef)), sortValue: (row) => { const idx = GRID_ORDER.findIndex(p => p.x === row.salesCoef && p.y === row.inventoryCoef); return idx >= 0 ? idx + 1 : 0; } },
+              { label: "九宫格位置", key: "matrixPos", render: (row) => escapeHtml(isIndigestible(row.sellOutDays) ? "九号位" : getMatrixPosition(row.salesCoef, row.inventoryCoef)), sortValue: (row) => { const idx = GRID_ORDER.findIndex(p => p.x === row.salesCoef && p.y === row.inventoryCoef); return idx >= 0 ? idx + 1 : 0; } },
             ],
             emptyText: "当前筛选下没有 SKU。请换个分类或放宽条件。",
             previewText: `共 ${formatInteger(rows.length)} 条`,
@@ -4666,7 +4685,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
           { label: "规格", render: (row) => escapeHtml(row.spec || "-") },
           { label: "分类", render: (row) => escapeHtml(row.category || "-") },
           { label: "消化周期", render: (row) => {
-            if (row.sellOutDays === Infinity) return "无法消化";
+            if (isIndigestible(row.sellOutDays)) return "无法消化";
             if (row.sellOutDays !== null && row.sellOutDays !== undefined) return `${Math.round(row.sellOutDays)} 天`;
             return "-";
           }, sortValue: (row) => row.sellOutDays === Infinity ? Number.MAX_SAFE_INTEGER : (row.sellOutDays ?? 0) },
@@ -5680,8 +5699,9 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       const headers = ["品名", "规格", "条码", "分类", "日销系数", "消化周期(天)", "即时库存", "生产备注", "补单备注", "保质期(年)", "能否卖完", "九宫格位置"];
       const data = [headers];
       rows.forEach((row) => {
-        const sellOutDays = row.sellOutDays === Infinity ? "无法消化" : (row.sellOutDays !== null && row.sellOutDays !== undefined ? Math.round(row.sellOutDays) : "-");
+        const sellOutDays = isIndigestible(row.sellOutDays) ? "无法消化" : (row.sellOutDays !== null && row.sellOutDays !== undefined ? Math.round(row.sellOutDays) : "-");
         const canSell = row.canSellBeforeExpiry === false ? "卖不完" : (row.canSellBeforeExpiry === true ? "可卖完" : "-");
+        const matrixPos = isIndigestible(row.sellOutDays) ? "九号位" : getMatrixPosition(row.salesCoef, row.inventoryCoef);
         data.push([
           row.productName || "",
           row.spec || "",
@@ -5694,7 +5714,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
           row.reorderNote || "",
           row.avgExpiryDate || "",
           canSell,
-          getMatrixPosition(row.salesCoef, row.inventoryCoef),
+          matrixPos,
         ]);
       });
       const ws = XLSX.utils.aoa_to_sheet(data);
