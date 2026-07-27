@@ -2423,33 +2423,47 @@ sources: Object.fromEntries(
       const imageTargets = new Map();
       const rows = [];
 
-      // 从AP列开始扫描净出库数据，确定统计时间段和周期月数
-      const headerRow = sheetRows[2] || [];
-      const totalsRow = sheetRows[1] || [];
-      let netOutboundMonths = [];
-      for (let c = 41; c < headerRow.length; c++) {
-        const headerText = String(headerRow[c] || "").trim();
-        if (headerText.includes("净出库")) {
-          const monthMatch = headerText.match(/(\d+)月/);
-          const month = monthMatch ? parseInt(monthMatch[1]) : (c - 41 + 1);
-          const total = Number(totalsRow[c]) || 0;
-          if (total > 0) {
-            netOutboundMonths.push(month);
-          }
-        }
-      }
+      // 销售时间段识别：优先读取 E1 单元格日期（c=4, r=0），失败则回退到净出库列扫描
       let salesPeriod = null;
       let periodMonths = 7;
-      if (netOutboundMonths.length > 0) {
-        const startMonth = Math.min(...netOutboundMonths);
-        const endMonth = Math.max(...netOutboundMonths);
-        const year = new Date().getFullYear();
-        const endDay = new Date(year, endMonth, 0).getDate();
-        salesPeriod = {
-          start: `${year}-${String(startMonth).padStart(2, "0")}-01`,
-          end: `${year}-${String(endMonth).padStart(2, "0")}-${String(endDay).padStart(2, "0")}`,
-        };
-        periodMonths = endMonth - startMonth + 1;
+      const e1Cell = sheet[XLSX.utils.encode_cell({ r: 0, c: 4 })];
+      if (e1Cell) {
+        salesPeriod = parseSalesPeriodFromCell(e1Cell);
+      }
+      // 回退：从AP列扫描净出库数据确定时间段
+      if (!salesPeriod) {
+        const headerRow = sheetRows[2] || [];
+        const totalsRow = sheetRows[1] || [];
+        let netOutboundMonths = [];
+        for (let c = 41; c < headerRow.length; c++) {
+          const headerText = String(headerRow[c] || "").trim();
+          if (headerText.includes("净出库")) {
+            const monthMatch = headerText.match(/(\d+)月/);
+            const month = monthMatch ? parseInt(monthMatch[1]) : (c - 41 + 1);
+            const total = Number(totalsRow[c]) || 0;
+            if (total > 0) {
+              netOutboundMonths.push(month);
+            }
+          }
+        }
+        if (netOutboundMonths.length > 0) {
+          const startMonth = Math.min(...netOutboundMonths);
+          const endMonth = Math.max(...netOutboundMonths);
+          const year = new Date().getFullYear();
+          const endDay = new Date(year, endMonth, 0).getDate();
+          salesPeriod = {
+            start: `${year}-${String(startMonth).padStart(2, "0")}-01`,
+            end: `${year}-${String(endMonth).padStart(2, "0")}-${String(endDay).padStart(2, "0")}`,
+          };
+          periodMonths = endMonth - startMonth + 1;
+        }
+      } else if (salesPeriod.start && salesPeriod.end) {
+        // 根据 E1 日期范围计算 periodMonths
+        const start = new Date(salesPeriod.start);
+        const end = new Date(salesPeriod.end);
+        if (!isNaN(start) && !isNaN(end)) {
+          periodMonths = Math.max(1, Math.round((end - start) / (30 * 24 * 60 * 60 * 1000)));
+        }
       }
 
       // 数据从第4行开始（索引3）
@@ -2781,6 +2795,54 @@ sources: Object.fromEntries(
 
     // 每日销量趋势文件解析见 parseSalesTrendRowsFromFile（主线程，复用已加载的 XLSX）
     // 兼容多种日期格式：Date / Excel 序号 / YYYY-MM-DD / YYYY/MM/DD / YYYYMMDD(紧凑)
+    // 解析 E1 单元格日期为销售时间段 {start, end}
+    // 支持：Date对象、Excel日期序列号、字符串（单日期或日期范围）
+    function parseSalesPeriodFromCell(cell) {
+      if (!cell) return null;
+      const v = cell.v;
+      if (v == null) return null;
+
+      // Date 对象（cellDates:true 时）
+      if (v instanceof Date && !Number.isNaN(v.getTime())) {
+        const dateStr = v.toISOString().slice(0, 10);
+        return { start: dateStr, end: dateStr };
+      }
+
+      // Excel 日期序列号
+      if (typeof v === "number" && v > 20000 && v < 70000) {
+        const base = new Date(Date.UTC(1899, 11, 30));
+        base.setUTCDate(base.getUTCDate() + v);
+        const dateStr = base.toISOString().slice(0, 10);
+        return { start: dateStr, end: dateStr };
+      }
+
+      // 字符串
+      const text = String(v).trim();
+      if (!text) return null;
+
+      // 日期范围：如 "2024-01-01~2024-07-31"、"2024/1/1 - 2024/7/31"、"2024.01.01至2024.07.31"
+      const rangeMatch = text.match(/(\d{4}[-./]\d{1,2}[-./]\d{1,2})\s*[~\-至到~]+\s*(\d{4}[-./]\d{1,2}[-./]\d{1,2})/);
+      if (rangeMatch) {
+        return { start: normalizeDateStr(rangeMatch[1]), end: normalizeDateStr(rangeMatch[2]) };
+      }
+
+      // 单个日期
+      const dateMatch = text.match(/(\d{4}[-./]\d{1,2}[-./]\d{1,2})/);
+      if (dateMatch) {
+        const dateStr = normalizeDateStr(dateMatch[1]);
+        return { start: dateStr, end: dateStr };
+      }
+
+      return null;
+    }
+
+    // 统一日期字符串为 "YYYY-MM-DD" 格式
+    function normalizeDateStr(s) {
+      const m = String(s).match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+      if (!m) return String(s);
+      return `${m[1]}-${String(m[2]).padStart(2, "0")}-${String(m[3]).padStart(2, "0")}`;
+    }
+
     function parseTrendDate(value) {
       if (!value) return "";
       if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
@@ -3446,6 +3508,38 @@ sources: Object.fromEntries(
       const idx = GRID_ORDER.findIndex(p => p.x === x && p.y === y);
       if (idx < 0) return "-";
       return `${idx + 1}号位`;
+    }
+
+    // 九宫格位置优劣等级映射（1=最优，5=最差）
+    // 规则：1号位最优；2号位=4号位；3号位=5号位=7号位；6号位=8号位；9号位最差
+    // 等级数值越小表示位置越好
+    const POSITION_RANK_MAP = { 1: 1, 2: 2, 3: 3, 4: 2, 5: 3, 6: 4, 7: 3, 8: 4, 9: 5 };
+
+    // 从位置字符串（如"3号位"）提取等级；无效位置返回 null
+    function getPositionRank(posStr) {
+      if (!posStr) return null;
+      const m = String(posStr).match(/(\d+)号位/);
+      if (!m) return null;
+      const num = parseInt(m[1], 10);
+      return POSITION_RANK_MAP[num] != null ? POSITION_RANK_MAP[num] : null;
+    }
+
+    // 计算两个位置之间的趋势箭头（HTML）
+    // 变好=绿色↑，变差=红色↓，持平=灰色→，无法比较=空
+    function getPositionTrendArrow(fromPos, toPos) {
+      const fromRank = getPositionRank(fromPos);
+      const toRank = getPositionRank(toPos);
+      if (fromRank == null || toRank == null) return "";
+      if (toRank < fromRank) {
+        // 等级数值变小=位置变好
+        return `<span style="color:#16a34a;font-weight:600;" title="位置变好：${fromPos} → ${toPos}">↑</span>`;
+      } else if (toRank > fromRank) {
+        // 等级数值变大=位置变差
+        return `<span style="color:#dc2626;font-weight:600;" title="位置变差：${fromPos} → ${toPos}">↓</span>`;
+      } else {
+        // 等级相同=持平
+        return `<span style="color:#9ca3af;font-weight:600;" title="位置持平：${fromPos} → ${toPos}">→</span>`;
+      }
     }
 
     // 获取当前数据源的时间节点标签
@@ -4546,19 +4640,23 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       const compareNodes = state.historyCompareNodes;
       const compareRows = rows.filter(row => row.key && state.matrixHistory[row.key]).map(row => {
         const hist = state.matrixHistory[row.key] || {};
+        const positions = compareNodes.map(node => node ? (hist[node] || "-") : "-");
         return {
           key: row.key,
           productName: row.productName,
           spec: row.spec,
           category: row.category,
           sellOutDays: row.sellOutDays,
-          positions: compareNodes.map(node => node ? (hist[node] || "-") : "-"),
+          positions,
+          // 趋势箭头：节点1→2、节点2→3（仅当两端都有有效位置时显示）
+          trend12: (positions[0] !== "-" && positions[1] !== "-") ? getPositionTrendArrow(positions[0], positions[1]) : "",
+          trend23: (positions[1] !== "-" && positions[2] !== "-") ? getPositionTrendArrow(positions[1], positions[2]) : "",
         };
       });
       return tableSection({
         tabId: "historyCompare",
         title: "历史节点九宫格位置对比",
-        note: "选择最多三个时间节点，对比商品在九宫格中的位置变化。每次上传新文件会自动记录当前位置。",
+        note: "选择最多三个时间节点，对比商品在九宫格中的位置变化。每次上传新文件会自动记录当前位置。趋势箭头：绿色↑变好 / 红色↓变差 / 灰色→持平。",
         rows: compareRows,
         showAll: true,
         columns: [
@@ -4571,7 +4669,9 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
             return "-";
           }, sortValue: (row) => row.sellOutDays === Infinity ? Number.MAX_SAFE_INTEGER : (row.sellOutDays ?? 0) },
           { label: "历史节点1", render: (row) => escapeHtml(row.positions[0] || "-"), sortValue: (row) => row.positions[0] || "" },
+          { label: "趋势", render: (row) => row.trend12, sortValue: (row) => row.trend12 },
           { label: "历史节点2", render: (row) => escapeHtml(row.positions[1] || "-"), sortValue: (row) => row.positions[1] || "" },
+          { label: "趋势", render: (row) => row.trend23, sortValue: (row) => row.trend23 },
           { label: "历史节点3", render: (row) => escapeHtml(row.positions[2] || "-"), sortValue: (row) => row.positions[2] || "" },
         ],
         emptyText: "暂无历史位置数据。每次上传新文件时会自动记录当前九宫格位置。",
