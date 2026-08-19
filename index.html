@@ -2483,16 +2483,19 @@ sources: Object.fromEntries(
 
         const spec = String(r[5] ?? "").trim();
         const category = String(r[6] ?? "").trim();
-        const productionNote = String(r[7] ?? "").trim();
-        const reorderNote = String(r[84] ?? "").trim();
-        const isRegularPrice = parseYesNo(r[8]);
-        const retailPrice = maybeNumber(r[9]);
-        // M列(13)=即时库存, N列(14)=日销系数, O列(15)=库存月, P列(16)=保质期剩余天数, CG列(85)=补单备注
-        const currentStock = parseNumber(r[12], 0);
-        const dailySalesCoef = maybeNumber(r[13]);
-        const stockMonths = maybeNumber(r[14]);
-        const remainingDays = maybeNumber(r[15]);
-        // 线上月均(21) + 线下月均(24) 计算月均销量
+        const retailPrice = maybeNumber(r[7]);
+        // I列(8)=生产备注，区分正常、停产、待定（其他）
+        const productionNote = String(r[8] ?? "").trim();
+        const isRegularPrice = ""; // 新版无此列，留空
+        // M列(12)=到期日期, N列(13)=剩余天数（等价）, O列(14)=即时库存, P列(15)=日销系数
+        const remainingDays = maybeNumber(r[13]);
+        const currentStock = parseNumber(r[14], 0);
+        const dailySalesCoef = maybeNumber(r[15]);
+        // 库存月 = 即时库存 / (日销系数 * 30)，由O列和P列计算
+        const stockMonths = (dailySalesCoef !== null && dailySalesCoef > 0)
+          ? currentStock / (dailySalesCoef * 30)
+          : null;
+        // 兼容旧版：线上月均(21)+线下月均(24)计算月均销量，新版无此列则为0
         const onlineMonthlyAvg = parseNumber(r[20], 0);
         const offlineMonthlyAvg = parseNumber(r[23], 0);
         const monthlyAverage = onlineMonthlyAvg + offlineMonthlyAvg;
@@ -2500,9 +2503,7 @@ sources: Object.fromEntries(
         const salesTrend = String(r[27] ?? "").trim();
         // periodMonths 由净出库列数据扫描得出（后续会延长）
         const salesQty = Math.round(monthlyAverage * periodMonths);
-        const derivedStockMonths = stockMonths !== null && stockMonths !== undefined
-          ? stockMonths
-          : (monthlyAverage > 0 ? currentStock / monthlyAverage : null);
+        const derivedStockMonths = stockMonths;
         const sellOutDays = (stockMonths !== null && stockMonths !== undefined)
           ? stockMonths * 30
           : (monthlyAverage > 0 ? (currentStock / monthlyAverage) * 30 : Infinity);
@@ -2529,7 +2530,7 @@ sources: Object.fromEntries(
           spec,
           category,
           productionNote,
-          reorderNote,
+          reorderNote: "",
           isRegularPrice,
           retailPrice,
           sku,
