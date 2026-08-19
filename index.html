@@ -1619,6 +1619,7 @@ const COCKPIT_SUBTABS = [
       matrixFilters: {
         category: "全部",
         isRegularPrice: "全部",
+        productionNote: "全部", // 全部 / 正常生产 / 停产 / 待定 / 其他 / 未设置
         kpiFilter: "all", // all, digest2, digest3, digest4, digest5, digest6
       },
       salesPeriod: getDefaultSalesPeriod(),
@@ -3659,6 +3660,16 @@ sources: Object.fromEntries(
       });
     }
 
+    // 生产属性归一化：将生产备注文本归为 正常生产 / 停产 / 待定 / 其他 / 未设置
+    function getProductionStatus(productionNote) {
+      const note = String(productionNote || "").trim();
+      if (!note) return "未设置";
+      if (note.includes("正常")) return "正常生产";
+      if (note.includes("停产")) return "停产";
+      if (note.includes("待定")) return "待定";
+      return "其他";
+    }
+
     function buildMatrixRowsFromWorkbook(source) {
       const periodMonths = source?.periodMonths || 7;
       const periodDays = periodMonths * 30;
@@ -3722,9 +3733,11 @@ sources: Object.fromEntries(
         if ((row.stockQty || 0) === 0) return false;
         const categoryFilter = state.matrixFilters.category || "全部";
         const priceFilter = state.matrixFilters.isRegularPrice || "全部";
+        const productionFilter = state.matrixFilters.productionNote || "全部";
         const kpiFilter = state.matrixFilters.kpiFilter || "all";
         if (categoryFilter !== "全部" && (row.category || "未分类") !== categoryFilter) return false;
         if (priceFilter !== "全部" && (row.isRegularPrice || "未设置") !== priceFilter) return false;
+        if (productionFilter !== "全部" && getProductionStatus(row.productionNote) !== productionFilter) return false;
         // KPI筛选（按消化周期分类）
         if (kpiFilter !== "all") {
           if (kpiFilter === "digest2" && row.digestionSum !== 2) return false;
@@ -3864,8 +3877,10 @@ inventoryQty,
         if ((row.stockQty || 0) === 0) return false;
         const categoryFilter = state.matrixFilters.category || "全部";
         const priceFilter = state.matrixFilters.isRegularPrice || "全部";
+        const productionFilter = state.matrixFilters.productionNote || "全部";
         if (categoryFilter !== "全部" && (row.category || "未分类") !== categoryFilter) return false;
         if (priceFilter !== "全部" && (row.isRegularPrice || "未设置") !== priceFilter) return false;
+        if (productionFilter !== "全部" && getProductionStatus(row.productionNote) !== productionFilter) return false;
         return true;
       });
 
@@ -3959,7 +3974,7 @@ inventoryQty,
       return [
         base,
         `period:${state.salesPeriod.start || ""}-${state.salesPeriod.end || ""}`,
-        `filters:${state.matrixFilters.category || ""}-${state.matrixFilters.isRegularPrice || ""}-${state.matrixFilters.kpiFilter || ""}`,
+        `filters:${state.matrixFilters.category || ""}-${state.matrixFilters.isRegularPrice || ""}-${state.matrixFilters.productionNote || ""}-${state.matrixFilters.kpiFilter || ""}`,
         `focus:${state.matrixFocusKey || ""}`,
       ].join("|");
     }
@@ -4395,6 +4410,10 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       const totalRows = model.matrixRows || [];
       const categoryOptions = ["全部", ...model.matrixCategoryOptions];
       const priceOptions = ["全部", "是", "否", "未设置"];
+      // 生产属性选项：按固定优先级展示数据中实际存在的状态
+      const productionOrder = ["正常生产", "停产", "待定", "其他", "未设置"];
+      const presentStatuses = new Set(totalRows.map((row) => getProductionStatus(row.productionNote)));
+      const productionOptions = ["全部", ...productionOrder.filter((s) => presentStatuses.has(s))];
       // 区分两种空状态：1)完全没有数据 2)有数据但被筛选条件过滤为空
       if (!totalRows.length) {
         return `
@@ -4417,6 +4436,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
         const activeFilters = [];
         if (state.matrixFilters.category && state.matrixFilters.category !== "全部") activeFilters.push(`分类=${state.matrixFilters.category}`);
         if (state.matrixFilters.isRegularPrice && state.matrixFilters.isRegularPrice !== "全部") activeFilters.push(`是否正价=${state.matrixFilters.isRegularPrice}`);
+        if (state.matrixFilters.productionNote && state.matrixFilters.productionNote !== "全部") activeFilters.push(`生产属性=${state.matrixFilters.productionNote}`);
         if (state.matrixFilters.kpiFilter && state.matrixFilters.kpiFilter !== "all") {
           const kpiLabels = { digest2: "≤90天", digest3: "≤180天", digest4: "≤360天", digest5: "≤720天", digest6: ">720天" };
           activeFilters.push(`消化周期=${kpiLabels[state.matrixFilters.kpiFilter] || state.matrixFilters.kpiFilter}`);
@@ -4451,6 +4471,12 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
                 是否正价
                 <select data-matrix-price>
                   ${priceOptions.map((item) => `<option value="${escapeHtml(item)}" ${state.matrixFilters.isRegularPrice === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}
+                </select>
+              </label>
+              <label>
+                生产属性
+                <select data-matrix-production>
+                  ${productionOptions.map((item) => `<option value="${escapeHtml(item)}" ${state.matrixFilters.productionNote === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}
                 </select>
               </label>
               <label>
@@ -4612,6 +4638,12 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
               是否正价
               <select data-matrix-price>
                 ${priceOptions.map((item) => `<option value="${escapeHtml(item)}" ${state.matrixFilters.isRegularPrice === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}
+              </select>
+            </label>
+            <label>
+              生产属性
+              <select data-matrix-production>
+                ${productionOptions.map((item) => `<option value="${escapeHtml(item)}" ${state.matrixFilters.productionNote === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}
               </select>
             </label>
             <label>
@@ -5225,7 +5257,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
         const matrixReset = event.target.closest("[data-matrix-reset]");
         if (matrixReset) {
           state.matrixFocusKey = "";
-          state.matrixFilters = { category: "全部", isRegularPrice: "全部", kpiFilter: "all" };
+          state.matrixFilters = { category: "全部", isRegularPrice: "全部", productionNote: "全部", kpiFilter: "all" };
           state.salesPeriod = getDefaultSalesPeriod();
           updateTableState("linked", { page: 1, sortKey: "", sortDir: "desc" });
           render();
@@ -5378,9 +5410,11 @@ const matrixFitScreen = event.target.closest("[data-matrix-fit-screen]");
 
         const categorySelect = event.target.closest("[data-matrix-category]");
         const priceSelect = event.target.closest("[data-matrix-price]");
-        if (categorySelect || priceSelect) {
+        const productionSelect = event.target.closest("[data-matrix-production]");
+        if (categorySelect || priceSelect || productionSelect) {
           if (categorySelect) state.matrixFilters.category = categorySelect.value || "全部";
           if (priceSelect) state.matrixFilters.isRegularPrice = priceSelect.value || "全部";
+          if (productionSelect) state.matrixFilters.productionNote = productionSelect.value || "全部";
           render();
         }
       });
@@ -5473,6 +5507,15 @@ const matrixFitScreen = event.target.closest("[data-matrix-fit-screen]");
           render();
         });
       }
+
+      // 生产属性筛选
+      const productionSelect = host.querySelector("[data-matrix-production]");
+      if (productionSelect) {
+        productionSelect.addEventListener("change", (e) => {
+          state.matrixFilters.productionNote = e.target.value || "全部";
+          render();
+        });
+      }
       
       // 每格显示数量按钮
       host.querySelectorAll("[data-matrix-items]").forEach((btn) => {
@@ -5506,7 +5549,7 @@ const matrixFitScreen = event.target.closest("[data-matrix-fit-screen]");
       const resetBtn = host.querySelector("[data-matrix-reset]");
       if (resetBtn) {
         resetBtn.addEventListener("click", () => {
-          state.matrixFilters = { category: "全部", isRegularPrice: "全部", kpiFilter: "all" };
+          state.matrixFilters = { category: "全部", isRegularPrice: "全部", productionNote: "全部", kpiFilter: "all" };
           state.salesPeriod = getDefaultSalesPeriod();
           state.matrixItemsPerCell = 4;
           state.matrixExpandedCells = {};
@@ -7251,7 +7294,7 @@ bindTrendTooltip(chartEl);
           // 上传新文件时清除旧的聚焦、展开状态和筛选条件，避免渲染后被筛选条件过滤为空导致页面卡死
           state.matrixFocusKey = "";
           state.matrixExpandedCells = {};
-          state.matrixFilters = { category: "全部", isRegularPrice: "全部", kpiFilter: "all" };
+          state.matrixFilters = { category: "全部", isRegularPrice: "全部", productionNote: "全部", kpiFilter: "all" };
           const fileData = await parseMatrixWorkbookRowsFromFile(file);
           state.sources[key] = {
             ...createEmptySourceState(cfg),
@@ -7371,7 +7414,7 @@ bindTrendTooltip(chartEl);
       state.cockpitSubtab = "overview";
       state.matrixFocusKey = "";
       state.matrixExpandedCells = {};
-      state.matrixFilters = { category: "全部", isRegularPrice: "全部", kpiFilter: "all" };
+      state.matrixFilters = { category: "全部", isRegularPrice: "全部", productionNote: "全部", kpiFilter: "all" };
       state.salesTrendFilters = { selectedKeys: [], startDate: "", endDate: "", search: "", mode: "split", granularity: "daily", showTrendLine: false, trendMethod: "linear", category: "全部" };
       // 注: granularity 支持 daily / monthly / quarterly
       setBatchNote("");
