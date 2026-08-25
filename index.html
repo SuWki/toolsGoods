@@ -2474,6 +2474,16 @@ sources: Object.fromEntries(
         }
       }
 
+      // 表头行（第3行，索引2）动态定位“补单备注”列，兼容该列位置变化
+      const headerRowCells = sheetRows[2] || [];
+      let reorderNoteColIdx = -1;
+      for (let c = 0; c < headerRowCells.length; c += 1) {
+        if (String(headerRowCells[c] || "").trim().includes("补单")) {
+          reorderNoteColIdx = c;
+          break;
+        }
+      }
+
       // 数据从第4行开始（索引3）
       for (let rowIdx = 3; rowIdx < sheetRows.length; rowIdx += 1) {
         const r = sheetRows[rowIdx] || [];
@@ -2487,6 +2497,8 @@ sources: Object.fromEntries(
         const retailPrice = maybeNumber(r[7]);
         // I列(8)=生产备注，区分正常、停产、待定（其他）
         const productionNote = String(r[8] ?? "").trim();
+        // 补单备注：按表头动态定位，用于识别“在途”补单
+        const reorderNote = reorderNoteColIdx >= 0 ? String(r[reorderNoteColIdx] ?? "").trim() : "";
         const isRegularPrice = ""; // 新版无此列，留空
         // M列(12)=到期日期, N列(13)=剩余天数（等价）, O列(14)=即时库存, P列(15)=日销系数
         const remainingDays = maybeNumber(r[13]);
@@ -2531,7 +2543,7 @@ sources: Object.fromEntries(
           spec,
           category,
           productionNote,
-          reorderNote: "",
+          reorderNote,
           isRegularPrice,
           retailPrice,
           sku,
@@ -3670,6 +3682,11 @@ sources: Object.fromEntries(
       return "其他";
     }
 
+    // 判断补单备注是否为在途（用于⭐补单在途标记）
+    function isReorderInTransit(reorderNote) {
+      return String(reorderNote || "").includes("在途");
+    }
+
     function buildMatrixRowsFromWorkbook(source) {
       const periodMonths = source?.periodMonths || 7;
       const periodDays = periodMonths * 30;
@@ -4521,7 +4538,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
           <div class="sku-strip">
             ${displayRows.map((row) => `
               <button type="button" class="sku-chip ${row.canSellBeforeExpiry === false ? 'sellout-risk' : ''}" data-matrix-jump="${escapeHtml(row.key)}" title="点击跳转到联动总表：${escapeHtml(row.productName || "")}${row.reorderNote ? '\n补单备注：' + row.reorderNote : ''}">
-                ${row.reorderNote ? '<span class="reorder-star">⭐</span>' : ''}
+                ${isReorderInTransit(row.reorderNote) ? '<span class="reorder-star">⭐</span>' : ''}
                 <div class="sku-thumb ${getProductionBorderClass(row.productionNote)}">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(shortenProductName(row.productName) || "")}" onerror="this.remove();this.parentElement.textContent='无图';">` : "无图"}</div>
                 <small style="${row.canSellBeforeExpiry === false ? 'color: var(--danger); font-weight: 600;' : ''}">${escapeHtml(shortenProductName(row.productName) || "-")}</small>
               </button>
@@ -4594,7 +4611,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
                 <div class="sku-strip">
                   ${cell.rows.map((row) => `
                     <button type="button" class="sku-chip ${row.canSellBeforeExpiry === false ? 'sellout-risk' : ''}" data-matrix-jump="${escapeHtml(row.key)}" title="点击跳转到联动总表：${escapeHtml(row.productName || "")}${row.reorderNote ? '\n补单备注：' + row.reorderNote : ''}">
-                      ${row.reorderNote ? '<span class="reorder-star">⭐</span>' : ''}
+                      ${isReorderInTransit(row.reorderNote) ? '<span class="reorder-star">⭐</span>' : ''}
                       <div class="sku-thumb ${getProductionBorderClass(row.productionNote)}">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(shortenProductName(row.productName) || "")}" onerror="this.remove();this.parentElement.textContent='无图';">` : "无图"}</div>
                       <small style="${row.canSellBeforeExpiry === false ? 'color: var(--danger); font-weight: 600;' : ''}">${escapeHtml(shortenProductName(row.productName) || "-")}</small>
                     </button>
@@ -5724,7 +5741,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
           cell.rows.forEach((row) => {
             const chip = document.createElement("div");
             chip.style.cssText = "border:1px solid rgba(216,205,191,.8);border-radius:8px;padding:8px;text-align:center;position:relative;background:rgba(255,255,255,.84);";
-            const starHtml = row.reorderNote ? '<span style="position:absolute;top:2px;right:4px;font-size:14px;color:#ffc107;">⭐</span>' : "";
+            const starHtml = isReorderInTransit(row.reorderNote) ? '<span style="position:absolute;top:2px;right:4px;font-size:14px;color:#ffc107;">⭐</span>' : "";
             const borderColor = row.productionNote && row.productionNote.includes("正常") ? "#28a745" : (row.productionNote && row.productionNote.includes("停产") ? "#dc3545" : (row.productionNote ? "#ffc107" : "#333"));
             const imgHtml = row.imageUrl
               ? `<img src="${escapeHtml(row.imageUrl)}" style="width:80px;height:80px;object-fit:contain;border-radius:8px;border:3px solid ${borderColor};box-sizing:border-box;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span style="display:none;width:80px;height:80px;border-radius:8px;border:3px solid ${borderColor};background:#f4efe8;align-items:center;justify-content:center;font-size:12px;color:#999;">无图</span>`
