@@ -2474,15 +2474,29 @@ sources: Object.fromEntries(
         }
       }
 
-      // 表头行（第3行，索引2）动态定位“补单备注”列，兼容该列位置变化
+      // 表头行（第3行，索引2）动态定位关键列，兼容不同版本数据源列位置变化
+      // 0926版：J=生产备注, O=剩余天数, Q=在仓库存, U=日销系数, V=补单备注
+      // 0816版回退索引：I(8)=生产备注, N(13)=剩余天数, O(14)=即时库存, P(15)=日销系数
       const headerRowCells = sheetRows[2] || [];
-      let reorderNoteColIdx = -1;
-      for (let c = 0; c < headerRowCells.length; c += 1) {
-        if (String(headerRowCells[c] || "").trim().includes("补单")) {
-          reorderNoteColIdx = c;
-          break;
+      const findColIdx = (keywords, fallbackIdx) => {
+        for (let c = 0; c < headerRowCells.length; c += 1) {
+          const headerText = String(headerRowCells[c] || "").trim();
+          if (keywords.some((kw) => headerText.includes(kw))) {
+            return c;
+          }
         }
-      }
+        return fallbackIdx;
+      };
+      const reorderNoteColIdx = findColIdx(["补单"], -1);
+      const productionNoteColIdx = findColIdx(["生产备注", "生产情况", "生产状态"], 8);
+      const remainingDaysColIdx = findColIdx(["剩余天数"], 13);
+      const stockColIdx = findColIdx(["即时库存", "在仓库存"], 14);
+      const dailySalesCoefColIdx = findColIdx(["日销系数"], 15);
+      // 线上月均/线下月均/库存判断/销量趋势：0926版已删除，仅表头存在时读取
+      const onlineMonthlyAvgColIdx = findColIdx(["线上月均"], -1);
+      const offlineMonthlyAvgColIdx = findColIdx(["线下月均"], -1);
+      const stockHealthColIdx = findColIdx(["库存判断"], -1);
+      const salesTrendColIdx = findColIdx(["销量趋势"], -1);
 
       // 数据从第4行开始（索引3）
       for (let rowIdx = 3; rowIdx < sheetRows.length; rowIdx += 1) {
@@ -2495,25 +2509,25 @@ sources: Object.fromEntries(
         const spec = String(r[5] ?? "").trim();
         const category = String(r[6] ?? "").trim();
         const retailPrice = maybeNumber(r[7]);
-        // I列(8)=生产备注，区分正常、停产、待定（其他）
-        const productionNote = String(r[8] ?? "").trim();
-        // 补单备注：按表头动态定位，用于识别“在途”补单
+        // 生产备注：0926版在J列，区分正常、停产、待定（其他）
+        const productionNote = String(r[productionNoteColIdx] ?? "").trim();
+        // 补单备注：0926版在V列，按表头动态定位，用于识别“在途”补单
         const reorderNote = reorderNoteColIdx >= 0 ? String(r[reorderNoteColIdx] ?? "").trim() : "";
         const isRegularPrice = ""; // 新版无此列，留空
-        // M列(12)=到期日期, N列(13)=剩余天数（等价）, O列(14)=即时库存, P列(15)=日销系数
-        const remainingDays = maybeNumber(r[13]);
-        const currentStock = parseNumber(r[14], 0);
-        const dailySalesCoef = maybeNumber(r[15]);
-        // 库存月 = 即时库存 / (日销系数 * 30)，由O列和P列计算
+        // 0926版：N=到期日期, O=剩余天数, Q=在仓库存(即时库存), U=日销系数
+        const remainingDays = maybeNumber(r[remainingDaysColIdx]);
+        const currentStock = parseNumber(r[stockColIdx], 0);
+        const dailySalesCoef = maybeNumber(r[dailySalesCoefColIdx]);
+        // 库存月 = 即时库存 / (日销系数 * 30)，由库存列和日销系数列计算
         const stockMonths = (dailySalesCoef !== null && dailySalesCoef > 0)
           ? currentStock / (dailySalesCoef * 30)
           : null;
-        // 兼容旧版：线上月均(21)+线下月均(24)计算月均销量，新版无此列则为0
-        const onlineMonthlyAvg = parseNumber(r[20], 0);
-        const offlineMonthlyAvg = parseNumber(r[23], 0);
+        // 兼容旧版：线上月均+线下月均计算月均销量，0926版已无此列则为0
+        const onlineMonthlyAvg = onlineMonthlyAvgColIdx >= 0 ? parseNumber(r[onlineMonthlyAvgColIdx], 0) : 0;
+        const offlineMonthlyAvg = offlineMonthlyAvgColIdx >= 0 ? parseNumber(r[offlineMonthlyAvgColIdx], 0) : 0;
         const monthlyAverage = onlineMonthlyAvg + offlineMonthlyAvg;
-        const stockHealth = String(r[26] ?? "").trim() || getStockHealthLabel(stockMonths);
-        const salesTrend = String(r[27] ?? "").trim();
+        const stockHealth = String(r[stockHealthColIdx] ?? "").trim() || getStockHealthLabel(stockMonths);
+        const salesTrend = String(r[salesTrendColIdx] ?? "").trim();
         // periodMonths 由净出库列数据扫描得出（后续会延长）
         const salesQty = Math.round(monthlyAverage * periodMonths);
         const derivedStockMonths = stockMonths;
@@ -3632,7 +3646,7 @@ sources: Object.fromEntries(
 
     // 为商品分配日销系数(X)和纵轴值(Y=sum-X)
     // 1. 用O列库存月确定 X+Y 之和（库存月×30≈消化周期天数）
-    // 2. 直接读取N列日销系数数值分配X：N≥10→X=1(高日销)，3≤N<10→X=2(中日销)，N<3→X=3(低日销)
+    // 2. 直接读取日销系数列数值分配X：N≥10→X=1(高日销)，3≤N<10→X=2(中日销)，N<3→X=3(低日销)
     // 3. Y = sum - X（由消化周期反推，不再单独计算库存系数）
     function assignMatrixCoefficients(rows, periodDays) {
       // 计算消化周期和系数之和
@@ -4379,8 +4393,8 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
         subtitleEl.textContent = "九宫格模式：只需上传单个《总库存情况》文件，系统会自动读取商品资料、库存、净出库和图片，按消化周期生成日销系数×消化周期九宫格分析图。";
         notesEl.innerHTML = `
           <div class="note">1. 仅需上传一个 Excel 文件，包含《总库存情况》工作表。</div>
-          <div class="note">2. 数据列映射：M列=即时库存、N列=日销系数(横轴)、O列=库存月(决定消化周期)、P列=保质期剩余天数。</div>
-          <div class="note">3. 横轴=日销系数(1~3)，直接读取N列数值：N≥10→1(高日销)，3≤N<10→2(中日销)，N<3→3(低日销)。</div>
+          <div class="note">2. 数据列映射（0926版，按表头自动定位）：J列=生产备注、O列=保质期剩余天数、Q列=在仓库存、U列=日销系数(横轴)、V列=补单备注(⭐在途标记)。</div>
+          <div class="note">3. 横轴=日销系数(1~3)，直接读取U列数值：N≥10→1(高日销)，3≤N<10→2(中日销)，N<3→3(低日销)。</div>
           <div class="note">4. 库存月≤3→系数和=2(≤90天)，≤6→3(≤180天)，≤12→4(≤360天)，≤24→5(≤720天)，>24→6(>720天)。</div>
           <div class="note">5. 纵轴=系数和-横轴，由消化周期反推，不再单独计算库存系数。</div>
           <div class="note">6. 点击商品图片可跳转到联动总表查看明细。</div>
@@ -4463,7 +4477,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
             <div class="block-head">
               <div>
                 <h2>SKU 九宫格分析（日销系数 × 消化周期）</h2>
-                <div class="note">横轴=日销系数（N列数值：1高日销~3低日销），纵轴=消化周期反推（1低~3高）。点击商品图片会跳到联动总表对应行。</div>
+                <div class="note">横轴=日销系数（U列数值：1高日销~3低日销），纵轴=消化周期反推（1低~3高）。点击商品图片会跳到联动总表对应行。</div>
               </div>
               <div style="display:flex;gap:10px;align-items:center;">
                 <span class="badge neutral">共 ${formatInteger(totalRows.length)} 个商品（筛选后 0 个）</span>
@@ -4628,7 +4642,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
           <div class="block-head">
             <div>
               <h2>SKU 九宫格分析（日销系数 × 消化周期）</h2>
-              <div class="note">横轴=日销系数（N列数值：1高日销~3低日销），纵轴=消化周期反推（1低~3高）。点击商品图片会跳到联动总表对应行。</div>
+              <div class="note">横轴=日销系数（U列数值：1高日销~3低日销），纵轴=消化周期反推（1低~3高）。点击商品图片会跳到联动总表对应行。</div>
             </div>
             <div style="display:flex;gap:10px;align-items:center;">
               <span class="badge neutral">共 ${formatInteger(model.matrixSummary.totalSku)} 个商品</span>
@@ -7473,6 +7487,7 @@ bindTrendTooltip(chartEl);
       console.error('渲染失败:', err);
       alert('页面渲染失败: ' + err.message);
     }
+
   </script>
 </body>
 </html>
