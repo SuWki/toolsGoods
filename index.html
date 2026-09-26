@@ -1078,6 +1078,62 @@ pointer-events: none;
       color: var(--ink);
     }
 
+    /* 大宫格品类构成（按库存数量占比） */
+    .big-cell-categories {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 20px;
+      padding: 14px 16px;
+      background: var(--bg);
+      border-radius: 10px;
+    }
+
+    .big-cell-cat-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .big-cell-cat-row {
+      display: grid;
+      grid-template-columns: 110px minmax(60px, 1fr) auto 56px;
+      gap: 10px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .big-cell-cat-name {
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .big-cell-cat-bar {
+      height: 8px;
+      border-radius: 4px;
+      background: rgba(216, 205, 191, .45);
+      overflow: hidden;
+    }
+
+    .big-cell-cat-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: linear-gradient(90deg, #146356, #1d8574);
+    }
+
+    .big-cell-cat-qty {
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .big-cell-cat-share {
+      color: var(--ink);
+      font-weight: 700;
+      text-align: right;
+    }
+
     /* 大宫格图例 */
     .big-cell-legend {
       display: flex;
@@ -3636,12 +3692,28 @@ sources: Object.fromEntries(
         "3|1": { title: "原价/不补",   badge: "≤360天",  theme: "warm" },
         "1|2": { title: "原价/关注",   badge: "≤180天",  theme: "good" },
         "2|2": { title: "原价/不补",   badge: "≤360天",  theme: "warm" },
-        "3|2": { title: "压力/消化",   badge: "≤720天",  theme: "danger" },
+        "3|2": { title: "活动/消化",   badge: "≤720天",  theme: "danger" },
         "1|3": { title: "原价/不补",   badge: "≤360天",  theme: "warm" },
-        "2|3": { title: "浮动/消化",   badge: "≤720天",  theme: "danger" },
+        "2|3": { title: "活动/消化",   badge: "≤720天",  theme: "danger" },
         "3|3": { title: "折价/去库存", badge: ">720天",  theme: "danger" },
       };
       return metaMap[cellKey] || { title: cellKey, badge: "待判定", theme: "neutral" };
+    }
+
+    // 宫格总消化天数：总库存 ÷ 总日销吞吐（日销吞吐 = Σ 单品库存/单品消化天数）
+    // 即把宫格内所有库存合并后按整体销售速度卖完所需的天数；全部无法消化时返回 null
+    function computeCellDigestionDays(cellRows) {
+      let throughput = 0;
+      cellRows.forEach((row) => {
+        const qty = parseNumber(row.stockQty, 0);
+        const days = row.sellOutDays;
+        if (qty > 0 && days !== null && days !== undefined && Number.isFinite(days) && days > 0) {
+          throughput += qty / days;
+        }
+      });
+      if (throughput <= 0) return null;
+      const totalQty = cellRows.reduce((sum, row) => sum + parseNumber(row.stockQty, 0), 0);
+      return totalQty / throughput;
     }
 
     // 为商品分配日销系数(X)和纵轴值(Y=sum-X)
@@ -3806,6 +3878,12 @@ inventoryQty,
           meta: getMatrixCellMetaNew(x, y),
         };
       });
+      // 各宫格库存占比（分母=当前筛选下九宫格总库存）与总消化天数
+      const totalCellInventoryQty = cells.reduce((sum, c) => sum + c.inventoryQty, 0);
+      cells.forEach((c) => {
+        c.stockShare = totalCellInventoryQty > 0 ? c.inventoryQty / totalCellInventoryQty : null;
+        c.totalDigestDays = computeCellDigestionDays(c.rows);
+      });
 
       const summary = {
         totalSku: filtered.length,
@@ -3940,6 +4018,12 @@ inventoryQty,
           inventoryAmount,
           meta: getMatrixCellMetaNew(x, y),
         };
+      });
+      // 各宫格库存占比（分母=当前筛选下九宫格总库存）与总消化天数
+      const totalCellInventoryQty = cells.reduce((sum, c) => sum + c.inventoryQty, 0);
+      cells.forEach((c) => {
+        c.stockShare = totalCellInventoryQty > 0 ? c.inventoryQty / totalCellInventoryQty : null;
+        c.totalDigestDays = computeCellDigestionDays(c.rows);
       });
 
       const summary = {
@@ -4569,13 +4653,15 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
         const isExpanded = state.matrixExpandedCells[cell.key];
         const previewRows = isExpanded ? cell.rows : cell.rows.slice(0, itemsPerCell);
         return `
-          <div class="matrix-cell ${theme}" data-cell-key="${escapeHtml(cell.key)}" data-matrix-big-cell="${escapeHtml(cell.key)}" style="cursor:pointer;" title="点击查看大宫格">
+          <div class="matrix-cell ${theme}" data-cell-key="${escapeHtml(cell.key)}" data-matrix-big-cell="${escapeHtml(cell.key)}" style="cursor:pointer;" title="点击查看大宫格与品类构成">
             <div class="matrix-cell-head">
               <div>
                 <h3>${escapeHtml(cell.meta.title)}</h3>
                 <div class="matrix-cell-stats">
                   <span>商品 ${formatInteger(cell.skuCount)}</span>
                   <span>库存 ${formatInteger(cell.inventoryQty)} 件</span>
+                  <span>库存占比 ${cell.stockShare === null || cell.stockShare === undefined ? "-" : (cell.stockShare * 100).toFixed(1) + "%"}</span>
+                  <span>消化 ${cell.totalDigestDays === null || cell.totalDigestDays === undefined ? "无法消化" : formatInteger(Math.round(cell.totalDigestDays)) + "天"}</span>
                   <span>金额 ${cell.inventoryAmount === null || cell.inventoryAmount === undefined ? "-" : formatCurrency(cell.inventoryAmount)}</span>
                 </div>
               </div>
@@ -4593,6 +4679,15 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
         if (!cell) return "";
         const theme = cell.meta.theme || "neutral";
         const totalAmount = cell.rows.reduce((sum, row) => sum + (row.inventoryAmount || 0), 0);
+        // 品类构成：按库存数量统计各品类占比
+        const categoryMap = {};
+        cell.rows.forEach((row) => {
+          const cat = row.category || "未分类";
+          if (!categoryMap[cat]) categoryMap[cat] = { category: cat, skuCount: 0, stockQty: 0 };
+          categoryMap[cat].skuCount += 1;
+          categoryMap[cat].stockQty += (row.stockQty || 0);
+        });
+        const categoryList = Object.values(categoryMap).sort((a, b) => b.stockQty - a.stockQty);
         return `
           <div class="big-cell-overlay" data-big-cell-overlay>
             <div class="big-cell-modal">
@@ -4618,9 +4713,31 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
                     <strong>${formatInteger(cell.inventoryQty)} 件</strong>
                   </div>
                   <div class="big-cell-stat">
+                    <small>库存占比</small>
+                    <strong>${cell.stockShare === null || cell.stockShare === undefined ? "-" : (cell.stockShare * 100).toFixed(1) + "%"}</strong>
+                  </div>
+                  <div class="big-cell-stat">
+                    <small>消化天数</small>
+                    <strong>${cell.totalDigestDays === null || cell.totalDigestDays === undefined ? "无法消化" : formatInteger(Math.round(cell.totalDigestDays)) + " 天"}</strong>
+                  </div>
+                  <div class="big-cell-stat">
                     <small>总金额</small>
                     <strong>${formatCurrency(totalAmount)}</strong>
                   </div>
+                </div>
+                <div class="big-cell-categories">
+                  <div class="big-cell-cat-title">品类构成（按库存数量占比）</div>
+                  ${categoryList.map((cat) => {
+                    const share = cell.inventoryQty > 0 ? cat.stockQty / cell.inventoryQty : 0;
+                    return `
+                      <div class="big-cell-cat-row">
+                        <span class="big-cell-cat-name" title="${escapeHtml(cat.category)}">${escapeHtml(cat.category)}</span>
+                        <div class="big-cell-cat-bar"><div class="big-cell-cat-fill" style="width:${Math.min(100, share * 100).toFixed(1)}%"></div></div>
+                        <span class="big-cell-cat-qty">${formatInteger(cat.stockQty)} 件 / ${formatInteger(cat.skuCount)} 个SKU</span>
+                        <span class="big-cell-cat-share">${(share * 100).toFixed(1)}%</span>
+                      </div>
+                    `;
+                  }).join("")}
                 </div>
                 <div class="sku-strip">
                   ${cell.rows.map((row) => `
@@ -5747,7 +5864,9 @@ container.appendChild(legend);
 const posLabel = getMatrixPosition(cell.x, cell.y);
 const invQty = cell.rows.reduce((s, r) => s + (r.stockQty || 0), 0);
 const invAmt = cell.rows.reduce((s, r) => s + (r.inventoryAmount || 0), 0);
-cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeColor};">${posLabel} - ${escapeHtml(meta.title || "")}</div><div style="font-size:12px;color:#888;">${escapeHtml(meta.badge || "")} | ${cell.rows.length} 个商品 | 库存 ${formatInteger(invQty)} 件 | 金额 ${formatCurrency(invAmt)}</div>`;
+const stockShareText = (cell.stockShare === null || cell.stockShare === undefined) ? "-" : (cell.stockShare * 100).toFixed(1) + "%";
+const digestDaysText = (cell.totalDigestDays === null || cell.totalDigestDays === undefined) ? "无法消化" : formatInteger(Math.round(cell.totalDigestDays)) + "天";
+cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeColor};">${posLabel} - ${escapeHtml(meta.title || "")}</div><div style="font-size:12px;color:#888;">${escapeHtml(meta.badge || "")} | ${cell.rows.length} 个商品 | 库存 ${formatInteger(invQty)} 件 | 库存占比 ${stockShareText} | 消化 ${digestDaysText} | 金额 ${formatCurrency(invAmt)}</div>`;
           cellDiv.appendChild(cellHead);
           // 商品网格
           const strip = document.createElement("div");
