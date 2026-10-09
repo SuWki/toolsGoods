@@ -364,6 +364,25 @@
       gap: 14px;
     }
 
+    /* 门店SKU排名看板：iframe 嵌入独立页面 */
+    .sku-rank-panel {
+      padding: 0;
+      overflow: hidden;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+
+    .sku-rank-panel iframe {
+      display: block;
+      width: 100%;
+      height: calc(100vh - 130px);
+      min-height: 560px;
+      border: 0;
+      border-radius: var(--radius);
+      background: #f5f7fa;
+    }
+
     .kpi {
       padding: 18px;
       min-height: 118px;
@@ -1523,10 +1542,11 @@ pointer-events: none;
       </div>
       <div class="topbar-right">
         <div class="mode-switch" id="mode-switch">
-          <button class="mode-btn active" data-mode="cockpit">驾驶舱</button>
+          <button class="mode-btn" data-mode="cockpit">驾驶舱</button>
           <button class="mode-btn" data-mode="matrix">九宫格</button>
           <button class="mode-btn" data-mode="salesTrend">销售趋势</button>
           <button class="mode-btn" data-mode="kttImport">快团团导入</button>
+          <button class="mode-btn" data-mode="skuRank">门店SKU排名</button>
         </div>
         <div class="actions">
           <button id="batch-upload" class="ghost">批量上传</button>
@@ -1575,6 +1595,10 @@ pointer-events: none;
         <section id="tabs-panel" class="panel" style="display:none;">
           <div id="tabs" class="tabs"></div>
           <div id="tab-content" class="tab-content"></div>
+        </section>
+
+        <section id="sku-rank-panel" class="panel sku-rank-panel" style="display:none;">
+          <iframe id="sku-rank-frame" title="门店SKU销售排名分析看板" data-src="./门店SKU销售排名分析看板/门店SKU销售排名分析看板.html"></iframe>
         </section>
       </main>
     </div>
@@ -4270,6 +4294,9 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
             `<span class="pill">分类 ${formatInteger(cats.size)}</span>`,
           ];
         }
+      } else if (state.activeTab === "skuRank") {
+        // 门店SKU排名看板：状态由看板自身展示，顶部不叠加胶囊
+        pills = [];
       } else {
         pills = [
           `<span class="pill">已上传 ${formatInteger(model.uploadedCount)} 个文件</span>`,
@@ -4295,6 +4322,10 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       }
       if (state.activeTab === "kttImport") {
         // 快团团导入Tab不需要文件上传
+        return [];
+      }
+      if (state.activeTab === "skuRank") {
+        // 门店SKU排名看板自带数据上传入口，无需侧边栏文件位
         return [];
       }
       // 驾驶舱Tab显示除九宫格与销售趋势外的所有文件
@@ -4372,6 +4403,11 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
 
       if (state.activeTab === "kttImport") {
         // 快团团导入不需要数据质量面板
+        host.innerHTML = "";
+        return;
+      }
+      if (state.activeTab === "skuRank") {
+        // 门店SKU排名看板有自己的数据源与质量说明
         host.innerHTML = "";
         return;
       }
@@ -4507,6 +4543,16 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
           <div class="note">3. 点击"解析"预览结果，确认后点击"下载 Excel"。</div>
           <div class="note">4. 货品名称规则：含"香型备注"取团员备注名称；否则取商品信息产品名。</div>
           <div class="note">5. 同一订单多商品共享同一导入编号。</div>
+        `;
+      } else if (state.activeTab === "skuRank") {
+        titleEl.textContent = "门店SKU排名看板";
+        subtitleEl.textContent = "门店SKU排名模式：在右侧看板内筛选商品 SKU 与统计时间段，查看各门店销量/金额双排名、业绩贡献率（该 SKU 占本店同期业绩）与经营分析结论。";
+        notesEl.innerHTML = `
+          <div class="note">1. 看板默认载入演示数据；点击看板内「上传数据」选择《门店销售数据源》Excel/CSV 即可切换真实数据，字段自动识别并支持手动校正。</div>
+          <div class="note">2. 门店名统一品牌前缀（如「黑爪-」）自动省略：黑爪-上海南昌路店 显示为 上海南昌路店。</div>
+          <div class="note">3. 贡献率与门店自身比较：该门店该 SKU 金额 ÷ 该门店同期全部 SKU 总业绩。</div>
+          <div class="note">4. 支持导出当前排名明细 Excel（含口径说明与本店总量分母列）。</div>
+          <div class="note">5. 数据仅在本地浏览器解析，不会上传服务器。</div>
         `;
       } else {
         titleEl.textContent = "驾驶舱文件";
@@ -7346,6 +7392,23 @@ bindTrendTooltip(chartEl);
 
       // 始终显示内容面板
       tabsPanel.style.display = "block";
+
+      // 门店SKU排名看板：iframe 嵌入独立页面（首次进入懒加载，切换 Tab 状态保留）
+      const skuRankPanel = document.getElementById("sku-rank-panel");
+      if (state.activeTab === "skuRank") {
+        kpiGrid.style.display = "none";
+        tabsBar.style.display = "none";
+        tabsPanel.style.display = "none";
+        if (skuRankPanel) {
+          skuRankPanel.style.display = "block";
+          const skuFrame = document.getElementById("sku-rank-frame");
+          if (skuFrame && !skuFrame.getAttribute("src")) {
+            skuFrame.src = skuFrame.dataset.src;
+          }
+        }
+        return;
+      }
+      if (skuRankPanel) skuRankPanel.style.display = "none";
 
       if (state.activeTab === "cockpit") {
         // 驾驶舱模式：显示子标签栏

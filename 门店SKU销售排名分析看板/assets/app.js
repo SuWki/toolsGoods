@@ -346,14 +346,16 @@
     });
     tbody.innerHTML = html.join('');
 
-    // 表头排序指示
+    // 表头排序指示（个别表头可能无 .arrow 标记，做保护）
     document.querySelectorAll('#rankTable thead th.sortable').forEach(function (th) {
+      var arrow = th.querySelector('.arrow');
+      if (!arrow) return;
       if (th.getAttribute('data-key') === state.tableSort.key) {
         th.setAttribute('aria-sort', state.tableSort.dir === 'asc' ? 'ascending' : 'descending');
-        th.querySelector('.arrow').textContent = state.tableSort.dir === 'asc' ? '▲' : '▼';
+        arrow.textContent = state.tableSort.dir === 'asc' ? '▲' : '▼';
       } else {
         th.removeAttribute('aria-sort');
-        th.querySelector('.arrow').textContent = '▼';
+        arrow.textContent = '▼';
       }
     });
   }
