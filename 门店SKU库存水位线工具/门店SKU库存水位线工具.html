@@ -525,6 +525,7 @@
               <li><b>大仓可用库存</b>：点击「上传大仓库存」载入《分仓库存查询》文件，按<b>条码</b>匹配商品（同条码多仓数量自动累加），显示在最后一列；未上传时显示「—」。筛选区「大仓可用库存 &gt;」可按数量过滤（留空不筛）。</li>
               <li>商品图片来自 Excel 内嵌图片（WPS 单元格图片），在浏览器本地解压读取。</li>
               <li>品名展示时自动省略「BLACK PAW / 黑爪」字样。</li>
+              <li>解析后的数据（含大仓库存）<b>自动记忆在本浏览器</b>（IndexedDB），下次打开页面自动恢复，无需重新上传；上传新文件自动覆盖记忆。</li>
             </ul>
           </div>
         </details>
@@ -1323,6 +1324,7 @@
         if (picked !== state.store) {
           state.store = picked;
           syncOpenDate();
+          persistMainCache(); // 记住最后选择的门店
         }
         $('storeCombo').classList.remove('open');
         renderStoreList();
@@ -1384,6 +1386,7 @@
           btn.textContent = '大仓库存已载入';
           btn.title = file.name + '（' + fmtInt(wh.skuCount) + ' 个条码，点击可重新上传）';
           $('warehouseMinInput').disabled = false;
+          idbSetSafe('warehouse', { ver: CACHE_VER, fileName: file.name, avail: wh.avail, skuCount: wh.skuCount });
           renderAll();
         } catch (err) {
           state.warehouseAvail = null;
@@ -1424,6 +1427,118 @@
       });
     }
 
+    /* ================= 浏览器本地记忆（IndexedDB） =================
+       把解析结果（含大仓库存）存进浏览器，下次打开自动恢复，无需重新上传。
+       隐私模式 / file:// 受限等场景自动静默降级，不影响正常功能。 */
+    var IDB_NAME = 'wlToolData', IDB_STORE = 'kv', CACHE_VER = 1;
+    function idbOpen() {
+      return new Promise(function (resolve, reject) {
+        var req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = function () { req.result.createObjectStore(IDB_STORE); };
+        req.onsuccess = function () { resolve(req.result); };
+        req.onerror = function () { reject(req.error); };
+      });
+    }
+    function idbSetSafe(key, val) {
+      try {
+        idbOpen().then(function (db) {
+          var tx = db.transaction(IDB_STORE, 'readwrite');
+          tx.objectStore(IDB_STORE).put(val, key);
+          tx.oncomplete = function () { db.close(); };
+          tx.onerror = function () { db.close(); };
+        }).catch(function () {});
+      } catch (e) { /* 静默降级 */ }
+    }
+    function idbGetSafe(key) {
+      return new Promise(function (resolve) {
+        var done = false;
+        function fin(v) { if (!done) { done = true; resolve(v); } }
+        try {
+          idbOpen().then(function (db) {
+            var rq = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(key);
+            rq.onsuccess = function () { db.close(); fin(rq.result); };
+            rq.onerror = function () { db.close(); fin(null); };
+          }).catch(function () { fin(null); });
+        } catch (e) { fin(null); }
+      });
+    }
+
+    /* 把当前主数据写入缓存（fire-and-forget，不阻塞界面） */
+    function persistMainCache() {
+      if (!state.products.length) return;
+      idbSetSafe('main', {
+        ver: CACHE_VER,
+        fileName: state.fileName,
+        lastStore: state.store,
+        data: {
+          products: state.products,
+          salesByStore: state.salesByStore,
+          firstSaleByStore: state.firstSaleByStore,
+          inventoryByStore: state.inventoryByStore,
+          storeMeta: state.storeMeta,
+          stores: state.stores,
+          dateMin: state.dateMin,
+          dateMax: state.dateMax
+        }
+      });
+    }
+
+    /* 应用一份主数据（新上传 / 缓存恢复共用）：重置筛选并渲染 */
+    function applyMainData(fileName, data, lastStore, fromCache) {
+      state.fileName = fileName;
+      state.products = data.products;
+      state.salesByStore = data.salesByStore;
+      state.firstSaleByStore = data.firstSaleByStore;
+      state.inventoryByStore = data.inventoryByStore;
+      state.stores = data.stores;
+      state.storeMeta = data.storeMeta;
+      state.dateMin = data.dateMin;
+      state.dateMax = data.dateMax;
+      state.store = data.stores.indexOf(lastStore) >= 0 ? lastStore : (data.stores[0] || '');
+      state.category = '全部';
+      state.production = '全部';
+      state.scope = 'all';
+      state.sampleScope = 'all';
+      state.search = '';
+      $('searchInput').value = '';
+      document.querySelectorAll('#scopeSeg button').forEach(function (b) {
+        b.classList.toggle('on', b.dataset.scope === 'all');
+      });
+      document.querySelectorAll('#sampleSeg button').forEach(function (b) {
+        b.classList.toggle('on', b.dataset.sample === 'all');
+      });
+      syncOpenDate();
+      $('dataRange').value = keyToIso(state.dateMin) + ' ~ ' + keyToIso(state.dateMax);
+      showDataViews(true);
+      renderFilterOptions();
+      renderStoreList();
+      renderAll();
+      var badge = $('dataSourceBadge'), text = $('dataSourceText');
+      badge.classList.add('is-real');
+      badge.title = fileName + (fromCache ? '（浏览器已记住，重新上传可覆盖）' : '');
+      text.textContent = (fromCache ? '已载入（记忆）：' : '') + fileName + ' · ' + data.products.length + ' 款商品 · ' + data.stores.length + ' 家门店';
+    }
+
+    /* 启动时恢复缓存（主数据 + 大仓库存） */
+    function restoreCaches() {
+      idbGetSafe('main').then(function (rec) {
+        if (rec && rec.ver === CACHE_VER && rec.data && rec.data.products && rec.data.products.length) {
+          applyMainData(rec.fileName || '已缓存数据', rec.data, rec.lastStore, true);
+        }
+        return idbGetSafe('warehouse');
+      }).then(function (wh) {
+        if (wh && wh.ver === CACHE_VER && wh.avail && wh.avail.size) {
+          state.warehouseAvail = wh.avail;
+          state.warehouseFile = wh.fileName || '';
+          var btn = $('btnWarehouse');
+          btn.textContent = '大仓库存已载入';
+          btn.title = (wh.fileName || '') + '（' + fmtInt(wh.avail.size) + ' 个条码，浏览器已记住，点击可重新上传）';
+          $('warehouseMinInput').disabled = false;
+          if (state.products.length) renderAll();
+        }
+      });
+    }
+
     async function handleFile() {
       var file = this.files && this.files[0];
       this.value = '';
@@ -1438,43 +1553,10 @@
       text.textContent = '解析中…';
       try {
         var result = await parseWorkbookFile(file, function (msg) { text.textContent = msg; });
-        var storeStillValid = result.stores.indexOf(state.store) >= 0;
-        state.fileName = file.name;
-        state.products = result.products;
-        state.salesByStore = result.salesByStore;
-        state.firstSaleByStore = result.firstSaleByStore;
-        state.inventoryByStore = result.inventoryByStore;
-        state.stores = result.stores;
-        state.storeMeta = result.storeMeta;
-        state.dateMin = result.dateMin;
-        state.dateMax = result.dateMax;
-        if (!storeStillValid) {
-          state.store = state.stores[0] || '';
-        }
-        state.category = '全部';
-        state.production = '全部';
-        state.scope = 'all';
-        state.sampleScope = 'all';
-        state.search = '';
-        $('searchInput').value = '';
-        document.querySelectorAll('#scopeSeg button').forEach(function (b) {
-          b.classList.toggle('on', b.dataset.scope === 'all');
-        });
-        document.querySelectorAll('#sampleSeg button').forEach(function (b) {
-          b.classList.toggle('on', b.dataset.sample === 'all');
-        });
-        syncOpenDate();
-        $('dataRange').value = keyToIso(state.dateMin) + ' ~ ' + keyToIso(state.dateMax);
-
-        showDataViews(true);
-        renderFilterOptions();
-        renderStoreList();
-        renderAll();
-
-        badge.classList.add('is-real');
-        badge.title = file.name;
+        applyMainData(file.name, result, state.store, false);
         text.textContent = file.name + ' · ' + result.products.length + ' 款商品 · ' + result.stores.length + ' 家门店'
           + (result.salesSkipped ? '（跳过无效销售记录 ' + result.salesSkipped + ' 条）' : '');
+        persistMainCache(); // 写入浏览器缓存，下次打开自动恢复
       } catch (err) {
         console.error(err);
         badge.classList.remove('is-real');
@@ -1489,6 +1571,7 @@
 
     /* ================= 启动 ================= */
     bindEvents();
+    restoreCaches(); // 恢复上次上传的数据（含大仓库存）
   })();
   </script>
 </body>
