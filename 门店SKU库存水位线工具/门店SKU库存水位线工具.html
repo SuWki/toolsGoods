@@ -338,7 +338,9 @@
           <div class="intro-actions">
             <span class="badge-src" id="dataSourceBadge" title=""><span class="dot"></span><span id="dataSourceText">未载入数据</span></span>
             <button class="btn btn-primary" id="btnUpload" type="button">上传数据源</button>
+            <button class="btn" id="btnWarehouse" type="button" title="上传《分仓库存查询》，按条码识别大仓可用库存">上传大仓库存</button>
             <input type="file" id="fileInput" accept=".xlsx" hidden>
+            <input type="file" id="whFileInput" accept=".xlsx" hidden>
           </div>
         </div>
       </div>
@@ -450,6 +452,10 @@
                 <button type="button" data-scope="need">仅需补货</button>
               </div>
             </div>
+            <div class="inline-ctrl">
+              <span class="f-label">大仓可用库存 &gt;<span class="hint" title="筛选大仓可用库存数量大于该值的商品；需先上传大仓库存文件，留空则不筛选">i</span></span>
+              <input class="f-input" id="warehouseMinInput" type="number" min="0" step="1" placeholder="不限" style="width:80px;" aria-label="大仓可用库存筛选" disabled>
+            </div>
             <div class="inline-ctrl" style="flex:1;min-width:220px;">
               <span class="f-label">搜索</span>
               <input class="f-input" id="searchInput" type="text" placeholder="品名 / 规格 / 货号 / 条码…" style="max-width:300px;">
@@ -479,6 +485,7 @@
                   <th class="sortable" data-key="gap" scope="col">建议补货(件)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="status" scope="col">状态<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="productionNote" scope="col">生产备注<span class="arrow">▼</span></th>
+                  <th class="sortable" data-key="warehouseQty" scope="col" title="《分仓库存查询》的大仓可用库存，按条码匹配、多仓累加；未上传大仓文件时显示 —">大仓可用库存(件)<span class="arrow">▼</span></th>
                 </tr>
               </thead>
               <tbody id="wlTableBody"></tbody>
@@ -515,6 +522,7 @@
             <h4>数据关联</h4>
             <ul>
               <li>表间关联均<b>按 69 码（条码）优先匹配</b>：《商品总览》的「条码」对应《店铺销售》的「规格条码」与《店铺库存》的「商品/规格条码」；条码缺失或未命中时回退按规格编码（货号）匹配。</li>
+              <li><b>大仓可用库存</b>：点击「上传大仓库存」载入《分仓库存查询》文件，按<b>条码</b>匹配商品（同条码多仓数量自动累加），显示在最后一列；未上传时显示「—」。筛选区「大仓可用库存 &gt;」可按数量过滤（留空不筛）。</li>
               <li>商品图片来自 Excel 内嵌图片（WPS 单元格图片），在浏览器本地解压读取。</li>
               <li>品名展示时自动省略「BLACK PAW / 黑爪」字样。</li>
             </ul>
@@ -561,6 +569,9 @@
       sortKey: 'gap',
       sortDir: 'desc',
       waterlineDays: DEFAULT_WATERLINE_DAYS, // 水位线覆盖天数（用户可配置）
+      warehouseAvail: null,      // 大仓可用库存：Map(条码 -> 数量)，null = 未上传
+      warehouseFile: '',
+      warehouseMin: null,        // 筛选：大仓可用库存 > N（null = 不筛）
     };
 
     /* ================= 通用工具 ================= */
@@ -697,8 +708,18 @@
         var inner = m[3] || '';
         var vm = inner.match(/<v>([^<]*)<\/v>/);
         var v = vm ? vm[1] : '';
-        if (/\bt="s"/.test(attrs) && v !== '') v = ss[parseInt(v, 10)] || '';
-        else v = unescapeXml(v);
+        var im = inner.match(/<is>([\s\S]*?)<\/is>/);
+        if (im) {
+          // inline string（如《分仓库存查询》导出格式）
+          var ts = [];
+          var tr = /<t[^>]*>([\s\S]*?)<\/t>/g, tm;
+          while ((tm = tr.exec(im[1])) !== null) ts.push(unescapeXml(tm[1]));
+          v = ts.join('');
+        } else if (/\bt="s"/.test(attrs) && v !== '') {
+          v = ss[parseInt(v, 10)] || '';
+        } else {
+          v = unescapeXml(v);
+        }
         out[col] = v;
       }
       return out;
@@ -743,6 +764,40 @@
         if (colByField[f]) s.add(colByField[f]);
       });
       return s;
+    }
+
+    /* ---- 大仓库存（分仓库存查询）：条码 → 可用库存（多仓累加） ---- */
+    async function parseWarehouseFile(file, onProgress) {
+      onProgress('读取大仓库存文件…');
+      var zip = await JSZip.loadAsync(file);
+      var wbXml = await readZipText(zip, 'xl/workbook.xml');
+      var relsXml = await readZipText(zip, 'xl/_rels/workbook.xml.rels');
+      var sheets = parseWorkbookSheets(wbXml, relsXml);
+      if (!sheets.length) throw new Error('大仓库存文件里找不到工作表');
+      var ss = parseSharedStrings(await readZipText(zip, 'xl/sharedStrings.xml'));
+      onProgress('解析大仓库存…');
+      var shXml = await readZipText(zip, sheets[0].path);
+      var rowParts = shXml.split('</row>');
+      var header = findHeader(rowParts, ['条码', '货品编号', '商品编号'], ss, 8);
+      if (!header) throw new Error('大仓库存表里找不到表头（需包含「条码」或「货品编号」列）');
+      var colMap = mapColumns(header.cells, {
+        barcode: ['条码', '商品条码', '规格条码', '商品/规格条码'],
+        avail: ['可用库存', '可用库存数量']
+      }, null);
+      if (!colMap.barcode) throw new Error('大仓库存表里找不到「条码」列');
+      if (!colMap.avail) throw new Error('大仓库存表里找不到「可用库存」列');
+      var wanted = wantedSet(colMap);
+      var avail = new Map();
+      for (var i = header.idx + 1; i < rowParts.length; i++) {
+        var cells = extractCells(rowParts[i], wanted, ss);
+        var bc = String(cells[colMap.barcode] || '').trim();
+        if (!bc || !/^\d{6,}$/.test(bc)) continue; // 无条码的行（如权益卡）无法匹配，跳过
+        var q = parseFloat(cells[colMap.avail]);
+        if (!isFinite(q)) q = 0;
+        avail.set(bc, (avail.get(bc) || 0) + q); // 同条码多仓累加
+      }
+      if (!avail.size) throw new Error('大仓库存表里没有解析到带条码的数据行');
+      return { avail: avail, skuCount: avail.size };
     }
 
     /* ---- 内嵌图片（WPS cellimages） ---- */
@@ -1027,6 +1082,8 @@
         // 当前库存按 69 码（条码）优先匹配，条码缺失或未命中时按规格编码回退
         if (p.barcode && invMap.has(p.barcode)) stock = invMap.get(p.barcode) || 0;
         else stock = invMap.get(p.specCode) || 0;
+        // 大仓可用库存：按条码匹配（未上传大仓文件时为 null，显示「—」）
+        var whQty = state.warehouseAvail && p.barcode ? (state.warehouseAvail.get(p.barcode) || 0) : null;
         var daily = winDays > 0 ? qty30 / winDays : 0;
         var rawWl = Math.ceil(daily * state.waterlineDays);
         var waterline, gap, status;
@@ -1044,6 +1101,7 @@
           barcode: p.barcode, productName: p.productName, cleanName: p.cleanName,
           spec: p.spec, category: p.category, retailPrice: p.retailPrice,
           productionNote: p.productionNote, imageUrl: p.imageUrl, specCode: p.specCode,
+          warehouseQty: whQty,
           qty: qty30, qtyAll: qtyAll, daily: daily, waterline: waterline, stock: stock,
           gap: gap, status: status
         };
@@ -1059,6 +1117,7 @@
         if (state.sampleScope === 'nonsample' && r.category === '香水小样') return false;
         if (state.production !== '全部' && r.productionNote !== state.production) return false;
         if (state.scope === 'need' && r.status !== 'need') return false;
+        if (state.warehouseMin !== null && !(r.warehouseQty > state.warehouseMin)) return false;
         if (kw) {
           var hay = (r.cleanName + ' ' + r.productName + ' ' + r.spec + ' ' + r.specCode + ' ' + r.barcode).toLowerCase();
           if (hay.indexOf(kw) < 0) return false;
@@ -1134,6 +1193,7 @@
             + '<td>' + gapCell + '</td>'
             + '<td>' + statusTag + '</td>'
             + '<td>' + noteTag + '</td>'
+            + '<td>' + (r.warehouseQty == null ? '<span class="zero">—</span>' : (r.warehouseQty > 0 ? fmtInt(r.warehouseQty) : '<span class="zero">0</span>')) + '</td>'
             + '</tr>';
         }).join('');
         body.innerHTML = html;
@@ -1304,6 +1364,49 @@
         state.waterlineDays = v;
         this.value = String(v);
         $('waterlineTh').title = 'max(2, ⌈日销系数 × ' + v + '⌉)；无销售且库存为 0 时记 0';
+        renderAll();
+      });
+      // 大仓库存（分仓库存查询）
+      $('btnWarehouse').addEventListener('click', function () { $('whFileInput').click(); });
+      $('whFileInput').addEventListener('change', async function () {
+        var file = this.files && this.files[0];
+        this.value = '';
+        if (!file) return;
+        var banner = $('errorBanner');
+        banner.hidden = true;
+        var btn = $('btnWarehouse');
+        btn.disabled = true;
+        btn.textContent = '解析中…';
+        try {
+          var wh = await parseWarehouseFile(file, function (msg) { btn.textContent = msg; });
+          state.warehouseAvail = wh.avail;
+          state.warehouseFile = file.name;
+          btn.textContent = '大仓库存已载入';
+          btn.title = file.name + '（' + fmtInt(wh.skuCount) + ' 个条码，点击可重新上传）';
+          $('warehouseMinInput').disabled = false;
+          renderAll();
+        } catch (err) {
+          state.warehouseAvail = null;
+          state.warehouseFile = '';
+          btn.textContent = '上传大仓库存';
+          btn.title = '上传《分仓库存查询》，按条码识别大仓可用库存';
+          $('warehouseMinInput').disabled = true;
+          $('warehouseMinInput').value = '';
+          state.warehouseMin = null;
+          banner.textContent = '大仓库存解析失败：' + (err && err.message ? err.message : err);
+          banner.hidden = false;
+          renderAll();
+        } finally {
+          btn.disabled = false;
+        }
+      });
+      $('warehouseMinInput').addEventListener('input', function () {
+        var t = this.value.trim();
+        if (t === '') state.warehouseMin = null;
+        else {
+          var n = parseFloat(t);
+          state.warehouseMin = isFinite(n) && n >= 0 ? n : null;
+        }
         renderAll();
       });
 
