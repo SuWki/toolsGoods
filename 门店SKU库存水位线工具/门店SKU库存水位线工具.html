@@ -331,7 +331,7 @@
             <h1>门店 SKU 库存水位线工具</h1>
             <p class="report-intro__summary">
               导入《门店SKU库存水位线数据源》（商品总览 + 店铺销售 + 店铺库存）并选择门店，
-              系统按「近 30 天日销系数 × 14 天」计算每款商品的库存水位线（够门店卖 14 天），日销过低时统一保底 3 件，
+              系统按「近 30 天日销系数 × 水位线天数」计算每款商品的库存水位线（默认够门店卖 14 天，天数可在筛选区配置），日销过低时统一保底 3 件，
               并与门店当前库存对比给出建议补货量。统计窗口按数据最晚日期自动倒推，开业日期自动取门店首次销售日期。
             </p>
           </div>
@@ -387,7 +387,7 @@
           <div class="kpi">
             <div class="kpi-label">水位线总量（件）</div>
             <div class="kpi-value" id="kpiWaterline">—</div>
-            <div class="kpi-sub">够卖 14 天的库存量</div>
+            <div class="kpi-sub" id="kpiWaterlineSub">够卖 14 天的库存量</div>
           </div>
           <div class="kpi">
             <div class="kpi-label">需补货 SKU / 建议补货（件）</div>
@@ -427,6 +427,10 @@
           </div>
 
           <div class="filter-row secondary">
+            <div class="inline-ctrl">
+              <span class="f-label">水位线天数<span class="hint" title="库存水位线 = 够门店卖 N 天的库存量，水位线 = max(3, ⌈日销系数 × N⌉)">i</span></span>
+              <input class="f-input" id="waterlineDaysInput" type="number" min="1" max="365" step="1" value="14" style="width:72px;" aria-label="水位线天数">
+            </div>
             <div class="inline-ctrl">
               <span class="f-label">生产备注</span>
               <select class="f-select" id="productionSel" style="width:130px;"></select>
@@ -472,7 +476,7 @@
                   <th class="sortable" data-key="productionNote" scope="col">生产备注<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="daily" scope="col" title="近 30 天销量 ÷ 窗口天数（数据最晚日期倒推 30 天，新店从开业日起算）">日销系数(件/天)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="stock" scope="col">当前库存(件)<span class="arrow">▼</span></th>
-                  <th class="sortable" data-key="waterline" scope="col" title="max(3, ⌈日销系数 × 60⌉)；无销售且库存为 0 时记 0">水位线(件)<span class="arrow">▼</span></th>
+                  <th class="sortable" data-key="waterline" id="waterlineTh" scope="col" title="max(3, ⌈日销系数 × 水位线天数⌉)；无销售且库存为 0 时记 0">水位线(件)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="gap" scope="col">建议补货(件)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="status" scope="col">状态<span class="arrow">▼</span></th>
                 </tr>
@@ -489,8 +493,8 @@
           <div class="notes-body">
             <h4>库存水位线</h4>
             <ul>
-              <li>水位线 = 够门店卖 <b>14 天</b>的库存数量：<span class="formula">水位线 = max(3, ⌈日销系数 × 14⌉)</span>（日销系数 1 时水位线 = 14）</li>
-              <li>日销系数过低、留够 14 天也只需要 1、2 件的商品，统一按 <b>3 件</b>保底计算。</li>
+              <li>水位线 = 够门店卖 <b>N 天</b>的库存数量（N 可在筛选区「水位线天数」配置，默认 14）：<span class="formula">水位线 = max(3, ⌈日销系数 × N⌉)</span>（日销系数 1、N=14 时水位线 = 14）</li>
+              <li>日销系数过低、留够 N 天也只需要 1、2 件的商品，统一按 <b>3 件</b>保底计算。</li>
               <li><b>无历史销售且当前库存为 0</b> 的商品：水位线记 <b>0</b>、不建议补货，状态为「无」。</li>
             </ul>
             <h4>日销系数（近 30 天）</h4>
@@ -530,7 +534,7 @@
     'use strict';
 
     /* ================= 常量 ================= */
-    var WATERLINE_DAYS = 14;   // 水位线覆盖天数：14 天
+    var DEFAULT_WATERLINE_DAYS = 14; // 水位线默认覆盖天数（可在筛选区配置）
     var RECENT_DAYS = 30;      // 日销系数统计窗口：近 30 天
     var MIN_WATERLINE = 3;     // 日销过低时的保底件数
     var CHUNK_ROWS = 4000;     // 分片解析行数，避免长表阻塞 UI
@@ -556,6 +560,7 @@
       search: '',
       sortKey: 'gap',
       sortDir: 'desc',
+      waterlineDays: DEFAULT_WATERLINE_DAYS, // 水位线覆盖天数（用户可配置）
     };
 
     /* ================= 通用工具 ================= */
@@ -1023,7 +1028,7 @@
         if (p.barcode && invMap.has(p.barcode)) stock = invMap.get(p.barcode) || 0;
         else stock = invMap.get(p.specCode) || 0;
         var daily = winDays > 0 ? qty30 / winDays : 0;
-        var rawWl = Math.ceil(daily * WATERLINE_DAYS);
+        var rawWl = Math.ceil(daily * state.waterlineDays);
         var waterline, gap, status;
         if (qtyAll === 0 && stock === 0) {
           // 无历史销售且库存为 0：不设水位线、不建议补货
@@ -1152,7 +1157,7 @@
         + (excessCount ? ' · 冗余库存 <b>' + fmtInt(excessCount) + '</b> 款' : '');
       $('tableFootnote').innerHTML = '日销系数 = 近 ' + RECENT_DAYS + ' 天销量 ÷ 窗口天数（' + fmtInt(model.days) + ' 天，'
         + keyToIso(model.startKey) + ' ~ ' + keyToIso(model.endKey) + '）；'
-        + '水位线 = max(3, ⌈日销系数 × 14⌉)，日销过低统一保底 3 件，无销售且库存 0 的商品记 0 不建议补货；'
+        + '水位线 = max(3, ⌈日销系数 × ' + fmtInt(state.waterlineDays) + '⌉)，日销过低统一保底 3 件，无销售且库存 0 的商品记 0 不建议补货；'
         + '库存 > 水位线为冗余库存。开业日期自动取门店首次销售日期。点击列头可排序。';
     }
 
@@ -1174,6 +1179,7 @@
       $('kpiStock').textContent = fmtInt(stockSum);
       $('kpiStockSub').textContent = '有库存 SKU ' + fmtInt(rows.filter(function (r) { return r.stock > 0; }).length) + ' / ' + fmtInt(rows.length);
       $('kpiWaterline').textContent = fmtInt(wlSum);
+      $('kpiWaterlineSub').textContent = '够卖 ' + fmtInt(state.waterlineDays) + ' 天的库存量';
       $('kpiNeed').innerHTML = fmtInt(needCount) + ' <em>/ ' + fmtInt(gapSum) + '</em>';
       $('kpiNeedSub').textContent = '有销量 SKU ' + fmtInt(soldCount) + ' 款';
     }
@@ -1286,6 +1292,16 @@
         if (!btn) return;
         state.sampleScope = btn.dataset.sample;
         this.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b === btn); });
+        renderAll();
+      });
+      // 水位线天数（可配置）
+      $('waterlineDaysInput').addEventListener('change', function () {
+        var v = parseInt(this.value, 10);
+        if (!isFinite(v) || v < 1) v = DEFAULT_WATERLINE_DAYS;
+        if (v > 365) v = 365;
+        state.waterlineDays = v;
+        this.value = String(v);
+        $('waterlineTh').title = 'max(3, ⌈日销系数 × ' + v + '⌉)；无销售且库存为 0 时记 0';
         renderAll();
       });
 
