@@ -331,7 +331,7 @@
             <h1>门店 SKU 库存水位线工具</h1>
             <p class="report-intro__summary">
               导入《门店SKU库存水位线数据源》（商品总览 + 店铺销售 + 店铺库存）并选择门店，
-              系统按「近 30 天日销系数 × 60 天」计算每款商品的库存水位线（够门店卖 2 个月），日销过低时统一保底 3 件，
+              系统按「近 30 天日销系数 × 14 天」计算每款商品的库存水位线（够门店卖 14 天），日销过低时统一保底 3 件，
               并与门店当前库存对比给出建议补货量。统计窗口按数据最晚日期自动倒推，开业日期自动取门店首次销售日期。
             </p>
           </div>
@@ -387,7 +387,7 @@
           <div class="kpi">
             <div class="kpi-label">水位线总量（件）</div>
             <div class="kpi-value" id="kpiWaterline">—</div>
-            <div class="kpi-sub">够卖 2 个月（60 天）的库存量</div>
+            <div class="kpi-sub">够卖 14 天的库存量</div>
           </div>
           <div class="kpi">
             <div class="kpi-label">需补货 SKU / 建议补货（件）</div>
@@ -430,6 +430,14 @@
             <div class="inline-ctrl">
               <span class="f-label">生产备注</span>
               <select class="f-select" id="productionSel" style="width:130px;"></select>
+            </div>
+            <div class="inline-ctrl">
+              <span class="f-label">品类范围</span>
+              <div class="seg" id="sampleSeg" role="group" aria-label="品类范围">
+                <button type="button" data-sample="all" class="on">全部</button>
+                <button type="button" data-sample="sample">香水小样</button>
+                <button type="button" data-sample="nonsample">非香水小样</button>
+              </div>
             </div>
             <div class="inline-ctrl">
               <span class="f-label">展示范围</span>
@@ -481,8 +489,8 @@
           <div class="notes-body">
             <h4>库存水位线</h4>
             <ul>
-              <li>水位线 = 够门店卖 <b>2 个月（60 天）</b>的库存量：<span class="formula">水位线 = max(3, ⌈日销系数 × 60⌉)</span></li>
-              <li>日销系数过低、留够 2 个月也只需要 1、2 件的商品，统一按 <b>3 件</b>保底计算。</li>
+              <li>水位线 = 够门店卖 <b>14 天</b>的库存数量：<span class="formula">水位线 = max(3, ⌈日销系数 × 14⌉)</span>（日销系数 1 时水位线 = 14）</li>
+              <li>日销系数过低、留够 14 天也只需要 1、2 件的商品，统一按 <b>3 件</b>保底计算。</li>
               <li><b>无历史销售且当前库存为 0</b> 的商品：水位线记 <b>0</b>、不建议补货，状态为「无」。</li>
             </ul>
             <h4>日销系数（近 30 天）</h4>
@@ -522,7 +530,7 @@
     'use strict';
 
     /* ================= 常量 ================= */
-    var WATERLINE_DAYS = 60;   // 水位线覆盖天数：2 个月
+    var WATERLINE_DAYS = 14;   // 水位线覆盖天数：14 天
     var RECENT_DAYS = 30;      // 日销系数统计窗口：近 30 天
     var MIN_WATERLINE = 3;     // 日销过低时的保底件数
     var CHUNK_ROWS = 4000;     // 分片解析行数，避免长表阻塞 UI
@@ -543,7 +551,8 @@
       openDate: '',                 // 自动：门店首次销售日期（ISO yyyy-mm-dd），不可手选
       category: '全部',
       production: '全部',
-      scope: 'all',                 // all | need
+      scope: 'all',                 // 展示范围：all | need
+      sampleScope: 'all',           // 品类范围：all | sample | nonsample
       search: '',
       sortKey: 'gap',
       sortDir: 'desc',
@@ -1039,6 +1048,8 @@
       var kw = state.search.trim().toLowerCase();
       return rows.filter(function (r) {
         if (state.category !== '全部' && r.category !== state.category) return false;
+        if (state.sampleScope === 'sample' && r.category !== '香水小样') return false;
+        if (state.sampleScope === 'nonsample' && r.category === '香水小样') return false;
         if (state.production !== '全部' && r.productionNote !== state.production) return false;
         if (state.scope === 'need' && r.status !== 'need') return false;
         if (kw) {
@@ -1141,7 +1152,7 @@
         + (excessCount ? ' · 冗余库存 <b>' + fmtInt(excessCount) + '</b> 款' : '');
       $('tableFootnote').innerHTML = '日销系数 = 近 ' + RECENT_DAYS + ' 天销量 ÷ 窗口天数（' + fmtInt(model.days) + ' 天，'
         + keyToIso(model.startKey) + ' ~ ' + keyToIso(model.endKey) + '）；'
-        + '水位线 = max(3, ⌈日销系数 × 60⌉)，日销过低统一保底 3 件，无销售且库存 0 的商品记 0 不建议补货；'
+        + '水位线 = max(3, ⌈日销系数 × 14⌉)，日销过低统一保底 3 件，无销售且库存 0 的商品记 0 不建议补货；'
         + '库存 > 水位线为冗余库存。开业日期自动取门店首次销售日期。点击列头可排序。';
     }
 
@@ -1270,6 +1281,13 @@
         this.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b === btn); });
         renderAll();
       });
+      $('sampleSeg').addEventListener('click', function (e) {
+        var btn = e.target.closest('button');
+        if (!btn) return;
+        state.sampleScope = btn.dataset.sample;
+        this.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b === btn); });
+        renderAll();
+      });
 
       // 表格排序
       document.querySelector('#wlTable thead').addEventListener('click', function (e) {
@@ -1315,10 +1333,14 @@
         state.category = '全部';
         state.production = '全部';
         state.scope = 'all';
+        state.sampleScope = 'all';
         state.search = '';
         $('searchInput').value = '';
         document.querySelectorAll('#scopeSeg button').forEach(function (b) {
           b.classList.toggle('on', b.dataset.scope === 'all');
+        });
+        document.querySelectorAll('#sampleSeg button').forEach(function (b) {
+          b.classList.toggle('on', b.dataset.sample === 'all');
         });
         syncOpenDate();
         $('dataRange').value = keyToIso(state.dateMin) + ' ~ ' + keyToIso(state.dateMax);
