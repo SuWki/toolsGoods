@@ -356,7 +356,7 @@
           <ul>
             <li><b>商品总览</b>：图片、产品名称、货号、规格、分类、零售价、生产备注</li>
             <li><b>店铺销售</b>：归属店铺、规格编码、商品数量、日期（用于计算日销系数）</li>
-            <li><b>店铺库存</b>：门店/仓库、商品/规格编码、实物库存、可用库存</li>
+            <li><b>店铺库存</b>：门店/仓库、商品/规格条码（69码）、商品/规格编码、实物库存、可用库存</li>
           </ul>
           <p>数据仅在你的浏览器本地解析，不会上传到任何服务器。</p>
           <button class="btn btn-primary" id="btnUploadEmpty" type="button">选择文件</button>
@@ -495,13 +495,14 @@
             <h4>当前库存与建议补货</h4>
             <ul>
               <li>当前库存取自《店铺销售》同文件的《店铺库存》表：优先取「可用库存」，该列为空时取「实物库存」。</li>
+            <li>库存<b>按 69 码（条码）优先匹配</b>：《商品总览》的「条码」对应《店铺库存》的「商品/规格条码」；条码缺失或未命中时按规格编码（货号）回退匹配。</li>
               <li><span class="formula">建议补货 = max(0, 水位线 − 当前库存)</span></li>
               <li>状态判定：库存 < 水位线为「需补货」；库存 ≥ 水位线为「达标」；<b>库存 > 水位线（超出 100%）为「冗余库存」</b>；无销售且库存为 0 为「无」。</li>
               <li>门店库存表中没有该商品记录时，当前库存按 0 计。</li>
             </ul>
             <h4>数据关联</h4>
             <ul>
-              <li>三张表通过规格编码关联：《商品总览》的「货号」=《店铺销售》的「规格编码」=《店铺库存》的「商品/规格编码」。</li>
+              <li>表间关联：《商品总览》的「货号」=《店铺销售》的「规格编码」（销量匹配）；库存匹配按「条码 = 商品/规格条码（69 码）」优先，未命中时回退「货号 = 商品/规格编码」。</li>
               <li>商品图片来自 Excel 内嵌图片（WPS 单元格图片），在浏览器本地解压读取。</li>
               <li>品名展示时自动省略「BLACK PAW / 黑爪」字样。</li>
             </ul>
@@ -915,29 +916,34 @@
       var T_FIELDS = {
         store: ['门店/仓库', '门店', '仓库', '店铺名称'],
         specCode: ['商品/规格编码', '规格编码', '货号'],
+        barcode: ['商品/规格条码', '规格条码', '69码', '条码'],
         physical: ['实物库存'],
         available: ['可用库存']
       };
-      var T_FALLBACK = { store: 'B', specCode: 'E', physical: 'U', available: 'W' };
+      var T_FALLBACK = { store: 'B', specCode: 'E', barcode: 'F', physical: 'U', available: 'W' };
       var tRows = stockXml.split('</row>');
       var tHeader = findHeader(tRows, ['门店/仓库', '门店', '仓库'], ss, 5);
       if (!tHeader) throw new Error('店铺库存表里找不到表头（需包含「门店/仓库」列）');
       var tCols = mapColumns(tHeader.cells, T_FIELDS, T_FALLBACK);
       var tWanted = wantedSet(tCols);
-      var inventoryByStore = new Map();
+      var inventoryByStore = new Map();   // store -> Map(条码或规格编码 -> 库存)
+      var storeStockTotal = new Map();    // store -> 库存合计（每行只计一次）
       var tParts = tRows.length - 1;
       for (var ti = tHeader.idx + 1; ti < tParts; ti++) {
         var tc = extractCells(tRows[ti], tWanted, ss);
         var tStore = String(tc[tCols.store] || '').trim();
         var tCode = String(tc[tCols.specCode] || '').trim();
-        if (!tStore || !tCode) continue;
+        var tBarcode = String(tc[tCols.barcode] || '').trim();
+        if (!tStore || (!tCode && !tBarcode)) continue;
         var physical = parseNum(tc[tCols.physical]);
         var available = parseNum(tc[tCols.available]);
         var qtyVal = (available !== null && available !== 0) ? available : (physical !== null ? physical : 0);
         var inv = inventoryByStore.get(tStore);
         if (!inv) { inv = new Map(); inventoryByStore.set(tStore, inv); }
-        var prev = inv.get(tCode) || 0;
-        inv.set(tCode, prev + (qtyVal || 0));
+        // 编码与条码双键索引：商品按 69 码优先匹配，条码缺失时按规格编码回退
+        if (tCode) inv.set(tCode, (inv.get(tCode) || 0) + (qtyVal || 0));
+        if (tBarcode) inv.set(tBarcode, (inv.get(tBarcode) || 0) + (qtyVal || 0));
+        storeStockTotal.set(tStore, (storeStockTotal.get(tStore) || 0) + (qtyVal || 0));
         if ((ti - tHeader.idx) % CHUNK_ROWS === CHUNK_ROWS - 1) await nextTick();
       }
 
@@ -951,10 +957,7 @@
         var salesQty = 0;
         var sm = salesByStore.get(st);
         if (sm) sm.forEach(function (byDate) { byDate.forEach(function (q) { salesQty += q; }); });
-        var stockQty = 0;
-        var im = inventoryByStore.get(st);
-        if (im) im.forEach(function (q) { stockQty += q; });
-        storeMeta.set(st, { salesQty: salesQty, stockQty: stockQty });
+        storeMeta.set(st, { salesQty: salesQty, stockQty: storeStockTotal.get(st) || 0 });
       });
 
       return {
@@ -995,7 +998,10 @@
           qtyAll += q;
           if (dk >= winStart && dk <= endKey) qty30 += q;
         });
-        var stock = invMap.get(p.specCode) || 0;
+        var stock = 0;
+        // 当前库存按 69 码（条码）优先匹配，条码缺失或未命中时按规格编码回退
+        if (p.barcode && invMap.has(p.barcode)) stock = invMap.get(p.barcode) || 0;
+        else stock = invMap.get(p.specCode) || 0;
         var daily = winDays > 0 ? qty30 / winDays : 0;
         var rawWl = Math.ceil(daily * WATERLINE_DAYS);
         var waterline, gap, status;
