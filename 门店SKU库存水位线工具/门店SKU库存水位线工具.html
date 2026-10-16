@@ -473,12 +473,12 @@
                   <th class="td-info sortable" data-key="spec" scope="col">规格<span class="arrow">▼</span></th>
                   <th class="td-info sortable" data-key="category" scope="col">分类<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="price" scope="col">零售价(元)<span class="arrow">▼</span></th>
-                  <th class="sortable" data-key="productionNote" scope="col">生产备注<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="daily" scope="col" title="近 30 天销量 ÷ 窗口天数（数据最晚日期倒推 30 天，新店从开业日起算）">日销系数(件/天)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="stock" scope="col">当前库存(件)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="waterline" id="waterlineTh" scope="col" title="max(2, ⌈日销系数 × 水位线天数⌉)；无销售且库存为 0 时记 0">水位线(件)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="gap" scope="col">建议补货(件)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="status" scope="col">状态<span class="arrow">▼</span></th>
+                  <th class="sortable" data-key="productionNote" scope="col">生产备注<span class="arrow">▼</span></th>
                 </tr>
               </thead>
               <tbody id="wlTableBody"></tbody>
@@ -1128,12 +1128,12 @@
             + '<td class="td-info">' + escapeHtml(r.spec || '—') + '</td>'
             + '<td class="td-info">' + escapeHtml(r.category) + '</td>'
             + '<td>' + price + '</td>'
-            + '<td>' + noteTag + '</td>'
             + '<td title="近30天销量 ' + fmtInt(r.qty) + ' 件 · 全期 ' + fmtInt(r.qtyAll) + ' 件">' + (r.daily > 0 ? fmtDaily(r.daily) : '<span class="zero">0.00</span>') + '</td>'
             + '<td>' + (r.stock > 0 ? fmtInt(r.stock) : '<span class="zero">0</span>') + '</td>'
             + '<td>' + fmtInt(r.waterline) + '</td>'
             + '<td>' + gapCell + '</td>'
             + '<td>' + statusTag + '</td>'
+            + '<td>' + noteTag + '</td>'
             + '</tr>';
         }).join('');
         body.innerHTML = html;
