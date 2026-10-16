@@ -355,7 +355,7 @@
           <p>请上传包含以下三个工作表的 Excel 文件（.xlsx），示例：《门店SKU库存水位线数据源.xlsx》：</p>
           <ul>
             <li><b>商品总览</b>：图片、产品名称、货号、规格、分类、零售价、生产备注</li>
-            <li><b>店铺销售</b>：归属店铺、规格编码、商品数量、日期（用于计算日销系数）</li>
+            <li><b>店铺销售</b>：归属店铺、规格条码（69码）、规格编码、商品数量、日期（用于计算日销系数）</li>
             <li><b>店铺库存</b>：门店/仓库、商品/规格条码（69码）、商品/规格编码、实物库存、可用库存</li>
           </ul>
           <p>数据仅在你的浏览器本地解析，不会上传到任何服务器。</p>
@@ -502,7 +502,7 @@
             </ul>
             <h4>数据关联</h4>
             <ul>
-              <li>表间关联：《商品总览》的「货号」=《店铺销售》的「规格编码」（销量匹配）；库存匹配按「条码 = 商品/规格条码（69 码）」优先，未命中时回退「货号 = 商品/规格编码」。</li>
+              <li>表间关联均<b>按 69 码（条码）优先匹配</b>：《商品总览》的「条码」对应《店铺销售》的「规格条码」与《店铺库存》的「商品/规格条码」；条码缺失或未命中时回退按规格编码（货号）匹配。</li>
               <li>商品图片来自 Excel 内嵌图片（WPS 单元格图片），在浏览器本地解压读取。</li>
               <li>品名展示时自动省略「BLACK PAW / 黑爪」字样。</li>
             </ul>
@@ -871,16 +871,18 @@
       var S_FIELDS = {
         store: ['归属店铺', '店铺名称', '门店'],
         specCode: ['规格编码', '商品/规格编码', '货号'],
+        barcode: ['规格条码', '商品/规格条码', '69码', '条码'],
         qty: ['商品数量', '数量', '销量'],
         date: ['日期', '年-月-日']
       };
-      var S_FALLBACK = { store: 'K', specCode: 'M', qty: 'T', date: 'AZ' };
+      var S_FALLBACK = { store: 'K', specCode: 'M', barcode: 'O', qty: 'T', date: 'AZ' };
       var sRows = salesXml.split('</row>');
       var sHeader = findHeader(sRows, ['归属店铺', '店铺名称', '门店'], ss, 5);
       if (!sHeader) throw new Error('店铺销售表里找不到表头（需包含「归属店铺」列）');
       var sCols = mapColumns(sHeader.cells, S_FIELDS, S_FALLBACK);
       var sWanted = wantedSet(sCols);
       var salesByStore = new Map();
+      var storeSalesTotal = new Map();  // store -> 销量合计（每行只计一次）
       var firstSaleByStore = new Map(); // store -> 首次销售日期 yyyymmdd
       var dateMin = 0, dateMax = 0;
       var salesSkipped = 0;
@@ -889,15 +891,25 @@
         var sc = extractCells(sRows[si], sWanted, ss);
         var store = String(sc[sCols.store] || '').trim();
         var sCode = String(sc[sCols.specCode] || '').trim();
+        var sBarcode = String(sc[sCols.barcode] || '').trim();
         var qty = parseNum(sc[sCols.qty]);
         var dkey = parseDateKey(sc[sCols.date]);
-        if (!store || !sCode || !qty || qty <= 0 || !dkey) { salesSkipped++; }
+        if (!store || (!sCode && !sBarcode) || !qty || qty <= 0 || !dkey) { salesSkipped++; }
         else {
           var byCode = salesByStore.get(store);
           if (!byCode) { byCode = new Map(); salesByStore.set(store, byCode); }
-          var byDate = byCode.get(sCode);
-          if (!byDate) { byDate = new Map(); byCode.set(sCode, byDate); }
-          byDate.set(dkey, (byDate.get(dkey) || 0) + qty);
+          // 编码与条码双键索引：日销按 69 码优先匹配，条码缺失时按规格编码回退
+          if (sCode) {
+            var bdC = byCode.get(sCode);
+            if (!bdC) { bdC = new Map(); byCode.set(sCode, bdC); }
+            bdC.set(dkey, (bdC.get(dkey) || 0) + qty);
+          }
+          if (sBarcode) {
+            var bdB = byCode.get(sBarcode);
+            if (!bdB) { bdB = new Map(); byCode.set(sBarcode, bdB); }
+            bdB.set(dkey, (bdB.get(dkey) || 0) + qty);
+          }
+          storeSalesTotal.set(store, (storeSalesTotal.get(store) || 0) + qty);
           var firstSale = firstSaleByStore.get(store);
           if (!firstSale || dkey < firstSale) firstSaleByStore.set(store, dkey);
           if (!dateMin || dkey < dateMin) dateMin = dkey;
@@ -954,10 +966,7 @@
       var stores = Array.from(storeSet).sort(function (a, b) { return a.localeCompare(b, 'zh'); });
       var storeMeta = new Map();
       stores.forEach(function (st) {
-        var salesQty = 0;
-        var sm = salesByStore.get(st);
-        if (sm) sm.forEach(function (byDate) { byDate.forEach(function (q) { salesQty += q; }); });
-        storeMeta.set(st, { salesQty: salesQty, stockQty: storeStockTotal.get(st) || 0 });
+        storeMeta.set(st, { salesQty: storeSalesTotal.get(st) || 0, stockQty: storeStockTotal.get(st) || 0 });
       });
 
       return {
@@ -992,7 +1001,9 @@
       if (openKey && openKey > winStart) winStart = openKey;
       var winDays = endKey >= winStart ? diffDaysKey(winStart, endKey) + 1 : 0;
       var rows = state.products.map(function (p) {
-        var byDate = salesMap.get(p.specCode);
+        // 销量按 69 码（条码）优先匹配，条码缺失或未命中时按规格编码回退
+        var salesKey = (p.barcode && salesMap.has(p.barcode)) ? p.barcode : p.specCode;
+        var byDate = salesMap.get(salesKey);
         var qty30 = 0, qtyAll = 0;
         if (byDate) byDate.forEach(function (q, dk) {
           qtyAll += q;
