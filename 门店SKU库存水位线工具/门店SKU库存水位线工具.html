@@ -261,6 +261,9 @@
       white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; color: var(--page-text);
     }
     table.wl-table td.td-info { text-align: left; }
+    /* 规格列限宽：正好容纳「2ml*4」，超长省略号，悬停显示完整 */
+    table.wl-table thead th.col-spec { width: 70px; }
+    table.wl-table td.td-spec { max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     table.wl-table tbody tr:hover td { background: var(--page-surface); }
     .td-product { min-width: 220px; max-width: 300px; white-space: normal !important; }
     .td-product .p-name { font-weight: 500; line-height: 1.5; }
@@ -476,7 +479,7 @@
                 <tr>
                   <th scope="col" style="width:64px;">图片</th>
                   <th class="td-info sortable" data-key="name" scope="col">品名<span class="arrow">▼</span></th>
-                  <th class="td-info sortable" data-key="spec" scope="col">规格<span class="arrow">▼</span></th>
+                  <th class="td-info sortable col-spec" data-key="spec" scope="col">规格<span class="arrow">▼</span></th>
                   <th class="td-info sortable" data-key="category" scope="col">分类<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="price" scope="col">零售价(元)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="daily" scope="col" title="近 30 天销量 ÷ 窗口天数（数据最晚日期倒推 30 天，新店从开业日起算）">日销系数(件/天)<span class="arrow">▼</span></th>
@@ -1185,7 +1188,7 @@
             + '<td class="td-img">' + img + '</td>'
             + '<td class="td-info td-product"><div class="p-name" title="' + escapeHtml(r.productName) + '">' + escapeHtml(r.cleanName) + '</div>'
             + '<div class="p-sub">货号 ' + escapeHtml(r.specCode || '—') + (r.barcode ? ' · 条码 ' + escapeHtml(r.barcode) : '') + '</div></td>'
-            + '<td class="td-info">' + escapeHtml(r.spec || '—') + '</td>'
+            + '<td class="td-info td-spec" title="' + escapeHtml(r.spec || '') + '">' + escapeHtml(r.spec || '—') + '</td>'
             + '<td class="td-info">' + escapeHtml(r.category) + '</td>'
             + '<td>' + price + '</td>'
             + '<td title="近30天销量 ' + fmtInt(r.qty) + ' 件 · 全期 ' + fmtInt(r.qtyAll) + ' 件">' + (r.daily > 0 ? fmtDaily(r.daily) : '<span class="zero">0.00</span>') + '</td>'
