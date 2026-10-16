@@ -331,8 +331,8 @@
             <h1>门店 SKU 库存水位线工具</h1>
             <p class="report-intro__summary">
               导入《门店SKU库存水位线数据源》（商品总览 + 店铺销售 + 店铺库存）并选择门店，
-              系统按「日销系数 × 60 天」计算每款商品的库存水位线（够门店卖 2 个月），日销过低时统一保底 3 件，
-              并与门店当前库存对比给出建议补货量。开业日期自动取该门店首次产生销售的日期，无需手动填写。
+              系统按「近 30 天日销系数 × 60 天」计算每款商品的库存水位线（够门店卖 2 个月），日销过低时统一保底 3 件，
+              并与门店当前库存对比给出建议补货量。统计窗口按数据最晚日期自动倒推，开业日期自动取门店首次销售日期。
             </p>
           </div>
           <div class="intro-actions">
@@ -375,7 +375,7 @@
             <div class="kpi-sub" id="kpiOpenSub">—</div>
           </div>
           <div class="kpi">
-            <div class="kpi-label">经营天数（天）</div>
+            <div class="kpi-label">日销统计窗口（天）</div>
             <div class="kpi-value" id="kpiDays">—</div>
             <div class="kpi-sub" id="kpiDaysSub">—</div>
           </div>
@@ -453,7 +453,7 @@
           </div>
           <div class="table-scroll">
             <table class="wl-table" id="wlTable">
-              <caption class="sr-only">按当前门店与开业日期计算的每款商品日销系数、当前库存、库存水位线与建议补货明细表</caption>
+              <caption class="sr-only">按当前门店近 30 天日销计算的每款商品日销系数、当前库存、库存水位线与建议补货明细表</caption>
               <thead>
                 <tr>
                   <th scope="col" style="width:64px;">图片</th>
@@ -462,7 +462,7 @@
                   <th class="td-info sortable" data-key="category" scope="col">分类<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="price" scope="col">零售价(元)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="productionNote" scope="col">生产备注<span class="arrow">▼</span></th>
-                  <th class="sortable" data-key="daily" scope="col" title="统计期内销量 ÷ 经营天数">日销系数(件/天)<span class="arrow">▼</span></th>
+                  <th class="sortable" data-key="daily" scope="col" title="近 30 天销量 ÷ 窗口天数（数据最晚日期倒推 30 天，新店从开业日起算）">日销系数(件/天)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="stock" scope="col">当前库存(件)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="waterline" scope="col" title="max(3, ⌈日销系数 × 60⌉)；无销售且库存为 0 时记 0">水位线(件)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="gap" scope="col">建议补货(件)<span class="arrow">▼</span></th>
@@ -485,11 +485,12 @@
               <li>日销系数过低、留够 2 个月也只需要 1、2 件的商品，统一按 <b>3 件</b>保底计算。</li>
               <li><b>无历史销售且当前库存为 0</b> 的商品：水位线记 <b>0</b>、不建议补货，状态为「无」。</li>
             </ul>
-            <h4>日销系数</h4>
+            <h4>日销系数（近 30 天）</h4>
             <ul>
-              <li><span class="formula">日销系数 = 统计期内该 SKU 销量 ÷ 经营天数</span></li>
-              <li>经营天数 = 从「门店首次销售日期 与 销售数据最早日期 的较大者」到 销售数据最晚日期 的自然天数（含两端）。</li>
-              <li>开业日期<b>自动读取</b>：取该门店在《店铺销售》中第一次产生销售的日期，不可手动修改；该门店无销售记录时按数据完整区间计算。</li>
+              <li><span class="formula">日销系数 = 近 30 天该 SKU 销量 ÷ 窗口天数</span></li>
+              <li>统计窗口自动按数据源识别：从销售数据<b>最晚日期倒推 30 个自然日</b>（含两端）。例如数据到 2026/10/11，则统计 2026/09/12 ~ 2026/10/11。</li>
+              <li>门店开业不足 30 天时，从开业日期起算（窗口天数相应缩短），避免新店日销被稀释。</li>
+              <li>开业日期<b>自动读取</b>：取该门店在《店铺销售》中第一次产生销售的日期，不可手动修改。</li>
             </ul>
             <h4>当前库存与建议补货</h4>
             <ul>
@@ -521,6 +522,7 @@
 
     /* ================= 常量 ================= */
     var WATERLINE_DAYS = 60;   // 水位线覆盖天数：2 个月
+    var RECENT_DAYS = 30;      // 日销系数统计窗口：近 30 天
     var MIN_WATERLINE = 3;     // 日销过低时的保底件数
     var CHUNK_ROWS = 4000;     // 分片解析行数，避免长表阻塞 UI
     var IMG_BATCH = 20;        // 图片分批加载
@@ -624,6 +626,12 @@
       var da = new Date(Math.floor(a / 10000), Math.floor((a % 10000) / 100) - 1, a % 100);
       var db = new Date(Math.floor(b / 10000), Math.floor((b % 10000) / 100) - 1, b % 100);
       return Math.round((db - da) / 86400000);
+    }
+    /* key 按天数平移（days 可为负） */
+    function shiftDayKey(k, days) {
+      var d = new Date(Math.floor(k / 10000), Math.floor((k % 10000) / 100) - 1, k % 100);
+      d.setDate(d.getDate() + days);
+      return mkKey(d.getFullYear(), d.getMonth() + 1, d.getDate());
     }
 
     /* ================= XLSX 解析（JSZip + 正则，分片执行） ================= */
@@ -886,7 +894,9 @@
         else {
           var byCode = salesByStore.get(store);
           if (!byCode) { byCode = new Map(); salesByStore.set(store, byCode); }
-          byCode.set(sCode, (byCode.get(sCode) || 0) + qty);
+          var byDate = byCode.get(sCode);
+          if (!byDate) { byDate = new Map(); byCode.set(sCode, byDate); }
+          byDate.set(dkey, (byDate.get(dkey) || 0) + qty);
           var firstSale = firstSaleByStore.get(store);
           if (!firstSale || dkey < firstSale) firstSaleByStore.set(store, dkey);
           if (!dateMin || dkey < dateMin) dateMin = dkey;
@@ -940,7 +950,7 @@
       stores.forEach(function (st) {
         var salesQty = 0;
         var sm = salesByStore.get(st);
-        if (sm) sm.forEach(function (q) { salesQty += q; });
+        if (sm) sm.forEach(function (byDate) { byDate.forEach(function (q) { salesQty += q; }); });
         var stockQty = 0;
         var im = inventoryByStore.get(st);
         if (im) im.forEach(function (q) { stockQty += q; });
@@ -973,17 +983,23 @@
       var salesMap = state.salesByStore.get(state.store) || new Map();
       var invMap = state.inventoryByStore.get(state.store) || new Map();
       var openKey = state.openDate ? isoToKey(state.openDate) : 0;
-      var startKey = state.dateMin;
-      if (openKey && openKey > startKey) startKey = openKey;
       var endKey = state.dateMax;
-      var days = endKey >= startKey ? diffDaysKey(startKey, endKey) + 1 : 0;
+      /* 近 30 天窗口：从数据最晚日期倒推（含两端）；门店开业不足 30 天时从开业日起算 */
+      var winStart = shiftDayKey(endKey, -(RECENT_DAYS - 1));
+      if (openKey && openKey > winStart) winStart = openKey;
+      var winDays = endKey >= winStart ? diffDaysKey(winStart, endKey) + 1 : 0;
       var rows = state.products.map(function (p) {
-        var qty = salesMap.get(p.specCode) || 0;
+        var byDate = salesMap.get(p.specCode);
+        var qty30 = 0, qtyAll = 0;
+        if (byDate) byDate.forEach(function (q, dk) {
+          qtyAll += q;
+          if (dk >= winStart && dk <= endKey) qty30 += q;
+        });
         var stock = invMap.get(p.specCode) || 0;
-        var daily = days > 0 ? qty / days : 0;
+        var daily = winDays > 0 ? qty30 / winDays : 0;
         var rawWl = Math.ceil(daily * WATERLINE_DAYS);
         var waterline, gap, status;
-        if (qty === 0 && stock === 0) {
+        if (qtyAll === 0 && stock === 0) {
           // 无历史销售且库存为 0：不设水位线、不建议补货
           waterline = 0; gap = 0; status = 'none';
         } else {
@@ -995,11 +1011,11 @@
           barcode: p.barcode, productName: p.productName, cleanName: p.cleanName,
           spec: p.spec, category: p.category, retailPrice: p.retailPrice,
           productionNote: p.productionNote, imageUrl: p.imageUrl, specCode: p.specCode,
-          qty: qty, daily: daily, waterline: waterline, stock: stock,
+          qty: qty30, qtyAll: qtyAll, daily: daily, waterline: waterline, stock: stock,
           gap: gap, status: status
         };
       });
-      return { rows: rows, days: days, startKey: startKey, endKey: endKey, warn: '' };
+      return { rows: rows, days: winDays, startKey: winStart, endKey: endKey, warn: '' };
     }
 
     function filterRows(rows) {
@@ -1078,7 +1094,7 @@
             + '<td class="td-info">' + escapeHtml(r.category) + '</td>'
             + '<td>' + price + '</td>'
             + '<td>' + noteTag + '</td>'
-            + '<td title="统计期销量 ' + fmtInt(r.qty) + ' 件">' + (r.daily > 0 ? fmtDaily(r.daily) : '<span class="zero">0.00</span>') + '</td>'
+            + '<td title="近30天销量 ' + fmtInt(r.qty) + ' 件 · 全期 ' + fmtInt(r.qtyAll) + ' 件">' + (r.daily > 0 ? fmtDaily(r.daily) : '<span class="zero">0.00</span>') + '</td>'
             + '<td>' + (r.stock > 0 ? fmtInt(r.stock) : '<span class="zero">0</span>') + '</td>'
             + '<td>' + fmtInt(r.waterline) + '</td>'
             + '<td>' + gapCell + '</td>'
@@ -1106,7 +1122,8 @@
       $('tableMeta').innerHTML = '当前筛选 <b>' + fmtInt(rows.length) + '</b> 款商品'
         + ' · 库存 <b>' + fmtInt(stockSum) + '</b> 件 · 水位线 <b>' + fmtInt(wlSum) + '</b> 件 · 建议补货 <b>' + fmtInt(gapSum) + '</b> 件'
         + (excessCount ? ' · 冗余库存 <b>' + fmtInt(excessCount) + '</b> 款' : '');
-      $('tableFootnote').innerHTML = '日销系数 = 统计期销量 ÷ 经营天数（' + fmtInt(model.days) + ' 天）；'
+      $('tableFootnote').innerHTML = '日销系数 = 近 ' + RECENT_DAYS + ' 天销量 ÷ 窗口天数（' + fmtInt(model.days) + ' 天，'
+        + keyToIso(model.startKey) + ' ~ ' + keyToIso(model.endKey) + '）；'
         + '水位线 = max(3, ⌈日销系数 × 60⌉)，日销过低统一保底 3 件，无销售且库存 0 的商品记 0 不建议补货；'
         + '库存 > 水位线为冗余库存。开业日期自动取门店首次销售日期。点击列头可排序。';
     }
