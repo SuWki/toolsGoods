@@ -1547,6 +1547,7 @@ pointer-events: none;
           <button class="mode-btn" data-mode="salesTrend">销售趋势</button>
           <button class="mode-btn" data-mode="kttImport">快团团导入</button>
           <button class="mode-btn" data-mode="skuRank">门店SKU排名</button>
+          <button class="mode-btn" data-mode="stockWaterline">库存水位线</button>
         </div>
         <div class="actions">
           <button id="batch-upload" class="ghost">批量上传</button>
@@ -1598,8 +1599,11 @@ pointer-events: none;
         </section>
 
         <section id="sku-rank-panel" class="panel sku-rank-panel" style="display:none;">
-          <iframe id="sku-rank-frame" title="门店SKU销售排名分析看板" data-src="./门店SKU销售排名分析看板/门店SKU销售排名分析看板.html"></iframe>
-        </section>
+        <iframe id="sku-rank-frame" title="门店SKU销售排名分析看板" data-src="./门店SKU销售排名分析看板/门店SKU销售排名分析看板.html"></iframe>
+      </section>
+      <section id="waterline-panel" class="panel sku-rank-panel" style="display:none;">
+        <iframe id="waterline-frame" title="门店SKU库存水位线工具" data-src="./门店SKU库存水位线工具/门店SKU库存水位线工具.html"></iframe>
+      </section>
       </main>
     </div>
   </div>
@@ -4297,6 +4301,9 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       } else if (state.activeTab === "skuRank") {
         // 门店SKU排名看板：状态由看板自身展示，顶部不叠加胶囊
         pills = [];
+      } else if (state.activeTab === "stockWaterline") {
+        // 库存水位线工具：状态由工具自身展示，顶部不叠加胶囊
+        pills = [];
       } else {
         pills = [
           `<span class="pill">已上传 ${formatInteger(model.uploadedCount)} 个文件</span>`,
@@ -4326,6 +4333,10 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       }
       if (state.activeTab === "skuRank") {
         // 门店SKU排名看板自带数据上传入口，无需侧边栏文件位
+        return [];
+      }
+      if (state.activeTab === "stockWaterline") {
+        // 库存水位线工具自带数据上传入口，无需侧边栏文件位
         return [];
       }
       // 驾驶舱Tab显示除九宫格与销售趋势外的所有文件
@@ -4408,6 +4419,11 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       }
       if (state.activeTab === "skuRank") {
         // 门店SKU排名看板有自己的数据源与质量说明
+        host.innerHTML = "";
+        return;
+      }
+      if (state.activeTab === "stockWaterline") {
+        // 库存水位线工具有自己的数据源与质量说明
         host.innerHTML = "";
         return;
       }
@@ -4553,6 +4569,17 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
           <div class="note">3. 贡献率与门店自身比较：该门店该 SKU 金额 ÷ 该门店同期全部 SKU 总业绩。</div>
           <div class="note">4. 支持导出当前排名明细 Excel（含口径说明与本店总量分母列）。</div>
           <div class="note">5. 数据仅在本地浏览器解析，不会上传服务器。</div>
+        `;
+      } else if (state.activeTab === "stockWaterline") {
+        titleEl.textContent = "门店SKU库存水位线工具";
+        subtitleEl.textContent = "库存水位线模式：在右侧工具内上传《门店SKU库存水位线数据源》（商品总览+店铺销售+店铺库存），选择门店并填写开业日期，按日销系数计算每款商品够卖 2 个月的库存水位线与建议补货量。";
+        notesEl.innerHTML = `
+          <div class="note">1. 点击工具内「上传数据源」选择 Excel 文件，需包含《商品总览》《店铺销售》《店铺库存》三张工作表。</div>
+          <div class="note">2. 填写门店开业日期后，日销系数从「开业日期与数据最早日期的较大者」起算；不填则按完整数据区间计算。</div>
+          <div class="note">3. 水位线 = max(3, ⌈日销系数 × 60⌉)，即够门店卖 2 个月的库存；日销过低统一保底 3 件。</div>
+          <div class="note">4. 当前库存取《店铺库存》的可用库存（为空时取实物库存），建议补货 = max(0, 水位线 − 当前库存)。</div>
+          <div class="note">5. 品名自动省略「BLACK PAW / 黑爪」字样；商品图片来自 Excel 内嵌图片，本地解析。</div>
+          <div class="note">6. 数据仅在本地浏览器解析，不会上传服务器。</div>
         `;
       } else {
         titleEl.textContent = "驾驶舱文件";
@@ -7395,6 +7422,7 @@ bindTrendTooltip(chartEl);
 
       // 门店SKU排名看板：iframe 嵌入独立页面（首次进入懒加载，切换 Tab 状态保留）
       const skuRankPanel = document.getElementById("sku-rank-panel");
+      const waterlinePanel = document.getElementById("waterline-panel");
       if (state.activeTab === "skuRank") {
         kpiGrid.style.display = "none";
         tabsBar.style.display = "none";
@@ -7406,9 +7434,26 @@ bindTrendTooltip(chartEl);
             skuFrame.src = skuFrame.dataset.src;
           }
         }
+        if (waterlinePanel) waterlinePanel.style.display = "none";
         return;
       }
       if (skuRankPanel) skuRankPanel.style.display = "none";
+
+      // 库存水位线工具：iframe 嵌入独立页面（首次进入懒加载，切换 Tab 状态保留）
+      if (state.activeTab === "stockWaterline") {
+        kpiGrid.style.display = "none";
+        tabsBar.style.display = "none";
+        tabsPanel.style.display = "none";
+        if (waterlinePanel) {
+          waterlinePanel.style.display = "block";
+          const wlFrame = document.getElementById("waterline-frame");
+          if (wlFrame && !wlFrame.getAttribute("src")) {
+            wlFrame.src = wlFrame.dataset.src;
+          }
+        }
+        return;
+      }
+      if (waterlinePanel) waterlinePanel.style.display = "none";
 
       if (state.activeTab === "cockpit") {
         // 驾驶舱模式：显示子标签栏

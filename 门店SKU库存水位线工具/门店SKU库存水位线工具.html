@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>门店 SKU 库存水位线工具</title>
+
+  <style>
+    /* ============================================================
+       配色与结构令牌：与「门店 SKU 销售排名分析看板」保持一致（Business Blue）
+       ============================================================ */
+    :root {
+      --page-bg: #FFFFFF;
+      --page-surface: #F4F7FB;
+      --page-surface-muted: #EAEFF6;
+      --page-text: #1F2937;
+      --page-text-secondary: #3D4757;
+      --page-text-muted: #67717F;
+      --page-text-disabled: #9AA4B2;
+      --page-border: #DFE5EE;
+      --page-brand: #0969DA;
+      --page-brand-hover: #0757B5;
+      --page-brand-active: #064B99;
+      --page-brand-soft: #EAF2FC;
+      --page-brand-soft-strong: #CFE2F8;
+      --page-brand-text: #0B4A94;
+
+      --bg: #FFFFFF;
+      --bg2: #F4F7FB;
+      --rule: #E7ECF3;
+      --ink: #1F2937;
+      --muted: #67717F;
+
+      --positive: #52C41A;
+      --warning: #FAAD14;
+      --danger: #FF4D4F;
+      --info-soft: #EAF2FC;
+      --success-soft: #F0FBEE;
+      --warning-soft: #FFFBEA;
+      --danger-soft: #FFF3F3;
+
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
+      --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-pill: 999px;
+      --font-sans: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', sans-serif;
+      --font-mono: 'SF Mono', Consolas, 'Courier New', monospace;
+      --max: 1320px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--ink);
+      background: var(--bg2);
+      padding: 24px 0 56px;
+      -webkit-font-smoothing: antialiased;
+    }
+    img, svg { max-width: 100%; }
+    button { font-family: inherit; }
+    input, select { font-family: inherit; }
+    :focus-visible { outline: 2px solid var(--page-brand); outline-offset: 1px; }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    }
+    .page__content { width: calc(100% - 2rem); max-width: var(--max); margin: 0 auto; }
+
+    /* === 页头 === */
+    .report-intro { margin-bottom: var(--space-5); }
+    .report-intro__surface {
+      width: calc(100% - 2rem);
+      max-width: var(--max);
+      margin: 0 auto;
+      background: var(--page-brand-soft);
+      border: 1px solid var(--page-brand-soft-strong);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+      color: var(--page-brand-text);
+    }
+    .intro-grid {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: var(--space-5); flex-wrap: wrap;
+    }
+    .report-intro h1 { font-size: 24px; line-height: 1.3; color: var(--page-text); }
+    .report-intro__summary { margin-top: 6px; max-width: 72ch; font-size: 13.5px; color: var(--page-text-secondary); }
+    .intro-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+    .badge-src {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12.5px; padding: 5px 12px; border-radius: var(--radius-pill);
+      background: #FFFFFF; border: 1px solid var(--page-border); color: var(--page-text-secondary);
+      max-width: 460px;
+    }
+    .badge-src .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warning); flex: none; }
+    .badge-src.is-real .dot { background: var(--positive); }
+    .badge-src span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* === 按钮 === */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 7px 14px; border-radius: var(--radius-md);
+      border: 1px solid var(--page-border); background: #FFFFFF;
+      color: var(--page-text-secondary); font-size: 13px; cursor: pointer; white-space: nowrap;
+      transition: border-color .12s ease, color .12s ease, background .12s ease;
+    }
+    .btn:hover { border-color: var(--page-brand); color: var(--page-brand); }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-primary { background: var(--page-brand); border-color: var(--page-brand); color: #fff; font-weight: 600; }
+    .btn-primary:hover { background: var(--page-brand-hover); border-color: var(--page-brand-hover); color: #fff; }
+
+    /* === 提示条 === */
+    .banner {
+      display: flex; align-items: flex-start; gap: 10px;
+      background: var(--warning-soft); border: 1px solid #F0E4B8;
+      border-radius: var(--radius-lg); padding: 11px 16px;
+      font-size: 13px; color: #7A5B10; margin-bottom: var(--space-5);
+    }
+    .banner.error { background: var(--danger-soft); border-color: #FFD1D1; color: #C53030; }
+    .banner[hidden] { display: none; }
+
+    /* === KPI 卡片 === */
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(6, 1fr);
+      gap: var(--space-3); margin-bottom: var(--space-5);
+    }
+    .kpi {
+      background: var(--bg); border: 1px solid var(--page-border);
+      border-radius: var(--radius-lg); padding: 13px 16px; min-width: 0;
+    }
+    .kpi-label { font-size: 12px; color: var(--page-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kpi-value {
+      margin-top: 3px; font-size: 21px; font-weight: 700; color: var(--page-text);
+      font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .kpi-value.small { font-size: 15.5px; white-space: normal; line-height: 1.45; }
+    .kpi-value em { font-style: normal; font-size: 12px; font-weight: 500; color: var(--page-text-muted); }
+    .kpi-sub {
+      margin-top: 2px; font-size: 12px; color: var(--page-text-muted);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* === 面板 === */
+    .panel {
+      background: var(--bg); border: 1px solid var(--page-border);
+      border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5);
+      margin-bottom: var(--space-5);
+    }
+    .panel-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3);
+    }
+    .panel-head h2 { font-size: 16px; font-weight: 600; color: var(--page-text); }
+    .head-note { font-size: 12.5px; color: var(--page-text-muted); }
+    .head-note b { color: var(--page-text-secondary); font-weight: 600; }
+
+    /* === 筛选器 === */
+    .filter-row {
+      display: grid;
+      grid-template-columns: minmax(240px, 1.6fr) minmax(170px, 1fr) minmax(230px, 1.6fr) minmax(150px, 1fr);
+      gap: var(--space-4); margin-bottom: var(--space-3);
+    }
+    .filter-row.secondary {
+      display: flex; flex-wrap: wrap; align-items: center;
+      gap: var(--space-3) var(--space-4);
+      margin-bottom: 0; padding-top: var(--space-3); border-top: 1px dashed var(--page-border);
+    }
+    .f-label {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 12px; color: var(--page-text-muted); margin-bottom: 5px;
+    }
+    .f-label .hint {
+      cursor: help; color: var(--page-text-disabled); font-size: 11px;
+      border: 1px solid var(--page-text-disabled); border-radius: 50%;
+      width: 13px; height: 13px; display: inline-flex; align-items: center; justify-content: center; flex: none;
+    }
+    .btn-group { display: flex; gap: var(--space-2); margin-left: auto; }
+    select.f-select, input.f-input {
+      width: 100%; padding: 7px 10px; border: 1px solid var(--page-border);
+      border-radius: var(--radius-md); font-size: 13px; background: #FFFFFF; color: var(--ink);
+    }
+    input[type="date"] {
+      padding: 6px 8px; border: 1px solid var(--page-border);
+      border-radius: var(--radius-md); font-size: 13px; background: #FFFFFF; color: var(--ink);
+      width: 100%;
+    }
+    .seg { display: inline-flex; border: 1px solid var(--page-border); border-radius: var(--radius-md); overflow: hidden; background: #FFFFFF; }
+    .seg button {
+      border: none; background: transparent; padding: 6px 13px; font-size: 12.5px;
+      color: var(--page-text-muted); cursor: pointer; white-space: nowrap;
+    }
+    .seg button + button { border-left: 1px solid var(--page-border); }
+    .seg button.on { background: var(--page-brand-soft); color: var(--page-brand-text); font-weight: 600; }
+    .inline-ctrl { display: flex; align-items: center; gap: 8px; }
+    .inline-ctrl .f-label { margin: 0; }
+
+    /* 门店下拉 */
+    .combo { position: relative; min-width: 0; }
+    .combo-btn {
+      width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      text-align: left; padding: 7px 10px; border: 1px solid var(--page-border);
+      border-radius: var(--radius-md); background: #FFFFFF; font-size: 13px;
+      color: var(--page-text); cursor: pointer; min-width: 0;
+    }
+    .combo-btn:hover { border-color: var(--page-brand); }
+    .combo-btn .txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .combo-btn .caret { color: var(--page-text-muted); font-size: 11px; flex: none; }
+    .combo-panel {
+      position: absolute; z-index: 60; top: calc(100% + 5px); left: 0;
+      width: max(100%, 300px); background: #FFFFFF;
+      border: 1px solid var(--page-border); border-radius: 10px;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14); padding: 8px; display: none;
+    }
+    .combo.open .combo-panel { display: block; }
+    .combo-search {
+      width: 100%; padding: 7px 10px; border: 1px solid var(--page-border);
+      border-radius: var(--radius-md); font-size: 13px; margin-bottom: 8px; color: var(--ink);
+    }
+    .combo-list { max-height: 300px; overflow: auto; }
+    .combo-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 7px 10px; border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--page-text);
+    }
+    .combo-item:hover { background: var(--page-surface); }
+    .combo-item.on { background: var(--page-brand-soft); color: var(--page-brand-text); font-weight: 600; }
+    .combo-item .sub { font-size: 12px; color: var(--page-text-muted); flex: none; font-variant-numeric: tabular-nums; }
+    .combo-item .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+    /* === 空状态 === */
+    .empty-state {
+      background: var(--bg); border: 1px dashed var(--page-border);
+      border-radius: var(--radius-lg); padding: 48px 24px; text-align: center; margin-bottom: var(--space-5);
+    }
+    .empty-state h2 { font-size: 18px; color: var(--page-text); margin-bottom: 8px; }
+    .empty-state p { font-size: 13px; color: var(--page-text-muted); max-width: 62ch; margin: 0 auto 6px; }
+    .empty-state .btn { margin-top: 14px; }
+    .empty-state ul { display: inline-block; text-align: left; margin: 10px auto 0; padding-left: 18px; font-size: 12.5px; color: var(--page-text-secondary); }
+
+    /* === 表格 === */
+    .table-scroll {
+      max-height: 620px; overflow: auto;
+      border: 1px solid var(--page-border); border-radius: var(--radius-md);
+    }
+    table.wl-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1180px; font-size: 13px; }
+    table.wl-table thead th {
+      position: sticky; top: 0; z-index: 5;
+      background: var(--page-surface); border-bottom: 1px solid var(--page-border);
+      font-weight: 600; font-size: 12.5px; color: var(--page-text-secondary);
+      padding: 9px 10px; white-space: nowrap; text-align: right;
+    }
+    table.wl-table thead th.td-info { text-align: left; }
+    table.wl-table thead th.sortable { cursor: pointer; user-select: none; }
+    table.wl-table thead th.sortable:hover { color: var(--page-brand); }
+    table.wl-table thead th .arrow { font-size: 10px; opacity: .3; margin-left: 3px; display: inline-block; transition: transform .12s ease; }
+    table.wl-table thead th[aria-sort] { color: var(--page-brand-text); background: var(--page-brand-soft); }
+    table.wl-table thead th[aria-sort] .arrow { opacity: 1; }
+    table.wl-table thead th[aria-sort="ascending"] .arrow { transform: rotate(180deg); }
+    table.wl-table td {
+      padding: 7px 10px; border-bottom: 1px solid var(--rule);
+      white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; color: var(--page-text);
+    }
+    table.wl-table td.td-info { text-align: left; }
+    table.wl-table tbody tr:hover td { background: var(--page-surface); }
+    .td-product { min-width: 220px; max-width: 300px; white-space: normal !important; }
+    .td-product .p-name { font-weight: 500; line-height: 1.5; }
+    .td-product .p-sub { font-size: 11.5px; color: var(--page-text-muted); line-height: 1.4; }
+    .td-img { width: 64px; }
+    .thumb {
+      width: 48px; height: 48px; object-fit: contain; border-radius: 6px;
+      border: 1px solid var(--rule); background: #FFFFFF; display: block; margin: 0 auto;
+    }
+    .thumb.empty { display: flex; align-items: center; justify-content: center; color: var(--page-text-disabled); font-size: 10px; }
+    .tag {
+      display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px;
+      border-radius: var(--radius-pill); font-size: 11px; font-weight: 500;
+      border: 1px solid; white-space: nowrap;
+    }
+    .tag-ok { color: #1F7A1F; background: var(--success-soft); border-color: #C9EEC1; }
+    .tag-danger { color: #C53030; background: var(--danger-soft); border-color: #FFD1D1; }
+    .tag-warn { color: #9A6B00; background: var(--warning-soft); border-color: #EFDFAC; }
+    .tag-neutral { color: var(--page-text-secondary); background: var(--page-surface); border-color: var(--page-border); }
+    .tag-info { color: var(--page-brand-text); background: var(--info-soft); border-color: var(--page-brand-soft-strong); }
+    td .gap-num { color: #C53030; font-weight: 600; }
+    td .zero { color: var(--page-text-muted); }
+    .table-footnote { margin-top: 10px; font-size: 12px; color: var(--page-text-muted); line-height: 1.7; }
+
+    /* === 口径说明 === */
+    details.notes {
+      background: var(--bg); border: 1px solid var(--page-border);
+      border-radius: var(--radius-lg); margin-bottom: var(--space-5); overflow: hidden;
+    }
+    details.notes summary {
+      cursor: pointer; padding: 13px 20px; font-weight: 600; font-size: 14px;
+      color: var(--page-text); list-style: none;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    details.notes summary::-webkit-details-marker { display: none; }
+    details.notes summary .chev { transition: transform .15s ease; color: var(--page-text-muted); font-size: 12px; }
+    details.notes[open] summary .chev { transform: rotate(180deg); }
+    details.notes[open] summary { border-bottom: 1px solid var(--page-border); }
+    .notes-body { padding: 14px 20px 18px; font-size: 13px; color: var(--page-text-secondary); line-height: 1.75; }
+    .notes-body h4 { font-size: 13px; font-weight: 600; color: var(--page-text); margin: 14px 0 4px; }
+    .notes-body h4:first-child { margin-top: 0; }
+    .notes-body ul { padding-left: 18px; }
+    .notes-body li { margin: 3px 0; }
+    .notes-body .formula { font-family: var(--font-mono); font-size: 12.5px; color: var(--page-text); }
+
+    footer { border-top: 1px solid var(--page-border); padding-top: var(--space-4); margin-top: var(--space-5); }
+    footer .gen-note { font-size: 12px; color: var(--page-text-disabled); }
+
+    /* === 响应式 === */
+    @media (max-width: 1240px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 1024px) { .filter-row { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 768px) {
+      body { padding: 12px 0 32px; }
+      .report-intro__surface { padding: var(--space-5); }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .filter-row { grid-template-columns: 1fr; }
+      .btn-group { margin-left: 0; }
+    }
+    @media (max-width: 520px) { .kpi-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <article class="page">
+    <header class="report-intro">
+      <div class="report-intro__surface">
+        <div class="intro-grid">
+          <div>
+            <h1>门店 SKU 库存水位线工具</h1>
+            <p class="report-intro__summary">
+              导入《门店SKU库存水位线数据源》（商品总览 + 店铺销售 + 店铺库存），选择门店并填写开业日期，
+              系统按「日销系数 × 60 天」计算每款商品的库存水位线（够门店卖 2 个月），日销过低时统一保底 3 件，
+              并与门店当前库存对比给出建议补货量。
+            </p>
+          </div>
+          <div class="intro-actions">
+            <span class="badge-src" id="dataSourceBadge" title=""><span class="dot"></span><span id="dataSourceText">未载入数据</span></span>
+            <button class="btn btn-primary" id="btnUpload" type="button">上传数据源</button>
+            <input type="file" id="fileInput" accept=".xlsx" hidden>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="page__content">
+      <main>
+        <div class="banner" id="warnBanner" hidden></div>
+        <div class="banner error" id="errorBanner" hidden></div>
+
+        <!-- 空状态 -->
+        <section class="empty-state" id="emptyState">
+          <h2>先上传数据源，再计算库存水位线</h2>
+          <p>请上传包含以下三个工作表的 Excel 文件（.xlsx），示例：《门店SKU库存水位线数据源.xlsx》：</p>
+          <ul>
+            <li><b>商品总览</b>：图片、产品名称、货号、规格、分类、零售价、生产备注</li>
+            <li><b>店铺销售</b>：归属店铺、规格编码、商品数量、日期（用于计算日销系数）</li>
+            <li><b>店铺库存</b>：门店/仓库、商品/规格编码、实物库存、可用库存</li>
+          </ul>
+          <p>数据仅在你的浏览器本地解析，不会上传到任何服务器。</p>
+          <button class="btn btn-primary" id="btnUploadEmpty" type="button">选择文件</button>
+        </section>
+
+        <!-- KPI -->
+        <section class="kpi-grid" id="kpiGrid" hidden aria-label="核心指标卡片">
+          <div class="kpi">
+            <div class="kpi-label">统计门店</div>
+            <div class="kpi-value small" id="kpiStore">—</div>
+            <div class="kpi-sub" id="kpiStoreSub">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">开业日期</div>
+            <div class="kpi-value small" id="kpiOpen">—</div>
+            <div class="kpi-sub" id="kpiOpenSub">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">经营天数（天）</div>
+            <div class="kpi-value" id="kpiDays">—</div>
+            <div class="kpi-sub" id="kpiDaysSub">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">当前库存总量（件）</div>
+            <div class="kpi-value" id="kpiStock">—</div>
+            <div class="kpi-sub" id="kpiStockSub">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">水位线总量（件）</div>
+            <div class="kpi-value" id="kpiWaterline">—</div>
+            <div class="kpi-sub">够卖 2 个月（60 天）的库存量</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">需补货 SKU / 建议补货（件）</div>
+            <div class="kpi-value" id="kpiNeed">—</div>
+            <div class="kpi-sub" id="kpiNeedSub">—</div>
+          </div>
+        </section>
+
+        <!-- 筛选器 -->
+        <section class="panel" id="filterPanel" hidden aria-label="筛选条件">
+          <div class="filter-row">
+            <div class="combo" id="storeCombo">
+              <div class="f-label">门店（数据来自销售表与库存表）</div>
+              <button class="combo-btn" id="storeComboBtn" type="button" aria-haspopup="listbox">
+                <span class="txt" id="storeComboTxt">—</span><span class="caret">▼</span>
+              </button>
+              <div class="combo-panel" id="storeComboPanel">
+                <input class="combo-search" id="storeSearch" type="text" placeholder="搜索门店…" aria-label="搜索门店">
+                <div class="combo-list" id="storeList" role="listbox"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="f-label">门店开业日期<span class="hint" title="填写后，日销系数从「开业日期与数据最早日期的较大者」起算到数据最晚日期；不填则按完整数据区间计算">i</span></div>
+              <input type="date" id="openDate" aria-label="门店开业日期">
+            </div>
+
+            <div>
+              <div class="f-label">销售数据区间</div>
+              <input class="f-input" id="dataRange" readonly value="—">
+            </div>
+
+            <div>
+              <div class="f-label">分类</div>
+              <select class="f-select" id="categorySel"></select>
+            </div>
+          </div>
+
+          <div class="filter-row secondary">
+            <div class="inline-ctrl">
+              <span class="f-label">生产备注</span>
+              <select class="f-select" id="productionSel" style="width:130px;"></select>
+            </div>
+            <div class="inline-ctrl">
+              <span class="f-label">展示范围</span>
+              <div class="seg" id="scopeSeg" role="group" aria-label="展示范围">
+                <button type="button" data-scope="all" class="on">全部商品</button>
+                <button type="button" data-scope="need">仅需补货</button>
+              </div>
+            </div>
+            <div class="inline-ctrl" style="flex:1;min-width:220px;">
+              <span class="f-label">搜索</span>
+              <input class="f-input" id="searchInput" type="text" placeholder="品名 / 规格 / 货号 / 条码…" style="max-width:300px;">
+            </div>
+          </div>
+        </section>
+
+        <!-- 水位线明细表 -->
+        <section class="panel" id="tablePanel" hidden aria-label="库存水位线明细表">
+          <div class="panel-head">
+            <h2>门店 SKU 库存水位线明细</h2>
+            <div class="head-note" id="tableMeta">—</div>
+          </div>
+          <div class="table-scroll">
+            <table class="wl-table" id="wlTable">
+              <caption class="sr-only">按当前门店与开业日期计算的每款商品日销系数、当前库存、库存水位线与建议补货明细表</caption>
+              <thead>
+                <tr>
+                  <th scope="col" style="width:64px;">图片</th>
+                  <th class="td-info sortable" data-key="name" scope="col">品名<span class="arrow">▼</span></th>
+                  <th class="td-info sortable" data-key="spec" scope="col">规格<span class="arrow">▼</span></th>
+                  <th class="td-info sortable" data-key="category" scope="col">分类<span class="arrow">▼</span></th>
+                  <th class="sortable" data-key="price" scope="col">零售价(元)<span class="arrow">▼</span></th>
+                  <th class="sortable" data-key="productionNote" scope="col">生产备注<span class="arrow">▼</span></th>
+                  <th class="sortable" data-key="daily" scope="col" title="统计期内销量 ÷ 经营天数">日销系数(件/天)<span class="arrow">▼</span></th>
+                  <th class="sortable" data-key="stock" scope="col">当前库存(件)<span class="arrow">▼</span></th>
+                  <th class="sortable" data-key="waterline" scope="col" title="max(3, ⌈日销系数 × 60⌉)">水位线(件)<span class="arrow">▼</span></th>
+                  <th class="sortable" data-key="gap" scope="col">建议补货(件)<span class="arrow">▼</span></th>
+                  <th class="sortable" data-key="status" scope="col">状态<span class="arrow">▼</span></th>
+                </tr>
+              </thead>
+              <tbody id="wlTableBody"></tbody>
+            </table>
+          </div>
+          <div class="table-footnote" id="tableFootnote">—</div>
+        </section>
+
+        <!-- 口径说明 -->
+        <details class="notes" id="notesBox" hidden>
+          <summary>计算口径与指标说明<span class="chev">▼</span></summary>
+          <div class="notes-body">
+            <h4>库存水位线</h4>
+            <ul>
+              <li>水位线 = 够门店卖 <b>2 个月（60 天）</b>的库存量：<span class="formula">水位线 = max(3, ⌈日销系数 × 60⌉)</span></li>
+              <li>日销系数过低、留够 2 个月也只需要 1、2 件的商品，统一按 <b>3 件</b>保底计算。</li>
+              <li>无销量的商品同样按保底 3 件计算。</li>
+            </ul>
+            <h4>日销系数</h4>
+            <ul>
+              <li><span class="formula">日销系数 = 统计期内该 SKU 销量 ÷ 经营天数</span></li>
+              <li>经营天数 = 从「开业日期 与 销售数据最早日期 的较大者」到 销售数据最晚日期 的自然天数（含两端）。</li>
+              <li>未填写开业日期时，按销售数据完整区间计算。</li>
+            </ul>
+            <h4>当前库存与建议补货</h4>
+            <ul>
+              <li>当前库存取自《店铺销售》同文件的《店铺库存》表：优先取「可用库存」，该列为空时取「实物库存」。</li>
+              <li><span class="formula">建议补货 = max(0, 水位线 − 当前库存)</span>；当前库存 ≥ 水位线的商品状态为「达标」，否则为「需补货」。</li>
+              <li>门店库存表中没有该商品记录时，当前库存按 0 计。</li>
+            </ul>
+            <h4>数据关联</h4>
+            <ul>
+              <li>三张表通过规格编码关联：《商品总览》的「货号」=《店铺销售》的「规格编码」=《店铺库存》的「商品/规格编码」。</li>
+              <li>商品图片来自 Excel 内嵌图片（WPS 单元格图片），在浏览器本地解压读取。</li>
+              <li>品名展示时自动省略「BLACK PAW / 黑爪」字样。</li>
+            </ul>
+          </div>
+        </details>
+      </main>
+
+      <footer>
+        <p class="gen-note">门店 SKU 库存水位线工具 · 数据仅在本地浏览器解析（JSZip），不会上传服务器 · 建议使用电脑浏览器（Chrome / Edge）打开</p>
+      </footer>
+    </div>
+  </article>
+
+  <script src="./assets/jszip.min.js"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    /* ================= 常量 ================= */
+    var WATERLINE_DAYS = 60;   // 水位线覆盖天数：2 个月
+    var MIN_WATERLINE = 3;     // 日销过低时的保底件数
+    var CHUNK_ROWS = 4000;     // 分片解析行数，避免长表阻塞 UI
+    var IMG_BATCH = 20;        // 图片分批加载
+
+    /* ================= 状态 ================= */
+    var state = {
+      fileName: '',
+      products: [],                 // {barcode,productName,cleanName,specCode,spec,category,retailPrice,productionNote,imageUrl}
+      salesByStore: new Map(),      // store -> Map(specCode -> qty)
+      inventoryByStore: new Map(),  // store -> Map(specCode -> {physical, available})
+      storeMeta: new Map(),         // store -> {salesQty, stockQty}
+      stores: [],
+      dateMin: 0,                   // yyyymmdd 整数
+      dateMax: 0,
+      store: '',
+      openDate: '',                 // ISO yyyy-mm-dd
+      category: '全部',
+      production: '全部',
+      scope: 'all',                 // all | need
+      search: '',
+      sortKey: 'gap',
+      sortDir: 'desc',
+    };
+
+    /* ================= 通用工具 ================= */
+    function $(id) { return document.getElementById(id); }
+    function nextTick() { return new Promise(function (r) { setTimeout(r, 0); }); }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    function unescapeXml(s) {
+      return String(s)
+        .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/&#x([0-9a-fA-F]+);/g, function (_, h) { return String.fromCharCode(parseInt(h, 16)); })
+        .replace(/&#(\d+);/g, function (_, d) { return String.fromCharCode(+d); })
+        .replace(/&amp;/g, '&');
+    }
+    function fmtInt(n) {
+      return (n === null || n === undefined || !isFinite(n)) ? '—' : Number(n).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+    }
+    function fmtPrice(n) {
+      if (n === null || n === undefined || !isFinite(n)) return '—';
+      return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function fmtDaily(n) {
+      if (n === null || n === undefined || !isFinite(n)) return '—';
+      if (n > 0 && n < 0.01) return '<0.01';
+      return n.toFixed(2);
+    }
+    function cleanProductName(name) {
+      return String(name || '')
+        .replace(/BLACK\s*PAW/gi, '')
+        .replace(/黑爪/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/^[\s\-—·、,，]+|[\s\-—·、,，]+$/g, '')
+        .trim();
+    }
+    function stripStorePrefix(name) {
+      return String(name || '').replace(/^黑爪[-－—]/, '').trim() || name;
+    }
+    function parseNum(v) {
+      if (v === null || v === undefined || v === '') return null;
+      var m = String(v).replace(/,/g, '').trim().match(/-?\d+(?:\.\d+)?/);
+      return m ? Number(m[0]) : null;
+    }
+
+    /* ---- 日期：统一用 yyyymmdd 整数作为键 ---- */
+    function mkKey(y, m, d) {
+      if (y < 1900 || y > 2200 || m < 1 || m > 12 || d < 1 || d > 31) return 0;
+      return y * 10000 + m * 100 + d;
+    }
+    function parseDateKey(v) {
+      if (v === null || v === undefined || v === '') return 0;
+      var s = String(v).trim();
+      var m = s.match(/^(\d{4})(\d{2})(\d{2})/);          // 20260101
+      if (m) return mkKey(+m[1], +m[2], +m[3]);
+      m = s.match(/^(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})/); // 2026-01-01 / 2026/1/1 / 2026年1月1日
+      if (m) return mkKey(+m[1], +m[2], +m[3]);
+      var n = Number(s);
+      if (isFinite(n) && n > 20000 && n < 80000) {          // Excel 序列号
+        var dt = new Date(Math.round((n - 25569) * 86400000));
+        return mkKey(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+      }
+      return 0;
+    }
+    function keyToIso(k) {
+      if (!k) return '';
+      var y = Math.floor(k / 10000), m = Math.floor((k % 10000) / 100), d = k % 100;
+      return y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    }
+    function isoToKey(iso) {
+      var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      return m ? mkKey(+m[1], +m[2], +m[3]) : 0;
+    }
+    function diffDaysKey(a, b) {
+      var da = new Date(Math.floor(a / 10000), Math.floor((a % 10000) / 100) - 1, a % 100);
+      var db = new Date(Math.floor(b / 10000), Math.floor((b % 10000) / 100) - 1, b % 100);
+      return Math.round((db - da) / 86400000);
+    }
+
+    /* ================= XLSX 解析（JSZip + 正则，分片执行） ================= */
+    var CELL_RE = /<c r="([A-Z]+)\d+"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
+
+    function readZipText(zip, path) {
+      var f = zip.file(path);
+      return f ? f.async('string') : Promise.resolve('');
+    }
+
+    function parseSharedStrings(xml) {
+      var out = [];
+      if (!xml) return out;
+      var re = /<si>([\s\S]*?)<\/si>/g, m;
+      while ((m = re.exec(xml)) !== null) {
+        var ts = [];
+        var tr = /<t[^>]*>([\s\S]*?)<\/t>/g, tm;
+        while ((tm = tr.exec(m[1])) !== null) ts.push(unescapeXml(tm[1]));
+        out.push(ts.join(''));
+      }
+      return out;
+    }
+
+    function parseWorkbookSheets(wbXml, relsXml) {
+      var rels = {};
+      var rr = /<Relationship\b[^>]*\bId="([^"]+)"[^>]*\bTarget="([^"]+)"/g, rm;
+      while ((rm = rr.exec(relsXml)) !== null) rels[rm[1]] = rm[2];
+      var sheets = [];
+      var sr = /<sheet\b[^>]*\bname="([^"]+)"[^>]*\br:id="([^"]+)"/g, sm;
+      while ((sm = sr.exec(wbXml)) !== null) {
+        var target = rels[sm[2]] || '';
+        var path = target.replace(/^\//, '');
+        if (!/^xl\//.test(path)) path = 'xl/' + path;
+        sheets.push({ name: unescapeXml(sm[1]), path: path });
+      }
+      return sheets;
+    }
+
+    /* 从一段 row XML 中提取目标列。wantedCols: Set(列字母)；ss: 共享字符串 */
+    function extractCells(rowXml, wantedCols, ss) {
+      var out = {};
+      CELL_RE.lastIndex = 0;
+      var m;
+      while ((m = CELL_RE.exec(rowXml)) !== null) {
+        var col = m[1];
+        if (wantedCols && !wantedCols.has(col)) continue;
+        var attrs = m[2];
+        var inner = m[3] || '';
+        var vm = inner.match(/<v>([^<]*)<\/v>/);
+        var v = vm ? vm[1] : '';
+        if (/\bt="s"/.test(attrs) && v !== '') v = ss[parseInt(v, 10)] || '';
+        else v = unescapeXml(v);
+        out[col] = v;
+      }
+      return out;
+    }
+
+    /* 在表的前若干行里找表头行（含关键列名），返回 {headerCells, headerIdx} */
+    function findHeader(rowParts, keyAliases, ss, maxScan) {
+      var wanted = null; // 表头行需要读全部列
+      for (var i = 0; i < Math.min(maxScan || 8, rowParts.length); i++) {
+        var cells = extractCells(rowParts[i], null, ss);
+        var values = Object.keys(cells).map(function (c) { return String(cells[c]).trim(); });
+        for (var j = 0; j < values.length; j++) {
+          if (keyAliases.indexOf(values[j]) >= 0) {
+            return { cells: cells, idx: i };
+          }
+        }
+      }
+      return null;
+    }
+
+    /* 按表头文本精确匹配列字母；找不到用固定列位兜底 */
+    function mapColumns(headerCells, fields, fallback) {
+      var colByField = {};
+      var normValues = {};
+      Object.keys(headerCells).forEach(function (col) {
+        normValues[String(headerCells[col]).trim()] = col;
+      });
+      Object.keys(fields).forEach(function (field) {
+        var aliases = fields[field];
+        colByField[field] = '';
+        for (var i = 0; i < aliases.length; i++) {
+          if (normValues[aliases[i]]) { colByField[field] = normValues[aliases[i]]; break; }
+        }
+        if (!colByField[field] && fallback[field]) colByField[field] = fallback[field];
+      });
+      return colByField;
+    }
+
+    function wantedSet(colByField) {
+      var s = new Set();
+      Object.keys(colByField).forEach(function (f) {
+        if (colByField[f]) s.add(colByField[f]);
+      });
+      return s;
+    }
+
+    /* ---- 内嵌图片（WPS cellimages） ---- */
+    var IMG_MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp' };
+    function mimeOf(target) {
+      var ext = String(target || '').split('.').pop().toLowerCase();
+      return IMG_MIME[ext] || 'image/png';
+    }
+
+    async function parseCellImages(zip, onProgress) {
+      var map = new Map(); // imageId -> dataURL
+      var relsXml = await readZipText(zip, 'xl/_rels/cellimages.xml.rels');
+      var ciXml = await readZipText(zip, 'xl/cellimages.xml');
+      if (!relsXml || !ciXml) return map;
+      var rels = {};
+      var rr = /<Relationship\b[^>]*\bId="([^"]+)"[^>]*\bTarget="([^"]+)"/g, rm;
+      while ((rm = rr.exec(relsXml)) !== null) rels[rm[1]] = rm[2];
+      var pairs = []; // [imageId, normalizedPath]
+      var seen = new Set();
+      var cr = /<[\w:]*cellImage[\s\S]*?<\/[\w:]*cellImage>/g, cm;
+      while ((cm = cr.exec(ciXml)) !== null) {
+        var nm = cm[0].match(/\bname="(ID_[0-9A-Fa-f]+)"/i);
+        var em = cm[0].match(/\br:embed="([^"]+)"/);
+        if (!nm || !em) continue;
+        var target = rels[em[1]] || '';
+        if (!target) continue;
+        var path = target.replace(/^\//, '');
+        if (!/^xl\//.test(path)) path = 'xl/' + path;
+        pairs.push([nm[1], path]);
+        seen.add(path);
+      }
+      // 分批把图片转成 dataURL
+      var paths = Array.from(seen);
+      var urlByPath = new Map();
+      for (var i = 0; i < paths.length; i += IMG_BATCH) {
+        var batch = paths.slice(i, i + IMG_BATCH);
+        await Promise.all(batch.map(async function (p) {
+          var f = zip.file(p);
+          if (!f) return;
+          var b64 = await f.async('base64');
+          urlByPath.set(p, 'data:' + mimeOf(p) + ';base64,' + b64);
+        }));
+        if (onProgress) onProgress(Math.min(i + IMG_BATCH, paths.length), paths.length);
+        await nextTick();
+      }
+      pairs.forEach(function (pr) {
+        var url = urlByPath.get(pr[1]);
+        if (url) map.set(pr[0], url);
+      });
+      return map;
+    }
+
+    /* ---- 主解析入口 ---- */
+    async function parseWorkbookFile(file, onProgress) {
+      if (!window.JSZip) throw new Error('JSZip 库加载失败，请刷新页面重试');
+      onProgress('读取文件…');
+      var buffer = await file.arrayBuffer();
+      var zip = await JSZip.loadAsync(buffer);
+
+      onProgress('读取共享字符串…');
+      var ss = parseSharedStrings(await readZipText(zip, 'xl/sharedStrings.xml'));
+      var wbXml = await readZipText(zip, 'xl/workbook.xml');
+      var relsXml = await readZipText(zip, 'xl/_rels/workbook.xml.rels');
+      if (!wbXml) throw new Error('不是有效的 Excel 文件（缺少 workbook.xml）');
+      var sheets = parseWorkbookSheets(wbXml, relsXml);
+      var names = sheets.map(function (s) { return s.name; });
+
+      function pick(aliases) {
+        for (var i = 0; i < aliases.length; i++) {
+          for (var j = 0; j < sheets.length; j++) {
+            if (sheets[j].name.trim() === aliases[i]) return sheets[j];
+          }
+        }
+        return null;
+      }
+      var productSheet = pick(['商品总览', '商品信息', '商品资料']);
+      var salesSheet = pick(['店铺销售', '销售明细', '门店销售']);
+      var stockSheet = pick(['店铺库存', '库存明细', '门店库存']);
+      var missing = [];
+      if (!productSheet) missing.push('商品总览');
+      if (!salesSheet) missing.push('店铺销售');
+      if (!stockSheet) missing.push('店铺库存');
+      if (missing.length) {
+        throw new Error('缺少工作表：' + missing.join('、') + '。文件内工作表：' + (names.join('、') || '无'));
+      }
+
+      /* ---- 图片 ---- */
+      onProgress('解析商品图片…');
+      var imageById = await parseCellImages(zip, function (done, total) {
+        onProgress('解析商品图片… ' + done + '/' + total);
+      });
+
+      /* ---- 商品总览 ---- */
+      onProgress('解析商品总览…');
+      var productXml = await readZipText(zip, productSheet.path);
+      var P_FIELDS = {
+        barcode: ['条码'],
+        image: ['图片'],
+        productName: ['产品名称', '商品名称', '品名'],
+        specCode: ['货号', '规格编码', '商品/规格编码'],
+        spec: ['净含量/规格', '规格', '净含量'],
+        category: ['分类'],
+        retailPrice: ['零售价'],
+        productionNote: ['生产备注']
+      };
+      var P_FALLBACK = { barcode: 'A', image: 'D', productName: 'E', specCode: 'F', spec: 'G', category: 'H', retailPrice: 'I', productionNote: 'J' };
+      var pRows = productXml.split('</row>');
+      var pHeader = findHeader(pRows, ['产品名称', '商品名称', '品名'], ss, 8);
+      if (!pHeader) throw new Error('商品总览表里找不到表头（需包含「产品名称」列）');
+      var pCols = mapColumns(pHeader.cells, P_FIELDS, P_FALLBACK);
+      var pWanted = wantedSet(pCols);
+      var products = [];
+      var ID_RE = /ID_[0-9A-Fa-f]+/i;
+      for (var pi = pHeader.idx + 1; pi < pRows.length - 1; pi++) {
+        var pc = extractCells(pRows[pi], pWanted, ss);
+        var pName = String(pc[pCols.productName] || '').trim();
+        var code = String(pc[pCols.specCode] || '').trim();
+        if (!pName && !code) continue;
+        var imgRaw = String(pc[pCols.image] || '');
+        var idm = ID_RE.exec(unescapeXml(imgRaw)) || ID_RE.exec(pRows[pi]);
+        var imageId = idm ? idm[0] : '';
+        products.push({
+          barcode: String(pc[pCols.barcode] || '').trim(),
+          productName: pName,
+          cleanName: cleanProductName(pName) || pName,
+          specCode: code,
+          spec: String(pc[pCols.spec] || '').trim(),
+          category: String(pc[pCols.category] || '').trim() || '未分类',
+          retailPrice: parseNum(pc[pCols.retailPrice]),
+          productionNote: String(pc[pCols.productionNote] || '').trim(),
+          imageId: imageId,
+          imageUrl: imageId ? (imageById.get(imageId) || '') : ''
+        });
+      }
+      if (!products.length) throw new Error('商品总览表没有解析到商品数据');
+
+      /* ---- 店铺销售 ---- */
+      onProgress('解析店铺销售…');
+      var salesXml = await readZipText(zip, salesSheet.path);
+      var S_FIELDS = {
+        store: ['归属店铺', '店铺名称', '门店'],
+        specCode: ['规格编码', '商品/规格编码', '货号'],
+        qty: ['商品数量', '数量', '销量'],
+        date: ['日期', '年-月-日']
+      };
+      var S_FALLBACK = { store: 'K', specCode: 'M', qty: 'T', date: 'AZ' };
+      var sRows = salesXml.split('</row>');
+      var sHeader = findHeader(sRows, ['归属店铺', '店铺名称', '门店'], ss, 5);
+      if (!sHeader) throw new Error('店铺销售表里找不到表头（需包含「归属店铺」列）');
+      var sCols = mapColumns(sHeader.cells, S_FIELDS, S_FALLBACK);
+      var sWanted = wantedSet(sCols);
+      var salesByStore = new Map();
+      var dateMin = 0, dateMax = 0;
+      var salesSkipped = 0;
+      var sParts = sRows.length - 1;
+      for (var si = sHeader.idx + 1; si < sParts; si++) {
+        var sc = extractCells(sRows[si], sWanted, ss);
+        var store = String(sc[sCols.store] || '').trim();
+        var sCode = String(sc[sCols.specCode] || '').trim();
+        var qty = parseNum(sc[sCols.qty]);
+        var dkey = parseDateKey(sc[sCols.date]);
+        if (!store || !sCode || !qty || qty <= 0 || !dkey) { salesSkipped++; }
+        else {
+          var byCode = salesByStore.get(store);
+          if (!byCode) { byCode = new Map(); salesByStore.set(store, byCode); }
+          byCode.set(sCode, (byCode.get(sCode) || 0) + qty);
+          if (!dateMin || dkey < dateMin) dateMin = dkey;
+          if (dkey > dateMax) dateMax = dkey;
+        }
+        if ((si - sHeader.idx) % CHUNK_ROWS === CHUNK_ROWS - 1) {
+          onProgress('解析店铺销售… ' + (si - sHeader.idx) + '/' + (sParts - sHeader.idx - 1) + ' 行');
+          await nextTick();
+        }
+      }
+      if (!dateMin || !dateMax) throw new Error('店铺销售表没有解析到有效的销售记录（需要门店、规格编码、数量、日期）');
+
+      /* ---- 店铺库存 ---- */
+      onProgress('解析店铺库存…');
+      var stockXml = await readZipText(zip, stockSheet.path);
+      var T_FIELDS = {
+        store: ['门店/仓库', '门店', '仓库', '店铺名称'],
+        specCode: ['商品/规格编码', '规格编码', '货号'],
+        physical: ['实物库存'],
+        available: ['可用库存']
+      };
+      var T_FALLBACK = { store: 'B', specCode: 'E', physical: 'U', available: 'W' };
+      var tRows = stockXml.split('</row>');
+      var tHeader = findHeader(tRows, ['门店/仓库', '门店', '仓库'], ss, 5);
+      if (!tHeader) throw new Error('店铺库存表里找不到表头（需包含「门店/仓库」列）');
+      var tCols = mapColumns(tHeader.cells, T_FIELDS, T_FALLBACK);
+      var tWanted = wantedSet(tCols);
+      var inventoryByStore = new Map();
+      var tParts = tRows.length - 1;
+      for (var ti = tHeader.idx + 1; ti < tParts; ti++) {
+        var tc = extractCells(tRows[ti], tWanted, ss);
+        var tStore = String(tc[tCols.store] || '').trim();
+        var tCode = String(tc[tCols.specCode] || '').trim();
+        if (!tStore || !tCode) continue;
+        var physical = parseNum(tc[tCols.physical]);
+        var available = parseNum(tc[tCols.available]);
+        var qtyVal = (available !== null && available !== 0) ? available : (physical !== null ? physical : 0);
+        var inv = inventoryByStore.get(tStore);
+        if (!inv) { inv = new Map(); inventoryByStore.set(tStore, inv); }
+        var prev = inv.get(tCode) || 0;
+        inv.set(tCode, prev + (qtyVal || 0));
+        if ((ti - tHeader.idx) % CHUNK_ROWS === CHUNK_ROWS - 1) await nextTick();
+      }
+
+      /* ---- 门店清单（销售 + 库存并集） ---- */
+      var storeSet = new Set();
+      salesByStore.forEach(function (_, st) { storeSet.add(st); });
+      inventoryByStore.forEach(function (_, st) { storeSet.add(st); });
+      var stores = Array.from(storeSet).sort(function (a, b) { return a.localeCompare(b, 'zh'); });
+      var storeMeta = new Map();
+      stores.forEach(function (st) {
+        var salesQty = 0;
+        var sm = salesByStore.get(st);
+        if (sm) sm.forEach(function (q) { salesQty += q; });
+        var stockQty = 0;
+        var im = inventoryByStore.get(st);
+        if (im) im.forEach(function (q) { stockQty += q; });
+        storeMeta.set(st, { salesQty: salesQty, stockQty: stockQty });
+      });
+
+      return {
+        products: products,
+        salesByStore: salesByStore,
+        inventoryByStore: inventoryByStore,
+        stores: stores,
+        storeMeta: storeMeta,
+        dateMin: dateMin,
+        dateMax: dateMax,
+        salesSkipped: salesSkipped,
+        sheetNames: { product: productSheet.name, sales: salesSheet.name, stock: stockSheet.name }
+      };
+    }
+
+    /* ================= 计算 ================= */
+    function computeModel() {
+      var salesMap = state.salesByStore.get(state.store) || new Map();
+      var invMap = state.inventoryByStore.get(state.store) || new Map();
+      var openKey = state.openDate ? isoToKey(state.openDate) : 0;
+      var startKey = state.dateMin;
+      if (openKey && openKey > startKey) startKey = openKey;
+      var endKey = state.dateMax;
+      var days = endKey >= startKey ? diffDaysKey(startKey, endKey) + 1 : 0;
+      var warn = '';
+      if (openKey && openKey > endKey) {
+        warn = '开业日期（' + keyToIso(openKey) + '）晚于销售数据最后日期（' + keyToIso(endKey) + '），经营天数为 0，全部 SKU 按保底 3 件计算。';
+      } else if (openKey && openKey > state.dateMin) {
+        warn = '已按开业日期 ' + keyToIso(openKey) + ' 起算日销系数（销售数据最早日期为 ' + keyToIso(state.dateMin) + '）。';
+      }
+      var rows = state.products.map(function (p) {
+        var qty = salesMap.get(p.specCode) || 0;
+        var daily = days > 0 ? qty / days : 0;
+        var rawWl = Math.ceil(daily * WATERLINE_DAYS);
+        var waterline = rawWl < MIN_WATERLINE ? MIN_WATERLINE : rawWl;
+        var stock = invMap.get(p.specCode) || 0;
+        var gap = waterline - stock;
+        return {
+          barcode: p.barcode, productName: p.productName, cleanName: p.cleanName,
+          spec: p.spec, category: p.category, retailPrice: p.retailPrice,
+          productionNote: p.productionNote, imageUrl: p.imageUrl, specCode: p.specCode,
+          qty: qty, daily: daily, waterline: waterline, stock: stock,
+          gap: gap > 0 ? gap : 0,
+          status: stock >= waterline ? 'ok' : 'need'
+        };
+      });
+      return { rows: rows, days: days, startKey: startKey, endKey: endKey, warn: warn };
+    }
+
+    function filterRows(rows) {
+      var kw = state.search.trim().toLowerCase();
+      return rows.filter(function (r) {
+        if (state.category !== '全部' && r.category !== state.category) return false;
+        if (state.production !== '全部' && r.productionNote !== state.production) return false;
+        if (state.scope === 'need' && r.status !== 'need') return false;
+        if (kw) {
+          var hay = (r.cleanName + ' ' + r.productName + ' ' + r.spec + ' ' + r.specCode + ' ' + r.barcode).toLowerCase();
+          if (hay.indexOf(kw) < 0) return false;
+        }
+        return true;
+      });
+    }
+
+    function sortRows(rows) {
+      var key = state.sortKey, dir = state.sortDir === 'asc' ? 1 : -1;
+      var STATUS_RANK = { need: 0, ok: 1 };
+      return rows.slice().sort(function (a, b) {
+        var va = a[key], vb = b[key];
+        var r;
+        if (key === 'status') {
+          r = (STATUS_RANK[a.status] || 0) - (STATUS_RANK[b.status] || 0);
+        } else if (typeof va === 'string' || typeof vb === 'string') {
+          r = String(va == null ? '' : va).localeCompare(String(vb == null ? '' : vb), 'zh');
+        } else {
+          va = va == null || !isFinite(va) ? -Infinity : va;
+          vb = vb == null || !isFinite(vb) ? -Infinity : vb;
+          r = va - vb;
+        }
+        if (r === 0 && (key === 'gap' || key === 'waterline' || key === 'status')) {
+          r = b.daily - a.daily; // 并列时按日销降序
+        }
+        if (r === 0) r = String(a.specCode || '') < String(b.specCode || '') ? -1 : 1;
+        return r * dir;
+      });
+    }
+
+    /* ================= 渲染 ================= */
+    function productionTagClass(note) {
+      if (note === '正常') return 'tag-ok';
+      if (note === '停产') return 'tag-danger';
+      if (note === '暂停') return 'tag-warn';
+      if (!note) return 'tag-neutral';
+      return 'tag-info';
+    }
+
+    function renderTable(model) {
+      var rows = sortRows(filterRows(model.rows));
+      var body = $('wlTableBody');
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:30px 10px;color:var(--page-text-muted);">当前筛选条件下没有匹配的商品</td></tr>';
+      } else {
+        var html = rows.map(function (r) {
+          var img = r.imageUrl
+            ? '<img class="thumb" src="' + r.imageUrl + '" alt="' + escapeHtml(r.cleanName) + '" loading="lazy">'
+            : '<div class="thumb empty">无图</div>';
+          var price = r.retailPrice === null ? '<span class="zero">—</span>' : fmtPrice(r.retailPrice);
+          var noteTag = r.productionNote
+            ? '<span class="tag ' + productionTagClass(r.productionNote) + '">' + escapeHtml(r.productionNote) + '</span>'
+            : '<span class="zero">—</span>';
+          var gapCell = r.gap > 0 ? '<span class="gap-num">' + fmtInt(r.gap) + '</span>' : '<span class="zero">0</span>';
+          var statusTag = r.status === 'need'
+            ? '<span class="tag tag-danger">需补货</span>'
+            : '<span class="tag tag-ok">达标</span>';
+          return '<tr>'
+            + '<td class="td-img">' + img + '</td>'
+            + '<td class="td-info td-product"><div class="p-name" title="' + escapeHtml(r.productName) + '">' + escapeHtml(r.cleanName) + '</div>'
+            + '<div class="p-sub">货号 ' + escapeHtml(r.specCode || '—') + (r.barcode ? ' · 条码 ' + escapeHtml(r.barcode) : '') + '</div></td>'
+            + '<td class="td-info">' + escapeHtml(r.spec || '—') + '</td>'
+            + '<td class="td-info">' + escapeHtml(r.category) + '</td>'
+            + '<td>' + price + '</td>'
+            + '<td>' + noteTag + '</td>'
+            + '<td title="统计期销量 ' + fmtInt(r.qty) + ' 件">' + (r.daily > 0 ? fmtDaily(r.daily) : '<span class="zero">0.00</span>') + '</td>'
+            + '<td>' + (r.stock > 0 ? fmtInt(r.stock) : '<span class="zero">0</span>') + '</td>'
+            + '<td>' + fmtInt(r.waterline) + '</td>'
+            + '<td>' + gapCell + '</td>'
+            + '<td>' + statusTag + '</td>'
+            + '</tr>';
+        }).join('');
+        body.innerHTML = html;
+      }
+
+      // 表头排序状态
+      var ths = document.querySelectorAll('#wlTable thead th.sortable');
+      for (var i = 0; i < ths.length; i++) {
+        var th = ths[i];
+        if (th.dataset.key === state.sortKey) th.setAttribute('aria-sort', state.sortDir === 'asc' ? 'ascending' : 'descending');
+        else th.removeAttribute('aria-sort');
+      }
+
+      // 汇总（基于筛选后行）
+      var stockSum = 0, wlSum = 0, gapSum = 0, needCount = 0;
+      rows.forEach(function (r) {
+        stockSum += r.stock; wlSum += r.waterline; gapSum += r.gap;
+        if (r.status === 'need') needCount++;
+      });
+      $('tableMeta').innerHTML = '当前筛选 <b>' + fmtInt(rows.length) + '</b> 款商品'
+        + ' · 库存 <b>' + fmtInt(stockSum) + '</b> 件 · 水位线 <b>' + fmtInt(wlSum) + '</b> 件 · 建议补货 <b>' + fmtInt(gapSum) + '</b> 件';
+      $('tableFootnote').innerHTML = '日销系数 = 统计期销量 ÷ 经营天数（' + fmtInt(model.days) + ' 天）；'
+        + '水位线 = max(3, ⌈日销系数 × 60⌉)，即够门店卖 2 个月的库存，日销过低统一保底 3 件；'
+        + '建议补货 = max(0, 水位线 − 当前库存)。点击列头可排序。';
+    }
+
+    function renderKpis(model) {
+      var rows = model.rows;
+      var stockSum = 0, wlSum = 0, gapSum = 0, needCount = 0, soldCount = 0;
+      rows.forEach(function (r) {
+        stockSum += r.stock; wlSum += r.waterline; gapSum += r.gap;
+        if (r.status === 'need') needCount++;
+        if (r.qty > 0) soldCount++;
+      });
+      var meta = state.storeMeta.get(state.store) || {};
+      $('kpiStore').textContent = stripStorePrefix(state.store);
+      $('kpiStoreSub').textContent = '销售 ' + fmtInt(meta.salesQty || 0) + ' 件 · 库存 ' + fmtInt(meta.stockQty || 0) + ' 件';
+      $('kpiOpen').textContent = state.openDate || '未填写';
+      $('kpiOpenSub').textContent = state.openDate ? '日销从开业日起算' : '按完整数据区间计算';
+      $('kpiDays').textContent = fmtInt(model.days);
+      $('kpiDaysSub').textContent = keyToIso(model.startKey) + ' ~ ' + keyToIso(model.endKey);
+      $('kpiStock').textContent = fmtInt(stockSum);
+      $('kpiStockSub').textContent = '有库存 SKU ' + fmtInt(rows.filter(function (r) { return r.stock > 0; }).length) + ' / ' + fmtInt(rows.length);
+      $('kpiWaterline').textContent = fmtInt(wlSum);
+      $('kpiNeed').innerHTML = fmtInt(needCount) + ' <em>/ ' + fmtInt(gapSum) + '</em>';
+      $('kpiNeedSub').textContent = '有销量 SKU ' + fmtInt(soldCount) + ' 款';
+    }
+
+    function renderFilterOptions() {
+      // 分类
+      var cats = Array.from(new Set(state.products.map(function (p) { return p.category; }))).filter(Boolean);
+      cats.sort(function (a, b) { return a.localeCompare(b, 'zh'); });
+      $('categorySel').innerHTML = ['全部'].concat(cats).map(function (c) {
+        return '<option value="' + escapeHtml(c) + '"' + (state.category === c ? ' selected' : '') + '>' + escapeHtml(c) + '</option>';
+      }).join('');
+      // 生产备注
+      var notes = Array.from(new Set(state.products.map(function (p) { return p.productionNote; }))).filter(Boolean);
+      var order = ['正常', '停产', '暂停', '升级', '升50ml', '只停联名'];
+      notes.sort(function (a, b) {
+        var ia = order.indexOf(a), ib = order.indexOf(b);
+        if (ia < 0) ia = 99;
+        if (ib < 0) ib = 99;
+        return ia === ib ? a.localeCompare(b, 'zh') : ia - ib;
+      });
+      $('productionSel').innerHTML = ['全部'].concat(notes).map(function (n) {
+        return '<option value="' + escapeHtml(n) + '"' + (state.production === n ? ' selected' : '') + '>' + escapeHtml(n) + '</option>';
+      }).join('');
+    }
+
+    function renderStoreList() {
+      var kw = $('storeSearch').value.trim().toLowerCase();
+      var list = state.stores.filter(function (st) {
+        return !kw || st.toLowerCase().indexOf(kw) >= 0 || stripStorePrefix(st).toLowerCase().indexOf(kw) >= 0;
+      });
+      $('storeList').innerHTML = list.map(function (st) {
+        var meta = state.storeMeta.get(st) || {};
+        return '<div class="combo-item' + (st === state.store ? ' on' : '') + '" data-store="' + escapeHtml(st) + '" role="option">'
+          + '<span class="name">' + escapeHtml(st) + '</span>'
+          + '<span class="sub">销 ' + fmtInt(meta.salesQty || 0) + ' · 存 ' + fmtInt(meta.stockQty || 0) + '</span>'
+          + '</div>';
+      }).join('') || '<div style="padding:10px;color:var(--page-text-muted);font-size:12.5px;">没有匹配的门店</div>';
+      $('storeComboTxt').textContent = state.store ? stripStorePrefix(state.store) : '—';
+    }
+
+    function renderAll() {
+      if (!state.products.length) return;
+      var model = computeModel();
+      renderKpis(model);
+      renderTable(model);
+      var wb = $('warnBanner');
+      if (model.warn) { wb.hidden = false; wb.innerHTML = '<span aria-hidden="true">⚠</span><span>' + escapeHtml(model.warn) + '</span>'; }
+      else wb.hidden = true;
+    }
+
+    function showDataViews(show) {
+      $('emptyState').hidden = show;
+      $('kpiGrid').hidden = !show;
+      $('filterPanel').hidden = !show;
+      $('tablePanel').hidden = !show;
+      $('notesBox').hidden = !show;
+    }
+
+    /* ================= 交互绑定 ================= */
+    function bindEvents() {
+      $('btnUpload').addEventListener('click', function () { $('fileInput').click(); });
+      $('btnUploadEmpty').addEventListener('click', function () { $('fileInput').click(); });
+      $('fileInput').addEventListener('change', handleFile);
+
+      // 门店下拉
+      $('storeComboBtn').addEventListener('click', function (e) {
+        e.stopPropagation();
+        $('storeCombo').classList.toggle('open');
+        if ($('storeCombo').classList.contains('open')) { $('storeSearch').value = ''; renderStoreList(); $('storeSearch').focus(); }
+      });
+      $('storeSearch').addEventListener('input', renderStoreList);
+      $('storeComboPanel').addEventListener('click', function (e) {
+        e.stopPropagation();
+      });
+      $('storeList').addEventListener('click', function (e) {
+        var item = e.target.closest('.combo-item');
+        if (!item) return;
+        var picked = item.dataset.store;
+        if (picked !== state.store) {
+          state.openDate = '';
+          $('openDate').value = '';
+        }
+        state.store = picked;
+        $('storeCombo').classList.remove('open');
+        renderStoreList();
+        renderAll();
+      });
+      document.addEventListener('click', function () {
+        $('storeCombo').classList.remove('open');
+      });
+
+      // 开业日期
+      $('openDate').addEventListener('change', function () {
+        state.openDate = this.value;
+        renderAll();
+      });
+
+      // 筛选
+      $('categorySel').addEventListener('change', function () { state.category = this.value; renderAll(); });
+      $('productionSel').addEventListener('change', function () { state.production = this.value; renderAll(); });
+      $('searchInput').addEventListener('input', function () {
+        state.search = this.value;
+        if (state.products.length) {
+          var model = computeModel();
+          renderTable(model);
+        }
+      });
+      $('scopeSeg').addEventListener('click', function (e) {
+        var btn = e.target.closest('button');
+        if (!btn) return;
+        state.scope = btn.dataset.scope;
+        this.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b === btn); });
+        renderAll();
+      });
+
+      // 表格排序
+      document.querySelector('#wlTable thead').addEventListener('click', function (e) {
+        var th = e.target.closest('th.sortable');
+        if (!th) return;
+        var key = th.dataset.key;
+        if (state.sortKey === key) state.sortDir = state.sortDir === 'desc' ? 'asc' : 'desc';
+        else {
+          state.sortKey = key;
+          state.sortDir = (key === 'name' || key === 'spec' || key === 'category' || key === 'productionNote' || key === 'status') ? 'asc' : 'desc';
+        }
+        renderAll();
+      });
+    }
+
+    async function handleFile() {
+      var file = this.files && this.files[0];
+      this.value = '';
+      if (!file) return;
+      var btn = $('btnUpload');
+      var badge = $('dataSourceBadge');
+      var text = $('dataSourceText');
+      var errBanner = $('errorBanner');
+      errBanner.hidden = true;
+      btn.disabled = true;
+      badge.classList.remove('is-real');
+      text.textContent = '解析中…';
+      try {
+        var result = await parseWorkbookFile(file, function (msg) { text.textContent = msg; });
+        var storeStillValid = result.stores.indexOf(state.store) >= 0;
+        state.fileName = file.name;
+        state.products = result.products;
+        state.salesByStore = result.salesByStore;
+        state.inventoryByStore = result.inventoryByStore;
+        state.stores = result.stores;
+        state.storeMeta = result.storeMeta;
+        state.dateMin = result.dateMin;
+        state.dateMax = result.dateMax;
+        if (!storeStillValid) {
+          state.store = state.stores[0] || '';
+          state.openDate = '';
+          $('openDate').value = '';
+        }
+        state.category = '全部';
+        state.production = '全部';
+        state.scope = 'all';
+        state.search = '';
+        $('searchInput').value = '';
+        $('openDate').value = state.openDate;
+        $('dataRange').value = keyToIso(state.dateMin) + ' ~ ' + keyToIso(state.dateMax);
+
+        showDataViews(true);
+        renderFilterOptions();
+        renderStoreList();
+        renderAll();
+
+        badge.classList.add('is-real');
+        badge.title = file.name;
+        text.textContent = file.name + ' · ' + result.products.length + ' 款商品 · ' + result.stores.length + ' 家门店'
+          + (result.salesSkipped ? '（跳过无效销售记录 ' + result.salesSkipped + ' 条）' : '');
+      } catch (err) {
+        console.error(err);
+        badge.classList.remove('is-real');
+        text.textContent = '解析失败';
+        errBanner.hidden = false;
+        errBanner.innerHTML = '<span aria-hidden="true">✕</span><span><b>数据解析失败：</b>' + escapeHtml(err.message || String(err)) + '</span>';
+        if (!state.products.length) showDataViews(false);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    /* ================= 启动 ================= */
+    bindEvents();
+  })();
+  </script>
+</body>
+</html>
