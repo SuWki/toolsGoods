@@ -330,9 +330,9 @@
           <div>
             <h1>门店 SKU 库存水位线工具</h1>
             <p class="report-intro__summary">
-              导入《门店SKU库存水位线数据源》（商品总览 + 店铺销售 + 店铺库存），选择门店并填写开业日期，
+              导入《门店SKU库存水位线数据源》（商品总览 + 店铺销售 + 店铺库存）并选择门店，
               系统按「日销系数 × 60 天」计算每款商品的库存水位线（够门店卖 2 个月），日销过低时统一保底 3 件，
-              并与门店当前库存对比给出建议补货量。
+              并与门店当前库存对比给出建议补货量。开业日期自动取该门店首次产生销售的日期，无需手动填写。
             </p>
           </div>
           <div class="intro-actions">
@@ -411,8 +411,8 @@
             </div>
 
             <div>
-              <div class="f-label">门店开业日期<span class="hint" title="填写后，日销系数从「开业日期与数据最早日期的较大者」起算到数据最晚日期；不填则按完整数据区间计算">i</span></div>
-              <input type="date" id="openDate" aria-label="门店开业日期">
+              <div class="f-label">门店开业日期（自动）<span class="hint" title="自动取该门店在《店铺销售》中第一次产生销售的日期，日销系数从该日起算；该门店无销售记录时按数据区间计算">i</span></div>
+              <input class="f-input" id="openDate" readonly value="—" aria-label="门店开业日期（自动读取，不可修改）">
             </div>
 
             <div>
@@ -464,7 +464,7 @@
                   <th class="sortable" data-key="productionNote" scope="col">生产备注<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="daily" scope="col" title="统计期内销量 ÷ 经营天数">日销系数(件/天)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="stock" scope="col">当前库存(件)<span class="arrow">▼</span></th>
-                  <th class="sortable" data-key="waterline" scope="col" title="max(3, ⌈日销系数 × 60⌉)">水位线(件)<span class="arrow">▼</span></th>
+                  <th class="sortable" data-key="waterline" scope="col" title="max(3, ⌈日销系数 × 60⌉)；无销售且库存为 0 时记 0">水位线(件)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="gap" scope="col">建议补货(件)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="status" scope="col">状态<span class="arrow">▼</span></th>
                 </tr>
@@ -483,18 +483,19 @@
             <ul>
               <li>水位线 = 够门店卖 <b>2 个月（60 天）</b>的库存量：<span class="formula">水位线 = max(3, ⌈日销系数 × 60⌉)</span></li>
               <li>日销系数过低、留够 2 个月也只需要 1、2 件的商品，统一按 <b>3 件</b>保底计算。</li>
-              <li>无销量的商品同样按保底 3 件计算。</li>
+              <li><b>无历史销售且当前库存为 0</b> 的商品：水位线记 <b>0</b>、不建议补货，状态为「无」。</li>
             </ul>
             <h4>日销系数</h4>
             <ul>
               <li><span class="formula">日销系数 = 统计期内该 SKU 销量 ÷ 经营天数</span></li>
-              <li>经营天数 = 从「开业日期 与 销售数据最早日期 的较大者」到 销售数据最晚日期 的自然天数（含两端）。</li>
-              <li>未填写开业日期时，按销售数据完整区间计算。</li>
+              <li>经营天数 = 从「门店首次销售日期 与 销售数据最早日期 的较大者」到 销售数据最晚日期 的自然天数（含两端）。</li>
+              <li>开业日期<b>自动读取</b>：取该门店在《店铺销售》中第一次产生销售的日期，不可手动修改；该门店无销售记录时按数据完整区间计算。</li>
             </ul>
             <h4>当前库存与建议补货</h4>
             <ul>
               <li>当前库存取自《店铺销售》同文件的《店铺库存》表：优先取「可用库存」，该列为空时取「实物库存」。</li>
-              <li><span class="formula">建议补货 = max(0, 水位线 − 当前库存)</span>；当前库存 ≥ 水位线的商品状态为「达标」，否则为「需补货」。</li>
+              <li><span class="formula">建议补货 = max(0, 水位线 − 当前库存)</span></li>
+              <li>状态判定：库存 < 水位线为「需补货」；库存 ≥ 水位线为「达标」；<b>库存 > 水位线（超出 100%）为「冗余库存」</b>；无销售且库存为 0 为「无」。</li>
               <li>门店库存表中没有该商品记录时，当前库存按 0 计。</li>
             </ul>
             <h4>数据关联</h4>
@@ -529,13 +530,14 @@
       fileName: '',
       products: [],                 // {barcode,productName,cleanName,specCode,spec,category,retailPrice,productionNote,imageUrl}
       salesByStore: new Map(),      // store -> Map(specCode -> qty)
+      firstSaleByStore: new Map(),  // store -> 首次销售日期 yyyymmdd
       inventoryByStore: new Map(),  // store -> Map(specCode -> {physical, available})
       storeMeta: new Map(),         // store -> {salesQty, stockQty}
       stores: [],
       dateMin: 0,                   // yyyymmdd 整数
       dateMax: 0,
       store: '',
-      openDate: '',                 // ISO yyyy-mm-dd
+      openDate: '',                 // 自动：门店首次销售日期（ISO yyyy-mm-dd），不可手选
       category: '全部',
       production: '全部',
       scope: 'all',                 // all | need
@@ -870,6 +872,7 @@
       var sCols = mapColumns(sHeader.cells, S_FIELDS, S_FALLBACK);
       var sWanted = wantedSet(sCols);
       var salesByStore = new Map();
+      var firstSaleByStore = new Map(); // store -> 首次销售日期 yyyymmdd
       var dateMin = 0, dateMax = 0;
       var salesSkipped = 0;
       var sParts = sRows.length - 1;
@@ -884,6 +887,8 @@
           var byCode = salesByStore.get(store);
           if (!byCode) { byCode = new Map(); salesByStore.set(store, byCode); }
           byCode.set(sCode, (byCode.get(sCode) || 0) + qty);
+          var firstSale = firstSaleByStore.get(store);
+          if (!firstSale || dkey < firstSale) firstSaleByStore.set(store, dkey);
           if (!dateMin || dkey < dateMin) dateMin = dkey;
           if (dkey > dateMax) dateMax = dkey;
         }
@@ -945,6 +950,7 @@
       return {
         products: products,
         salesByStore: salesByStore,
+        firstSaleByStore: firstSaleByStore,
         inventoryByStore: inventoryByStore,
         stores: stores,
         storeMeta: storeMeta,
@@ -956,6 +962,13 @@
     }
 
     /* ================= 计算 ================= */
+    /* 开业日期自动同步：取当前门店在销售明细中首次产生销售的日期 */
+    function syncOpenDate() {
+      var fk = state.firstSaleByStore.get(state.store) || 0;
+      state.openDate = fk ? keyToIso(fk) : '';
+      $('openDate').value = state.openDate || '—';
+    }
+
     function computeModel() {
       var salesMap = state.salesByStore.get(state.store) || new Map();
       var invMap = state.inventoryByStore.get(state.store) || new Map();
@@ -964,29 +977,29 @@
       if (openKey && openKey > startKey) startKey = openKey;
       var endKey = state.dateMax;
       var days = endKey >= startKey ? diffDaysKey(startKey, endKey) + 1 : 0;
-      var warn = '';
-      if (openKey && openKey > endKey) {
-        warn = '开业日期（' + keyToIso(openKey) + '）晚于销售数据最后日期（' + keyToIso(endKey) + '），经营天数为 0，全部 SKU 按保底 3 件计算。';
-      } else if (openKey && openKey > state.dateMin) {
-        warn = '已按开业日期 ' + keyToIso(openKey) + ' 起算日销系数（销售数据最早日期为 ' + keyToIso(state.dateMin) + '）。';
-      }
       var rows = state.products.map(function (p) {
         var qty = salesMap.get(p.specCode) || 0;
+        var stock = invMap.get(p.specCode) || 0;
         var daily = days > 0 ? qty / days : 0;
         var rawWl = Math.ceil(daily * WATERLINE_DAYS);
-        var waterline = rawWl < MIN_WATERLINE ? MIN_WATERLINE : rawWl;
-        var stock = invMap.get(p.specCode) || 0;
-        var gap = waterline - stock;
+        var waterline, gap, status;
+        if (qty === 0 && stock === 0) {
+          // 无历史销售且库存为 0：不设水位线、不建议补货
+          waterline = 0; gap = 0; status = 'none';
+        } else {
+          waterline = rawWl < MIN_WATERLINE ? MIN_WATERLINE : rawWl;
+          gap = waterline - stock > 0 ? waterline - stock : 0;
+          status = stock > waterline ? 'excess' : (stock >= waterline ? 'ok' : 'need');
+        }
         return {
           barcode: p.barcode, productName: p.productName, cleanName: p.cleanName,
           spec: p.spec, category: p.category, retailPrice: p.retailPrice,
           productionNote: p.productionNote, imageUrl: p.imageUrl, specCode: p.specCode,
           qty: qty, daily: daily, waterline: waterline, stock: stock,
-          gap: gap > 0 ? gap : 0,
-          status: stock >= waterline ? 'ok' : 'need'
+          gap: gap, status: status
         };
       });
-      return { rows: rows, days: days, startKey: startKey, endKey: endKey, warn: warn };
+      return { rows: rows, days: days, startKey: startKey, endKey: endKey, warn: '' };
     }
 
     function filterRows(rows) {
@@ -1005,7 +1018,7 @@
 
     function sortRows(rows) {
       var key = state.sortKey, dir = state.sortDir === 'asc' ? 1 : -1;
-      var STATUS_RANK = { need: 0, ok: 1 };
+      var STATUS_RANK = { need: 0, excess: 1, ok: 2, none: 3 };
       return rows.slice().sort(function (a, b) {
         var va = a[key], vb = b[key];
         var r;
@@ -1052,7 +1065,11 @@
           var gapCell = r.gap > 0 ? '<span class="gap-num">' + fmtInt(r.gap) + '</span>' : '<span class="zero">0</span>';
           var statusTag = r.status === 'need'
             ? '<span class="tag tag-danger">需补货</span>'
-            : '<span class="tag tag-ok">达标</span>';
+            : r.status === 'excess'
+              ? '<span class="tag tag-warn">冗余库存</span>'
+              : r.status === 'none'
+                ? '<span class="tag tag-neutral">无</span>'
+                : '<span class="tag tag-ok">达标</span>';
           return '<tr>'
             + '<td class="td-img">' + img + '</td>'
             + '<td class="td-info td-product"><div class="p-name" title="' + escapeHtml(r.productName) + '">' + escapeHtml(r.cleanName) + '</div>'
@@ -1080,16 +1097,18 @@
       }
 
       // 汇总（基于筛选后行）
-      var stockSum = 0, wlSum = 0, gapSum = 0, needCount = 0;
+      var stockSum = 0, wlSum = 0, gapSum = 0, needCount = 0, excessCount = 0;
       rows.forEach(function (r) {
         stockSum += r.stock; wlSum += r.waterline; gapSum += r.gap;
         if (r.status === 'need') needCount++;
+        if (r.status === 'excess') excessCount++;
       });
       $('tableMeta').innerHTML = '当前筛选 <b>' + fmtInt(rows.length) + '</b> 款商品'
-        + ' · 库存 <b>' + fmtInt(stockSum) + '</b> 件 · 水位线 <b>' + fmtInt(wlSum) + '</b> 件 · 建议补货 <b>' + fmtInt(gapSum) + '</b> 件';
+        + ' · 库存 <b>' + fmtInt(stockSum) + '</b> 件 · 水位线 <b>' + fmtInt(wlSum) + '</b> 件 · 建议补货 <b>' + fmtInt(gapSum) + '</b> 件'
+        + (excessCount ? ' · 冗余库存 <b>' + fmtInt(excessCount) + '</b> 款' : '');
       $('tableFootnote').innerHTML = '日销系数 = 统计期销量 ÷ 经营天数（' + fmtInt(model.days) + ' 天）；'
-        + '水位线 = max(3, ⌈日销系数 × 60⌉)，即够门店卖 2 个月的库存，日销过低统一保底 3 件；'
-        + '建议补货 = max(0, 水位线 − 当前库存)。点击列头可排序。';
+        + '水位线 = max(3, ⌈日销系数 × 60⌉)，日销过低统一保底 3 件，无销售且库存 0 的商品记 0 不建议补货；'
+        + '库存 > 水位线为冗余库存。开业日期自动取门店首次销售日期。点击列头可排序。';
     }
 
     function renderKpis(model) {
@@ -1103,8 +1122,8 @@
       var meta = state.storeMeta.get(state.store) || {};
       $('kpiStore').textContent = stripStorePrefix(state.store);
       $('kpiStoreSub').textContent = '销售 ' + fmtInt(meta.salesQty || 0) + ' 件 · 库存 ' + fmtInt(meta.stockQty || 0) + ' 件';
-      $('kpiOpen').textContent = state.openDate || '未填写';
-      $('kpiOpenSub').textContent = state.openDate ? '日销从开业日起算' : '按完整数据区间计算';
+      $('kpiOpen').textContent = state.openDate || '无销售记录';
+      $('kpiOpenSub').textContent = state.openDate ? '自动取首次销售日期' : '按完整数据区间计算';
       $('kpiDays').textContent = fmtInt(model.days);
       $('kpiDaysSub').textContent = keyToIso(model.startKey) + ' ~ ' + keyToIso(model.endKey);
       $('kpiStock').textContent = fmtInt(stockSum);
@@ -1189,22 +1208,15 @@
         if (!item) return;
         var picked = item.dataset.store;
         if (picked !== state.store) {
-          state.openDate = '';
-          $('openDate').value = '';
+          state.store = picked;
+          syncOpenDate();
         }
-        state.store = picked;
         $('storeCombo').classList.remove('open');
         renderStoreList();
         renderAll();
       });
       document.addEventListener('click', function () {
         $('storeCombo').classList.remove('open');
-      });
-
-      // 开业日期
-      $('openDate').addEventListener('change', function () {
-        state.openDate = this.value;
-        renderAll();
       });
 
       // 筛选
@@ -1257,6 +1269,7 @@
         state.fileName = file.name;
         state.products = result.products;
         state.salesByStore = result.salesByStore;
+        state.firstSaleByStore = result.firstSaleByStore;
         state.inventoryByStore = result.inventoryByStore;
         state.stores = result.stores;
         state.storeMeta = result.storeMeta;
@@ -1264,15 +1277,16 @@
         state.dateMax = result.dateMax;
         if (!storeStillValid) {
           state.store = state.stores[0] || '';
-          state.openDate = '';
-          $('openDate').value = '';
         }
         state.category = '全部';
         state.production = '全部';
         state.scope = 'all';
         state.search = '';
         $('searchInput').value = '';
-        $('openDate').value = state.openDate;
+        document.querySelectorAll('#scopeSeg button').forEach(function (b) {
+          b.classList.toggle('on', b.dataset.scope === 'all');
+        });
+        syncOpenDate();
         $('dataRange').value = keyToIso(state.dateMin) + ' ~ ' + keyToIso(state.dateMax);
 
         showDataViews(true);
