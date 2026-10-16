@@ -1271,16 +1271,47 @@
       }).join('');
     }
 
+    /* 门店近 30 天销量：窗口与主表一致（数据最晚日期倒推 30 天，新店从首销日起算）。
+       销售索引是「编码 + 条码」双键，必须按商品匹配键（条码优先）取数，否则会双倍计数 */
+    function storeSales30(st) {
+      var sm = state.salesByStore.get(st);
+      if (!sm || !state.products.length) return 0;
+      var endKey = state.dateMax;
+      var winStart = shiftDayKey(endKey, -(RECENT_DAYS - 1));
+      var firstKey = state.firstSaleByStore.get(st);
+      if (firstKey && firstKey > winStart) winStart = firstKey;
+      var qty = 0;
+      state.products.forEach(function (p) {
+        var key = (p.barcode && sm.has(p.barcode)) ? p.barcode : p.specCode;
+        var byDate = sm.get(key);
+        if (!byDate) return;
+        byDate.forEach(function (q, dk) {
+          if (dk >= winStart && dk <= endKey) qty += q;
+        });
+      });
+      return qty;
+    }
+
     function renderStoreList() {
       var kw = $('storeSearch').value.trim().toLowerCase();
-      var list = state.stores.filter(function (st) {
-        return !kw || st.toLowerCase().indexOf(kw) >= 0 || stripStorePrefix(st).toLowerCase().indexOf(kw) >= 0;
+      var rows = state.stores.map(function (st) {
+        return { st: st, meta: state.storeMeta.get(st) || {}, s30: storeSales30(st) };
       });
-      $('storeList').innerHTML = list.map(function (st) {
-        var meta = state.storeMeta.get(st) || {};
-        return '<div class="combo-item' + (st === state.store ? ' on' : '') + '" data-store="' + escapeHtml(st) + '" role="option">'
-          + '<span class="name">' + escapeHtml(st) + '</span>'
-          + '<span class="sub">销 ' + fmtInt(meta.salesQty || 0) + ' · 存 ' + fmtInt(meta.stockQty || 0) + '</span>'
+      // 隐藏近 30 天销量为 0 的门店（当前选中门店始终保留，避免无处可切）
+      var list = rows.filter(function (r) {
+        return r.st === state.store || r.s30 > 0;
+      });
+      // 按近 30 天销量降序
+      list.sort(function (a, b) { return b.s30 - a.s30 || a.st.localeCompare(b.st, 'zh'); });
+      if (kw) {
+        list = list.filter(function (r) {
+          return r.st.toLowerCase().indexOf(kw) >= 0 || stripStorePrefix(r.st).toLowerCase().indexOf(kw) >= 0;
+        });
+      }
+      $('storeList').innerHTML = list.map(function (r) {
+        return '<div class="combo-item' + (r.st === state.store ? ' on' : '') + '" data-store="' + escapeHtml(r.st) + '" role="option">'
+          + '<span class="name">' + escapeHtml(r.st) + '</span>'
+          + '<span class="sub">近30天销 ' + fmtInt(r.s30) + ' · 存 ' + fmtInt(r.meta.stockQty || 0) + '</span>'
           + '</div>';
       }).join('') || '<div style="padding:10px;color:var(--page-text-muted);font-size:12.5px;">没有匹配的门店</div>';
       $('storeComboTxt').textContent = state.store ? stripStorePrefix(state.store) : '—';
