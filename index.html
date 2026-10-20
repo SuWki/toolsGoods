@@ -1537,7 +1537,7 @@ pointer-events: none;
     <div class="topbar">
       <div class="topbar-left">
         <h1>香水商品分析工具</h1>
-        <p class="subtitle" id="page-subtitle">选择上方模式开始分析：驾驶舱需要上传多个文件进行综合分析；九宫格只需上传单个《总库存情况》文件即可生成九宫格分析图。重新上传同一位置会直接覆盖刷新。</p>
+        <p class="subtitle" id="page-subtitle">选择上方模式开始分析：驾驶舱需要上传多个文件进行综合分析；九宫格只需上传单个九宫格数据源文件（《总库存情况》或《商品总览》工作表）即可生成九宫格分析图。重新上传同一位置会直接覆盖刷新。</p>
         <div id="progress-pills" class="pill-row"></div>
       </div>
       <div class="topbar-right">
@@ -1620,7 +1620,7 @@ pointer-events: none;
         key: "matrixWorkbook",
         label: "九宫格文件",
         hint: "商品资料 + 销存数据，一张表直接生成九宫格",
-        preferredSheets: ["总库存情况"],
+        preferredSheets: ["总库存情况", "商品总览"],
         parser: parseMatrixWorkbookRows,
       },
       {
@@ -2493,9 +2493,9 @@ sources: Object.fromEntries(
       const zip = await JSZip.loadAsync(buffer);
       // raw:true 跳过单元格格式化，大幅提升解析速度
       const workbook = XLSX.read(buffer, { type: "array", cellDates: true, raw: true, cellFormula: false });
-      const sheetName = findPreferredSheetName(workbook.SheetNames || [], ["总库存情况"]) || workbook.SheetNames?.[0] || "";
+      const sheetName = findPreferredSheetName(workbook.SheetNames || [], ["总库存情况", "商品总览"]) || workbook.SheetNames?.[0] || "";
       if (!sheetName) {
-        throw new Error("未找到总库存情况工作表");
+        throw new Error("未找到总库存情况/商品总览工作表");
       }
 
       const sheet = workbook.Sheets[sheetName];
@@ -2510,20 +2510,20 @@ sources: Object.fromEntries(
       const imageTargets = new Map();
       const rows = [];
 
-      // 销售时间段识别：起点固定 2026-01-01，终点读取 E1 单元格日期（c=4, r=0）
-      // E1 解析失败时回退到净出库列扫描
+      // 销售时间段识别：扫描第1行找日期单元格（0926版在E1，1018版在F1）
+      // 终点取识别到的日期，起点取终点当年的1月1日（对应「今年日销系数」口径）
+      // 第1行无日期时回退到净出库列扫描
       let salesPeriod = null;
       let periodMonths = 7;
-      const FIXED_START = "2026-01-01";
-      const e1Cell = sheet[XLSX.utils.encode_cell({ r: 0, c: 4 })];
-      if (e1Cell) {
-        const parsed = parseSalesPeriodFromCell(e1Cell);
+      for (let c = 0; c < (sheetRows[0] || []).length; c += 1) {
+        const parsed = parseSalesPeriodFromCell(sheet[XLSX.utils.encode_cell({ r: 0, c })]);
         if (parsed && parsed.end) {
-          // 起点固定，终点取 E1 解析出的 end
-          salesPeriod = { start: FIXED_START, end: parsed.end };
+          const year = parsed.end.slice(0, 4);
+          salesPeriod = { start: `${year}-01-01`, end: parsed.end };
+          break;
         }
       }
-      // 回退：从AP列扫描净出库数据确定终点（起点仍固定）
+      // 回退：从AP列扫描净出库数据确定终点（起点取当年1月1日）
       if (!salesPeriod) {
         const headerRow = sheetRows[2] || [];
         const totalsRow = sheetRows[1] || [];
@@ -2544,7 +2544,7 @@ sources: Object.fromEntries(
           const year = new Date().getFullYear();
           const endDay = new Date(year, endMonth, 0).getDate();
           salesPeriod = {
-            start: FIXED_START,
+            start: `${year}-01-01`,
             end: `${year}-${String(endMonth).padStart(2, "0")}-${String(endDay).padStart(2, "0")}`,
           };
         }
@@ -2559,46 +2559,67 @@ sources: Object.fromEntries(
       }
 
       // 表头行（第3行，索引2）动态定位关键列，兼容不同版本数据源列位置变化
-      // 0926版：J=生产备注, O=剩余天数, Q=在仓库存, U=日销系数, V=补单备注
+      // 1018版：A=条码, B=id, C=线下, D=图片, E=产品名称, F=货号, G=净含量/规格, H=分类, I=零售价,
+      //         J=生产备注, P=剩余天数, R=在仓库存, S=门店库存, T=总库存数量, U=在途库存, V=今年日销系数
+      // 0926版：固定列 A~H 与1018版整体错位1列（C=图片, D=品名, E=货号, F=规格, G=分类, H=零售价），
+      //         J=生产备注, O=剩余天数, Q=在仓库存, U=日销系数, V=补单备注
       // 0816版回退索引：I(8)=生产备注, N(13)=剩余天数, O(14)=即时库存, P(15)=日销系数
       const headerRowCells = sheetRows[2] || [];
-      const findColIdx = (keywords, fallbackIdx) => {
+      const findColIdx = (exactKeywords, fuzzyKeywords, fallbackIdx) => {
+        // 第一遍：表头完全相等（避免「规格」误命中「规格编码」等长表头）
         for (let c = 0; c < headerRowCells.length; c += 1) {
-          const headerText = String(headerRowCells[c] || "").trim();
-          if (keywords.some((kw) => headerText.includes(kw))) {
-            return c;
-          }
+          const headerText = String(headerRowCells[c] ?? "").trim().toLowerCase();
+          if (exactKeywords.some((kw) => headerText === String(kw).toLowerCase())) return c;
+        }
+        // 第二遍：表头包含关键词
+        for (let c = 0; c < headerRowCells.length; c += 1) {
+          const headerText = String(headerRowCells[c] ?? "").trim().toLowerCase();
+          if (fuzzyKeywords.some((kw) => headerText.includes(String(kw).toLowerCase()))) return c;
         }
         return fallbackIdx;
       };
-      const reorderNoteColIdx = findColIdx(["补单"], -1);
-      const productionNoteColIdx = findColIdx(["生产备注", "生产情况", "生产状态"], 8);
-      const remainingDaysColIdx = findColIdx(["剩余天数"], 13);
-      const stockColIdx = findColIdx(["即时库存", "在仓库存"], 14);
-      const dailySalesCoefColIdx = findColIdx(["日销系数"], 15);
+      const barcodeColIdx = findColIdx(["条码"], ["条码", "商品条码", "规格条码"], 0);
+      const idColIdx = findColIdx(["id"], ["id"], 1);
+      const imageColIdx = findColIdx(["图片"], ["图片", "主图", "SKU图片"], 2);
+      const productNameColIdx = findColIdx(["产品名称", "品名", "货品名称", "商品名称"], ["产品名称", "品名", "货品名称", "商品名称", "SKU名称"], 3);
+      const skuColIdx = findColIdx(["货号", "规格编码", "货品编号", "商品编码"], ["货号", "规格编码", "货品编号", "商品编码"], 4);
+      const specColIdx = findColIdx(["规格", "净含量/规格", "净含量"], ["净含量/规格", "规格项1"], 5);
+      const categoryColIdx = findColIdx(["分类"], ["分类", "类目", "类别"], 6);
+      const retailPriceColIdx = findColIdx(["零售价"], ["零售价", "建议零售价", "采购单价"], 7);
+      const productionNoteColIdx = findColIdx(["生产备注", "生产情况", "生产状态"], ["生产备注", "生产情况", "生产状态"], 8);
+      const reorderNoteColIdx = findColIdx(["补单备注", "补单"], ["补单"], -1);
+      const remainingDaysColIdx = findColIdx(["剩余天数"], ["剩余天数", "剩余有效天数"], 13);
+      const stockColIdx = findColIdx(["在仓库存", "即时库存"], ["即时库存", "在仓库存"], 14);
+      const dailySalesCoefColIdx = findColIdx(["日销系数", "今年日销系数"], ["日销系数"], 15);
+      // 1018版新增「在途库存」数值列：无补单备注文字时映射为「在途N件」保留⭐在途标记
+      const inTransitColIdx = findColIdx(["在途库存"], ["在途库存", "在途"], -1);
       // 线上月均/线下月均/库存判断/销量趋势：0926版已删除，仅表头存在时读取
-      const onlineMonthlyAvgColIdx = findColIdx(["线上月均"], -1);
-      const offlineMonthlyAvgColIdx = findColIdx(["线下月均"], -1);
-      const stockHealthColIdx = findColIdx(["库存判断"], -1);
-      const salesTrendColIdx = findColIdx(["销量趋势"], -1);
+      const onlineMonthlyAvgColIdx = findColIdx(["线上月均"], ["线上月均"], -1);
+      const offlineMonthlyAvgColIdx = findColIdx(["线下月均"], ["线下月均"], -1);
+      const stockHealthColIdx = findColIdx(["库存判断"], ["库存判断"], -1);
+      const salesTrendColIdx = findColIdx(["销量趋势"], ["销量趋势"], -1);
 
       // 数据从第4行开始（索引3）
       for (let rowIdx = 3; rowIdx < sheetRows.length; rowIdx += 1) {
         const r = sheetRows[rowIdx] || [];
-        const productName = String(r[3] ?? "").trim();
-        const barcode = String(r[0] ?? "").trim();
-        const sku = String(r[4] ?? "").trim();
+        const productName = String(r[productNameColIdx] ?? "").trim();
+        const barcode = String(r[barcodeColIdx] ?? "").trim();
+        const sku = String(r[skuColIdx] ?? "").trim();
         if (!productName && !barcode && !sku) continue;
 
-        const spec = String(r[5] ?? "").trim();
-        const category = String(r[6] ?? "").trim();
-        const retailPrice = maybeNumber(r[7]);
-        // 生产备注：0926版在J列，区分正常、停产、待定（其他）
+        const spec = String(r[specColIdx] ?? "").trim();
+        const category = String(r[categoryColIdx] ?? "").trim();
+        const retailPrice = maybeNumber(r[retailPriceColIdx]);
+        // 生产备注：按表头动态定位，区分正常、停产、待定（其他）
         const productionNote = String(r[productionNoteColIdx] ?? "").trim();
-        // 补单备注：0926版在V列，按表头动态定位，用于识别“在途”补单
-        const reorderNote = reorderNoteColIdx >= 0 ? String(r[reorderNoteColIdx] ?? "").trim() : "";
+        // 补单备注：按表头动态定位，用于识别“在途”补单
+        let reorderNote = reorderNoteColIdx >= 0 ? String(r[reorderNoteColIdx] ?? "").trim() : "";
+        // 1018版新增「在途库存」数值列：无补单备注文字时映射为「在途N件」，保留⭐在途标记
+        if (!reorderNote && inTransitColIdx >= 0) {
+          const inTransitQty = parseNumber(r[inTransitColIdx], 0);
+          if (inTransitQty > 0) reorderNote = `在途${formatInteger(inTransitQty)}件`;
+        }
         const isRegularPrice = ""; // 新版无此列，留空
-        // 0926版：N=到期日期, O=剩余天数, Q=在仓库存(即时库存), U=日销系数
         const remainingDays = maybeNumber(r[remainingDaysColIdx]);
         const currentStock = parseNumber(r[stockColIdx], 0);
         const dailySalesCoef = maybeNumber(r[dailySalesCoefColIdx]);
@@ -2612,7 +2633,7 @@ sources: Object.fromEntries(
         const monthlyAverage = onlineMonthlyAvg + offlineMonthlyAvg;
         const stockHealth = String(r[stockHealthColIdx] ?? "").trim() || getStockHealthLabel(stockMonths);
         const salesTrend = String(r[salesTrendColIdx] ?? "").trim();
-        // periodMonths 由净出库列数据扫描得出（后续会延长）
+        // periodMonths 由第1行日期或净出库列扫描得出
         const salesQty = Math.round(monthlyAverage * periodMonths);
         const derivedStockMonths = stockMonths;
         const sellOutDays = (stockMonths !== null && stockMonths !== undefined)
@@ -2623,8 +2644,8 @@ sources: Object.fromEntries(
           ? false
           : (sellOutDays !== null && remainingDays !== null ? sellOutDays <= remainingDays : null);
 
-        // 图片：DISPIMG 公式存在 cell.f 或 cell.v 中
-        const imageCell = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: 2 })];
+        // 图片：DISPIMG 公式存在 cell.f 或 cell.v 中（0926版C列，1018版D列，按表头动态定位）
+        const imageCell = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: imageColIdx })];
         const imageId = extractDispImgId(imageCell);
         const imageTarget = imageLookup.get(imageId) || "";
         if (imageId && imageTarget) {
@@ -2634,7 +2655,7 @@ sources: Object.fromEntries(
         rows.push({
           key: makeBarcodeKey({ barcode, sku, specCode: sku, productCode: sku, productName, spec }),
           barcode,
-          id: String(r[1] ?? "").trim(),
+          id: String(r[idColIdx] ?? "").trim(),
           imageId,
           imageTarget,
           productName,
@@ -2917,16 +2938,19 @@ sources: Object.fromEntries(
 
     // 每日销量趋势文件解析见 parseSalesTrendRowsFromFile（主线程，复用已加载的 XLSX）
     // 兼容多种日期格式：Date / Excel 序号 / YYYY-MM-DD / YYYY/MM/DD / YYYYMMDD(紧凑)
-    // 解析 E1 单元格日期为销售时间段 {start, end}
+    // 解析第1行日期单元格（0926版E1，1018版F1）为销售时间段 {start, end}
     // 支持：Date对象、Excel日期序列号、字符串（单日期或日期范围）
     function parseSalesPeriodFromCell(cell) {
       if (!cell) return null;
       const v = cell.v;
       if (v == null) return null;
 
-      // Date 对象（cellDates:true 时）
+      // Date 对象（cellDates:true 时）：按本地时区格式化
+      // 注意：SheetJS 解析 1900 日期系统存在已知伪影，午夜日期可能偏差至多 44 秒（如 23:59:17），
+      // 加 45 秒补偿后再取本地日期，避免差一天
       if (v instanceof Date && !Number.isNaN(v.getTime())) {
-        const dateStr = v.toISOString().slice(0, 10);
+        const shifted = new Date(v.getTime() + 45 * 1000);
+        const dateStr = `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, "0")}-${String(shifted.getDate()).padStart(2, "0")}`;
         return { start: dateStr, end: dateStr };
       }
 
@@ -4526,10 +4550,10 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
 
       if (state.activeTab === "matrix") {
         titleEl.textContent = "九宫格文件";
-        subtitleEl.textContent = "九宫格模式：只需上传单个《总库存情况》文件，系统会自动读取商品资料、库存、净出库和图片，按消化周期生成日销系数×消化周期九宫格分析图。";
+        subtitleEl.textContent = "九宫格模式：只需上传单个九宫格数据源文件（《总库存情况》或《商品总览》工作表），系统会自动读取商品资料、库存和图片，按消化周期生成日销系数×消化周期九宫格分析图。";
         notesEl.innerHTML = `
-          <div class="note">1. 仅需上传一个 Excel 文件，包含《总库存情况》工作表。</div>
-          <div class="note">2. 数据列映射（0926版，按表头自动定位）：J列=生产备注、O列=保质期剩余天数、Q列=在仓库存、U列=日销系数(横轴)、V列=补单备注(⭐在途标记)。</div>
+          <div class="note">1. 仅需上传一个 Excel 文件，包含《总库存情况》或《商品总览》工作表。</div>
+          <div class="note">2. 数据列按表头自动定位。0926版：J列=生产备注、O列=剩余天数、Q列=在仓库存、U列=日销系数、V列=补单备注(⭐在途标记)；1018版：J列=生产备注、P列=剩余天数、R列=在仓库存、U列=在途库存(自动映射⭐在途标记)、V列=今年日销系数。</div>
           <div class="note">3. 横轴=日销系数(1~3)，直接读取U列数值：N≥10→1(高日销)，3≤N<10→2(中日销)，N<3→3(低日销)。</div>
           <div class="note">4. 库存月≤3→系数和=2(≤90天)，≤6→3(≤180天)，≤12→4(≤360天)，≤24→5(≤720天)，>24→6(>720天)。</div>
           <div class="note">5. 纵轴=系数和-横轴，由消化周期反推，不再单独计算库存系数。</div>
@@ -4610,7 +4634,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
             <div class="block-head">
               <div>
                 <h2>九宫格看板</h2>
-                <div class="note">请先上传单文件《总库存情况》九宫格模板，系统会直接读取商品资料、库存、净出库和图片。</div>
+                <div class="note">请先上传单文件九宫格数据源（《总库存情况》或《商品总览》工作表），系统会直接读取商品资料、库存和图片。</div>
               </div>
               <button class="primary" data-open-source="matrixWorkbook">上传九宫格文件</button>
             </div>
@@ -6114,7 +6138,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
           <div class="block-head">
             <div>
               <h2>九宫格 SKU 分析</h2>
-              <div class="note">请先上传《总库存情况》九宫格模板文件，系统会直接读取商品资料、库存、净出库和图片。</div>
+              <div class="note">请先上传九宫格数据源文件（《总库存情况》或《商品总览》工作表），系统会直接读取商品资料、库存和图片。</div>
             </div>
             <button class="primary" id="matrix-upload-btn">上传九宫格文件</button>
           </div>
@@ -6123,8 +6147,8 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
               <div class="note">文件要求：</div>
               <ul style="margin:0;padding-left:20px;color:var(--muted);">
                 <li>文件格式：Excel (.xlsx) 包含图片</li>
-                <li>工作表：总库存情况</li>
-                <li>包含字段：条码、品名、规格、分类、库存数量、7个月销售数据等</li>
+                <li>工作表：总库存情况（0926版）或 商品总览（1018版）</li>
+                <li>包含字段：条码、品名、规格、分类、零售价、在仓库存、剩余天数、日销系数、在途库存等</li>
               </ul>
               <div class="note" style="margin-top:8px;">上传后，系统会根据消化周期自动将商品分配到日销系数×消化周期九宫格。</div>
             </div>
@@ -7564,6 +7588,8 @@ bindTrendTooltip(chartEl);
             importedAt: new Date().toISOString(),
             rows: fileData.rows,
             imageDataByTarget: fileData.imageDataByTarget || {},
+            salesPeriod: fileData.salesPeriod || null,
+            periodMonths: fileData.periodMonths || 7,
             loading: false,
             error: "",
           };
