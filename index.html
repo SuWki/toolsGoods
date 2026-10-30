@@ -1548,6 +1548,7 @@ pointer-events: none;
           <button class="mode-btn" data-mode="kttImport">快团团导入</button>
           <button class="mode-btn" data-mode="skuRank">门店SKU排名</button>
           <button class="mode-btn" data-mode="stockWaterline">库存水位线</button>
+          <button class="mode-btn" data-mode="sellOut">售罄预估</button>
         </div>
         <div class="actions">
           <button id="batch-upload" class="ghost">批量上传</button>
@@ -1603,6 +1604,9 @@ pointer-events: none;
       </section>
       <section id="waterline-panel" class="panel sku-rank-panel" style="display:none;">
         <iframe id="waterline-frame" title="门店SKU库存水位线工具" data-src="./门店SKU库存水位线工具/门店SKU库存水位线工具.html"></iframe>
+      </section>
+      <section id="sell-out-panel" class="panel sku-rank-panel" style="display:none;">
+        <iframe id="sell-out-frame" title="商品售罄预估看板" data-src="./商品售罄预估看板/商品售罄预估看板.html"></iframe>
       </section>
       </main>
     </div>
@@ -4328,6 +4332,9 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       } else if (state.activeTab === "stockWaterline") {
         // 库存水位线工具：状态由工具自身展示，顶部不叠加胶囊
         pills = [];
+      } else if (state.activeTab === "sellOut") {
+        // 售罄预估看板：状态由看板自身展示，顶部不叠加胶囊
+        pills = [];
       } else {
         pills = [
           `<span class="pill">已上传 ${formatInteger(model.uploadedCount)} 个文件</span>`,
@@ -4361,6 +4368,10 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       }
       if (state.activeTab === "stockWaterline") {
         // 库存水位线工具自带数据上传入口，无需侧边栏文件位
+        return [];
+      }
+      if (state.activeTab === "sellOut") {
+        // 售罄预估看板自带数据上传入口，无需侧边栏文件位
         return [];
       }
       // 驾驶舱Tab显示除九宫格与销售趋势外的所有文件
@@ -4448,6 +4459,11 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       }
       if (state.activeTab === "stockWaterline") {
         // 库存水位线工具有自己的数据源与质量说明
+        host.innerHTML = "";
+        return;
+      }
+      if (state.activeTab === "sellOut") {
+        // 售罄预估看板有自己的数据源与质量说明
         host.innerHTML = "";
         return;
       }
@@ -4605,6 +4621,18 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
           <div class="note">5. 点击工具内「上传大仓库存」可载入《分仓库存查询》文件，按条码识别大仓可用库存（同条码多仓自动累加）显示在最后一列，并支持按「大仓可用库存 > N」筛选。</div>
           <div class="note">6. 品名自动省略「BLACK PAW / 黑爪」字样；商品图片来自 Excel 内嵌图片，本地解析。</div>
           <div class="note">7. 数据仅在本地浏览器解析，不会上传服务器；解析结果（含大仓库存）自动记忆在本浏览器，下次打开自动恢复，无需重复上传。</div>
+        `;
+      } else if (state.activeTab === "sellOut") {
+        titleEl.textContent = "商品售罄预估看板";
+        subtitleEl.textContent = "售罄预估模式：在右侧看板内上传《商品售罄预估数据源》（《商品总览》工作表），按「今年库存月」预估每款商品的售罄月份，展示未来一年内各月售罄的商品（图片、品名、规格、分类），支持按分类与补单备注筛选，并统计各月份的库存数量与占比。";
+        notesEl.innerHTML = `
+          <div class="note">1. 点击看板内「上传数据源」选择 Excel 文件，需包含《商品总览》工作表。</div>
+          <div class="note">2. 预计售罄日期 = 数据日期（表头日期）+ 今年库存月 × 30 天；库存月为 0 归入「已售罄」。</div>
+          <div class="note">3. 未来 12 个月按月分组，超出一年归入「12 个月以后」；今年日销系数为 0 的商品归入「无销量」，不参与售罄预估。</div>
+          <div class="note">4. 每个月度部分都统计库存数量与库存占比（该月库存 ÷ 当前筛选下全部商品库存总量）。</div>
+          <div class="note">5. 在途库存仅作提示，不计入售罄时间；补单备注为空时归入「未设置」。</div>
+          <div class="note">6. 品名自动省略「BLACK PAW / 黑爪」字样；商品图片来自 Excel 内嵌图片，本地解析。</div>
+          <div class="note">7. 数据仅在本地浏览器解析，不会上传服务器。</div>
         `;
       } else {
         titleEl.textContent = "驾驶舱文件";
@@ -7448,6 +7476,7 @@ bindTrendTooltip(chartEl);
       // 门店SKU排名看板：iframe 嵌入独立页面（首次进入懒加载，切换 Tab 状态保留）
       const skuRankPanel = document.getElementById("sku-rank-panel");
       const waterlinePanel = document.getElementById("waterline-panel");
+      const sellOutPanel = document.getElementById("sell-out-panel");
       if (state.activeTab === "skuRank") {
         kpiGrid.style.display = "none";
         tabsBar.style.display = "none";
@@ -7460,6 +7489,7 @@ bindTrendTooltip(chartEl);
           }
         }
         if (waterlinePanel) waterlinePanel.style.display = "none";
+        if (sellOutPanel) sellOutPanel.style.display = "none";
         return;
       }
       if (skuRankPanel) skuRankPanel.style.display = "none";
@@ -7476,9 +7506,26 @@ bindTrendTooltip(chartEl);
             wlFrame.src = wlFrame.dataset.src;
           }
         }
+        if (sellOutPanel) sellOutPanel.style.display = "none";
         return;
       }
       if (waterlinePanel) waterlinePanel.style.display = "none";
+
+      // 商品售罄预估看板：iframe 嵌入独立页面（首次进入懒加载，切换 Tab 状态保留）
+      if (state.activeTab === "sellOut") {
+        kpiGrid.style.display = "none";
+        tabsBar.style.display = "none";
+        tabsPanel.style.display = "none";
+        if (sellOutPanel) {
+          sellOutPanel.style.display = "block";
+          const soFrame = document.getElementById("sell-out-frame");
+          if (soFrame && !soFrame.getAttribute("src")) {
+            soFrame.src = soFrame.dataset.src;
+          }
+        }
+        return;
+      }
+      if (sellOutPanel) sellOutPanel.style.display = "none";
 
       if (state.activeTab === "cockpit") {
         // 驾驶舱模式：显示子标签栏
