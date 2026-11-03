@@ -122,7 +122,7 @@
 
     /* === KPI 卡片 === */
     .kpi-grid {
-      display: grid; grid-template-columns: repeat(6, 1fr);
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
       gap: var(--space-3); margin-bottom: var(--space-5);
     }
     .kpi {
@@ -399,6 +399,11 @@
             <div class="kpi-value" id="kpiNeed">—</div>
             <div class="kpi-sub" id="kpiNeedSub">—</div>
           </div>
+          <div class="kpi">
+            <div class="kpi-label">经销商进货金额（元）</div>
+            <div class="kpi-value" id="kpiAmount">—</div>
+            <div class="kpi-sub" id="kpiAmountSub">按订货折扣计算</div>
+          </div>
         </section>
 
         <!-- 筛选器 -->
@@ -435,6 +440,11 @@
             <div class="inline-ctrl">
               <span class="f-label">水位线天数<span class="hint" title="库存水位线 = 够门店卖 N 天的库存量，水位线 = max(2, ⌈日销系数 × N⌉)">i</span></span>
               <input class="f-input" id="waterlineDaysInput" type="number" min="1" max="365" step="1" value="14" style="width:72px;" aria-label="水位线天数">
+            </div>
+            <div class="inline-ctrl">
+              <span class="f-label">经销商订货折扣<span class="hint" title="经销商进货金额 = 订货折扣 × 零售价 × 建议补货数量；按百分比输入，如 45 表示零售价的 45%">i</span></span>
+              <input class="f-input" id="discountInput" type="number" min="0" max="100" step="0.1" placeholder="未设置" style="width:72px;" aria-label="经销商订货折扣（百分比）">
+              <span class="f-label" style="margin-left:4px;">%</span>
             </div>
             <div class="inline-ctrl">
               <span class="f-label">生产备注</span>
@@ -486,6 +496,7 @@
                   <th class="sortable" data-key="stock" scope="col">当前库存(件)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="waterline" id="waterlineTh" scope="col" title="max(2, ⌈日销系数 × 水位线天数⌉)；无销售且库存为 0 时记 0">水位线(件)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="gap" scope="col">建议补货(件)<span class="arrow">▼</span></th>
+                  <th class="sortable" data-key="amount" id="amountTh" scope="col" title="经销商进货金额 = 订货折扣 × 零售价 × 建议补货数量；未设置折扣时显示 —">经销商进货金额(元)<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="status" scope="col">状态<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="productionNote" scope="col">生产备注<span class="arrow">▼</span></th>
                   <th class="sortable" data-key="warehouseQty" scope="col" title="《分仓库存查询》的大仓可用库存，按条码匹配、多仓累加；未上传大仓文件时显示 —">大仓可用库存(件)<span class="arrow">▼</span></th>
@@ -519,6 +530,7 @@
               <li>当前库存取自《店铺销售》同文件的《店铺库存》表：优先取「可用库存」，该列为空时取「实物库存」。</li>
             <li>库存<b>按 69 码（条码）优先匹配</b>：《商品总览》的「条码」对应《店铺库存》的「商品/规格条码」；条码缺失或未命中时按规格编码（货号）回退匹配。</li>
               <li><span class="formula">建议补货 = max(0, 水位线 − 当前库存)</span></li>
+              <li><span class="formula">经销商进货金额 = 经销商订货折扣 × 零售价 × 建议补货数量</span>（折扣按百分比在筛选区配置，如输入 45 表示零售价的 45%；未设置折扣或商品缺零售价时显示「—」）</li>
               <li>状态判定：库存 < 水位线为「需补货」；库存 ≥ 水位线为「达标」；<b>库存 > 水位线（超出 100%）为「冗余库存」</b>；近 30 天无销售且库存为 0 为「无」。</li>
               <li>门店库存表中没有该商品记录时，当前库存按 0 计。</li>
             </ul>
@@ -573,6 +585,7 @@
       sortKey: 'gap',
       sortDir: 'desc',
       waterlineDays: DEFAULT_WATERLINE_DAYS, // 水位线覆盖天数（用户可配置）
+      discount: null,            // 经销商订货折扣（百分比数值，如 45 = 零售价的 45%；null = 未设置）
       warehouseAvail: null,      // 大仓可用库存：Map(条码 -> 数量)，null = 未上传
       warehouseFile: '',
       warehouseMin: null,        // 筛选：大仓可用库存 > N（null = 不筛）
@@ -1088,7 +1101,7 @@
         else stock = invMap.get(p.specCode) || 0;
         // 大仓可用库存：按条码匹配（未上传大仓文件时为 null，显示「—」）
         var whQty = state.warehouseAvail && p.barcode ? (state.warehouseAvail.get(p.barcode) || 0) : null;
-        var daily = winDays > 0 ? qty30 / winDays : 0;
+          var daily = winDays > 0 ? qty30 / winDays : 0;
         var rawWl = Math.ceil(daily * state.waterlineDays);
         var waterline, gap, status;
         if (qty30 === 0) {
@@ -1101,13 +1114,17 @@
           gap = waterline - stock > 0 ? waterline - stock : 0;
           status = stock > waterline ? 'excess' : (stock >= waterline ? 'ok' : 'need');
         }
+        // 经销商进货金额 = 订货折扣 × 零售价 × 建议补货数量（未设置折扣或缺零售价时为 null，显示「—」）
+        var amount = (state.discount !== null && p.retailPrice !== null && isFinite(p.retailPrice))
+          ? (state.discount / 100) * p.retailPrice * gap
+          : null;
         return {
           barcode: p.barcode, productName: p.productName, cleanName: p.cleanName,
           spec: p.spec, category: p.category, retailPrice: p.retailPrice,
           productionNote: p.productionNote, imageUrl: p.imageUrl, specCode: p.specCode,
           warehouseQty: whQty,
           qty: qty30, qtyAll: qtyAll, daily: daily, waterline: waterline, stock: stock,
-          gap: gap, status: status
+          gap: gap, amount: amount, status: status
         };
       });
       return { rows: rows, days: winDays, startKey: winStart, endKey: endKey, warn: '' };
@@ -1145,7 +1162,7 @@
           vb = vb == null || !isFinite(vb) ? -Infinity : vb;
           r = va - vb;
         }
-        if (r === 0 && (key === 'gap' || key === 'waterline' || key === 'status')) {
+        if (r === 0 && (key === 'gap' || key === 'waterline' || key === 'amount' || key === 'status')) {
           r = b.daily - a.daily; // 并列时按日销降序
         }
         if (r === 0) r = String(a.specCode || '') < String(b.specCode || '') ? -1 : 1;
@@ -1166,7 +1183,7 @@
       var rows = sortRows(filterRows(model.rows));
       var body = $('wlTableBody');
       if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:30px 10px;color:var(--page-text-muted);">当前筛选条件下没有匹配的商品</td></tr>';
+        body.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:30px 10px;color:var(--page-text-muted);">当前筛选条件下没有匹配的商品</td></tr>';
       } else {
         var html = rows.map(function (r) {
           var img = r.imageUrl
@@ -1195,6 +1212,7 @@
             + '<td>' + (r.stock > 0 ? fmtInt(r.stock) : '<span class="zero">0</span>') + '</td>'
             + '<td>' + fmtInt(r.waterline) + '</td>'
             + '<td>' + gapCell + '</td>'
+            + '<td>' + (r.amount == null ? '<span class="zero">—</span>' : (r.amount > 0 ? fmtPrice(r.amount) : '<span class="zero">0</span>')) + '</td>'
             + '<td>' + statusTag + '</td>'
             + '<td>' + noteTag + '</td>'
             + '<td>' + (r.warehouseQty == null ? '<span class="zero">—</span>' : (r.warehouseQty > 0 ? fmtInt(r.warehouseQty) : '<span class="zero">0</span>')) + '</td>'
@@ -1212,26 +1230,31 @@
       }
 
       // 汇总（基于筛选后行）
-      var stockSum = 0, wlSum = 0, gapSum = 0, needCount = 0, excessCount = 0;
+      var stockSum = 0, wlSum = 0, gapSum = 0, needCount = 0, excessCount = 0, amountSum = 0;
       rows.forEach(function (r) {
         stockSum += r.stock; wlSum += r.waterline; gapSum += r.gap;
+        if (r.amount != null) amountSum += r.amount;
         if (r.status === 'need') needCount++;
         if (r.status === 'excess') excessCount++;
       });
       $('tableMeta').innerHTML = '当前筛选 <b>' + fmtInt(rows.length) + '</b> 款商品'
         + ' · 库存 <b>' + fmtInt(stockSum) + '</b> 件 · 水位线 <b>' + fmtInt(wlSum) + '</b> 件 · 建议补货 <b>' + fmtInt(gapSum) + '</b> 件'
+        + (state.discount !== null ? ' · 经销商进货金额 <b>' + fmtPrice(amountSum) + '</b> 元' : '')
         + (excessCount ? ' · 冗余库存 <b>' + fmtInt(excessCount) + '</b> 款' : '');
       $('tableFootnote').innerHTML = '日销系数 = 近 ' + RECENT_DAYS + ' 天销量 ÷ 窗口天数（' + fmtInt(model.days) + ' 天，'
         + keyToIso(model.startKey) + ' ~ ' + keyToIso(model.endKey) + '）；'
         + '水位线 = max(2, ⌈日销系数 × ' + fmtInt(state.waterlineDays) + '⌉)；近 30 天无销售（日销系数 = 0）无需补货、水位线记 0，日销大于 0 但过低统一保底 2 件；'
-        + '库存 > 水位线为冗余库存。开业日期自动取门店首次销售日期。点击列头可排序。';
+        + '库存 > 水位线为冗余库存。开业日期自动取门店首次销售日期。'
+        + (state.discount !== null ? '经销商进货金额 = 订货折扣 ' + fmtInt(state.discount) + '% × 零售价 × 建议补货数量。' : '未设置经销商订货折扣时进货金额显示「—」。')
+        + '点击列头可排序。';
     }
 
     function renderKpis(model) {
       var rows = model.rows;
-      var stockSum = 0, wlSum = 0, gapSum = 0, needCount = 0, soldCount = 0;
+      var stockSum = 0, wlSum = 0, gapSum = 0, needCount = 0, soldCount = 0, amountSum = 0;
       rows.forEach(function (r) {
         stockSum += r.stock; wlSum += r.waterline; gapSum += r.gap;
+        if (r.amount != null) amountSum += r.amount;
         if (r.status === 'need') needCount++;
         if (r.qty > 0) soldCount++;
       });
@@ -1248,6 +1271,13 @@
       $('kpiWaterlineSub').textContent = '够卖 ' + fmtInt(state.waterlineDays) + ' 天的库存量';
       $('kpiNeed').innerHTML = fmtInt(needCount) + ' <em>/ ' + fmtInt(gapSum) + '</em>';
       $('kpiNeedSub').textContent = '有销量 SKU ' + fmtInt(soldCount) + ' 款';
+      if (state.discount !== null) {
+        $('kpiAmount').textContent = fmtPrice(amountSum);
+        $('kpiAmountSub').textContent = '订货折扣 ' + fmtInt(state.discount) + '% × 零售价 × 建议补货量';
+      } else {
+        $('kpiAmount').textContent = '—';
+        $('kpiAmountSub').textContent = '未设置订货折扣（筛选区可配置）';
+      }
     }
 
     function renderFilterOptions() {
@@ -1400,6 +1430,16 @@
         state.waterlineDays = v;
         this.value = String(v);
         $('waterlineTh').title = 'max(2, ⌈日销系数 × ' + v + '⌉)；无销售且库存为 0 时记 0';
+        renderAll();
+      });
+      // 经销商订货折扣（百分比）：经销商进货金额 = 折扣 × 零售价 × 建议补货数量
+      $('discountInput').addEventListener('input', function () {
+        var t = this.value.trim();
+        if (t === '') { state.discount = null; }
+        else {
+          var n = parseFloat(t);
+          state.discount = (isFinite(n) && n >= 0 && n <= 100) ? n : null;
+        }
         renderAll();
       });
       // 大仓库存（分仓库存查询）
