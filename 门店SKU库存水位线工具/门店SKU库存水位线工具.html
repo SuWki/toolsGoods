@@ -342,6 +342,7 @@
             <span class="badge-src" id="dataSourceBadge" title=""><span class="dot"></span><span id="dataSourceText">未载入数据</span></span>
             <button class="btn btn-primary" id="btnUpload" type="button">上传数据源</button>
             <button class="btn" id="btnWarehouse" type="button" title="上传《分仓库存查询》，按条码识别大仓可用库存">上传大仓库存</button>
+            <button class="btn" id="btnExportExcel" type="button" disabled title="上传数据源后可导出 Excel">导出 Excel</button>
             <input type="file" id="fileInput" accept=".xlsx" hidden>
             <input type="file" id="whFileInput" accept=".xlsx" hidden>
           </div>
@@ -553,6 +554,7 @@
   </article>
 
   <script src="./assets/jszip.min.js"></script>
+  <script src="./assets/xlsx.full.min.js"></script>
   <script>
   (function () {
     'use strict';
@@ -1365,11 +1367,107 @@
       $('notesBox').hidden = !show;
     }
 
+    /* ================= 导出 Excel ================= */
+    function handleExportExcel() {
+      if (!window.XLSX) { alert('SheetJS 未加载，无法导出'); return; }
+      if (!state.products.length) return;
+      var btn = $('btnExportExcel');
+      var prevText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '导出中…';
+      try {
+        var model = computeModel();
+        var rows = sortRows(filterRows(model.rows));
+        // KPI 概览工作表（合并单元格：首行标题 + 门店/日期/折扣等信息）
+        var statusMap = { need: '需补货', ok: '达标', excess: '冗余库存', none: '无' };
+        var sumStock = 0, sumWl = 0, sumGap = 0, sumAmount = 0, needCount = 0, excessCount = 0;
+        rows.forEach(function (r) {
+          sumStock += r.stock; sumWl += r.waterline; sumGap += r.gap;
+          if (r.amount != null) sumAmount += r.amount;
+          if (r.status === 'need') needCount++;
+          if (r.status === 'excess') excessCount++;
+        });
+        var store = state.store || '—';
+        var openDate = state.openDate || (model.days > 0 ? keyToIso(model.startKey) + ' 起' : '—');
+        var dataRange = keyToIso(model.startKey) + ' ~ ' + keyToIso(model.endKey);
+        var discountStr = state.discount !== null ? fmtDaily(state.discount) + '%' : '未设置';
+        var overview = [
+          ['门店 SKU 库存水位线分析（导出）'],
+          ['门店', store, '水位线天数', state.waterlineDays, '经销商订货折扣', discountStr],
+          ['开业日期', openDate, '销售数据区间', dataRange, '日销窗口天数', model.days],
+          [],
+          ['指标', '值'],
+          ['筛选商品款数', rows.length],
+          ['当前库存总量（件）', sumStock],
+          ['水位线总量（件）', sumWl],
+          ['建议补货总量（件）', sumGap],
+          ['需补货 SKU 数', needCount],
+          ['冗余库存 SKU 数', excessCount],
+          ['经销商进货金额（元）', state.discount !== null ? Math.round(sumAmount * 100) / 100 : '—'],
+        ];
+        var aoOverview = XLSX.utils.aoa_to_sheet(overview);
+        aoOverview['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
+        aoOverview['!cols'] = [
+          { wch: 22 }, { wch: 22 }, { wch: 16 }, { wch: 22 }, { wch: 22 }, { wch: 14 }
+        ];
+
+        // 明细表：与当前表格的列头/排序/筛选完全一致；含零售价、进货金额（未设折扣时该列为空）
+        var headers = ['货号', '条码', '品名', '规格', '分类', '零售价(元)',
+          '近30天销量(件)', '日销系数(件/天)', '当前库存(件)', '水位线(件)', '建议补货(件)',
+          '状态', '经销商订货折扣(%)', '经销商进货金额(元)', '生产备注', '大仓可用库存(件)'];
+        var detailData = [headers].concat(rows.map(function (r) {
+          return [
+            r.specCode || '',
+            r.barcode || '',
+            r.cleanName,
+            r.spec || '',
+            r.category || '',
+            r.retailPrice,
+            r.qty,
+            r.daily,
+            r.stock,
+            r.waterline,
+            r.gap,
+            statusMap[r.status] || r.status,
+            state.discount !== null ? state.discount : null,
+            r.amount,
+            r.productionNote || '',
+            r.warehouseQty == null ? null : r.warehouseQty
+          ];
+        }));
+        var aoDetail = XLSX.utils.aoa_to_sheet(detailData);
+        aoDetail['!cols'] = [
+          { wch: 14 }, { wch: 16 }, { wch: 28 }, { wch: 12 }, { wch: 12 }, { wch: 10 },
+          { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 12 },
+          { wch: 10 }, { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 18 }
+        ];
+
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, aoOverview, '概览');
+        XLSX.utils.book_append_sheet(wb, aoDetail, '明细');
+
+        var fnBase = (state.fileName ? state.fileName.replace(/\.xlsx?$/i, '') : '门店SKU库存水位线')
+          + '_' + (store || '').replace(/[\\/:*?"<>|]/g, '')
+          + '_' + keyToIso(model.endKey).replace(/-/g, '');
+        var exportName = fnBase + '.xlsx';
+        XLSX.writeFile(wb, exportName, { cellDates: true });
+      } catch (err) {
+        console.error(err);
+        var errBanner = $('errorBanner');
+        errBanner.hidden = false;
+        errBanner.innerHTML = '<span aria-hidden="true">✕</span><span><b>导出失败：</b>' + escapeHtml(err && err.message ? err.message : String(err)) + '</span>';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = prevText;
+      }
+    }
+
     /* ================= 交互绑定 ================= */
     function bindEvents() {
       $('btnUpload').addEventListener('click', function () { $('fileInput').click(); });
       $('btnUploadEmpty').addEventListener('click', function () { $('fileInput').click(); });
       $('fileInput').addEventListener('change', handleFile);
+      $('btnExportExcel').addEventListener('click', handleExportExcel);
 
       // 门店下拉
       $('storeComboBtn').addEventListener('click', function (e) {
@@ -1591,6 +1689,10 @@
       badge.classList.add('is-real');
       badge.title = fileName + (fromCache ? '（浏览器已记住，重新上传可覆盖）' : '');
       text.textContent = (fromCache ? '已载入（记忆）：' : '') + fileName + ' · ' + data.products.length + ' 款商品 · ' + data.stores.length + ' 家门店';
+      // 启用导出按钮
+      var exBtn = $('btnExportExcel');
+      exBtn.disabled = false;
+      exBtn.title = '按当前筛选 / 排序导出 Excel（含概览 & 明细）';
     }
 
     /* 启动时恢复缓存（主数据 + 大仓库存） */
