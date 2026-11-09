@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>库存分析看板</title>
+
+  <style>
+    /* 与「商品售罄预估看板 / 门店SKU库存水位线工具」保持一致的 Business Blue 配色 */
+    :root {
+      --page-bg: #FFFFFF;
+      --page-surface: #F4F7FB;
+      --page-surface-muted: #EAEFF6;
+      --page-text: #1F2937;
+      --page-text-secondary: #3D4757;
+      --page-text-muted: #67717F;
+      --page-text-disabled: #9AA4B2;
+      --page-border: #DFE5EE;
+      --page-brand: #0969DA;
+      --page-brand-hover: #0757B5;
+      --page-brand-soft: #EAF2FC;
+      --page-brand-soft-strong: #CFE2F8;
+      --page-brand-text: #0B4A94;
+
+      --bg: #FFFFFF;
+      --bg2: #F4F7FB;
+      --rule: #E7ECF3;
+      --ink: #1F2937;
+      --muted: #67717F;
+
+      --positive: #52C41A;
+      --warning: #FAAD14;
+      --danger: #FF4D4F;
+      --info-soft: #EAF2FC;
+      --success-soft: #F0FBEE;
+      --warning-soft: #FFFBEA;
+      --danger-soft: #FFF3F3;
+
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
+      --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-pill: 999px;
+      --font-sans: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', sans-serif;
+      --font-mono: 'SF Mono', Consolas, 'Courier New', monospace;
+      --max: 1440px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--ink);
+      background: var(--bg2);
+      padding: 24px 0 56px;
+      -webkit-font-smoothing: antialiased;
+    }
+    img { max-width: 100%; }
+    button, input, select { font-family: inherit; }
+    :focus-visible { outline: 2px solid var(--page-brand); outline-offset: 1px; }
+    .page__content { width: calc(100% - 2rem); max-width: var(--max); margin: 0 auto; }
+
+    /* === 页头 === */
+    .report-intro { margin-bottom: var(--space-4); }
+    .report-intro__surface {
+      width: calc(100% - 2rem);
+      max-width: var(--max);
+      margin: 0 auto;
+      background: var(--page-brand-soft);
+      border: 1px solid var(--page-brand-soft-strong);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5) var(--space-6);
+      color: var(--page-brand-text);
+    }
+    .intro-grid { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-5); flex-wrap: wrap; }
+    .report-intro h1 { font-size: 24px; line-height: 1.3; color: var(--page-text); }
+    .report-intro__summary { margin-top: 6px; max-width: 84ch; font-size: 13.5px; color: var(--page-text-secondary); }
+    .intro-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+    .badge-src {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12.5px; padding: 5px 12px; border-radius: var(--radius-pill);
+      background: #FFFFFF; border: 1px solid var(--page-border); color: var(--page-text-secondary);
+      max-width: 460px;
+    }
+    .badge-src .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warning); flex: none; }
+    .badge-src.is-real .dot { background: var(--positive); }
+    .badge-src span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* === 按钮 === */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 7px 14px; border-radius: var(--radius-md);
+      border: 1px solid var(--page-border); background: #FFFFFF;
+      color: var(--page-text-secondary); font-size: 13px; cursor: pointer; white-space: nowrap;
+      transition: border-color .12s ease, color .12s ease, background .12s ease;
+    }
+    .btn:hover { border-color: var(--page-brand); color: var(--page-brand); }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-primary { background: var(--page-brand); border-color: var(--page-brand); color: #fff; font-weight: 600; }
+    .btn-primary:hover { background: var(--page-brand-hover); border-color: var(--page-brand-hover); color: #fff; }
+    .btn-lg { padding: 10px 22px; font-size: 14px; }
+
+    /* === 提示条 === */
+    .banner {
+      display: flex; align-items: flex-start; gap: 10px;
+      background: var(--warning-soft); border: 1px solid #F0E4B8;
+      border-radius: var(--radius-lg); padding: 12px 16px;
+      font-size: 13px; color: #7A5B10; margin-bottom: var(--space-4);
+    }
+    .banner.error { background: var(--danger-soft); border-color: #FFD1D1; color: #C53030; }
+    .banner.info { background: var(--info-soft); border-color: var(--page-brand-soft-strong); color: var(--page-brand-text); }
+    .banner[hidden] { display: none; }
+    .banner b { font-weight: 700; }
+    .banner .icon { flex: none; font-weight: 700; }
+
+    /* === 面板 === */
+    .panel {
+      background: var(--bg); border: 1px solid var(--page-border);
+      border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5);
+      margin-bottom: var(--space-4);
+    }
+    .panel-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3);
+    }
+    .panel-head h2 { font-size: 16px; font-weight: 600; color: var(--page-text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .head-note { font-size: 12.5px; color: var(--page-text-muted); }
+    .head-note b { color: var(--page-text-secondary); font-weight: 600; }
+
+    /* === 文件上传卡 === */
+    .file-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+    .file-card {
+      border: 1px solid var(--page-border); border-radius: var(--radius-lg);
+      background: #FFFFFF; padding: var(--space-4); min-width: 0;
+    }
+    .file-card.is-loaded { border-color: var(--page-brand-soft-strong); }
+    .file-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+    .file-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: var(--page-text); }
+    .file-title .step {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--page-brand); color: #fff; font-size: 12px; font-weight: 700; flex: none;
+    }
+    .file-sub { margin-top: 2px; font-size: 12px; color: var(--page-text-muted); }
+    .file-status {
+      display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px;
+      border-radius: var(--radius-pill); font-size: 11.5px; font-weight: 600;
+      background: var(--page-surface); border: 1px solid var(--page-border); color: var(--page-text-muted);
+      white-space: nowrap;
+    }
+    .file-status.ok { background: var(--success-soft); border-color: #CBEABF; color: #2F7A12; }
+    .file-name { margin-top: 8px; font-size: 12.5px; color: var(--page-text-secondary); word-break: break-all; }
+    .file-name .empty { color: var(--page-text-disabled); }
+    .file-controls {
+      margin-top: var(--space-3); display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);
+    }
+    .f-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--page-text-muted); margin-bottom: 5px; }
+    .f-label .req { color: var(--danger); font-weight: 700; }
+    .f-label .hint {
+      cursor: help; color: var(--page-text-disabled); font-size: 11px;
+      border: 1px solid var(--page-text-disabled); border-radius: 50%;
+      width: 13px; height: 13px; display: inline-flex; align-items: center; justify-content: center; flex: none;
+    }
+    select.f-select, input.f-input {
+      width: 100%; padding: 7px 10px; border: 1px solid var(--page-border);
+      border-radius: var(--radius-md); font-size: 13px; background: #FFFFFF; color: var(--ink);
+    }
+    select.f-select:disabled, input.f-input:disabled { background: var(--page-surface); color: var(--page-text-disabled); }
+    .map-grid { margin-top: var(--space-3); display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2) var(--space-3); }
+    .map-item { min-width: 0; }
+    .map-item .f-label { margin-bottom: 3px; }
+    .map-item select { padding: 6px 8px; font-size: 12.5px; }
+    .map-warn { margin-top: var(--space-3); font-size: 12px; color: #C53030; background: var(--danger-soft); border: 1px solid #FFD1D1; border-radius: var(--radius-md); padding: 6px 10px; }
+    .card-meta { margin-top: var(--space-3); display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--page-text-muted); }
+    .card-meta b { color: var(--page-text-secondary); font-variant-numeric: tabular-nums; }
+    .preview-wrap { margin-top: var(--space-3); border: 1px solid var(--rule); border-radius: var(--radius-md); overflow: auto; max-height: 176px; }
+    table.mini-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 460px; }
+    table.mini-table th { position: sticky; top: 0; background: var(--page-surface); color: var(--page-text-secondary); font-weight: 600; text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--page-border); white-space: nowrap; }
+    table.mini-table td { padding: 5px 8px; border-bottom: 1px solid var(--rule); color: var(--page-text); white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+    table.mini-table tr:last-child td { border-bottom: none; }
+
+    /* === 计算条 === */
+    .calc-bar {
+      display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);
+      background: var(--bg); border: 1px solid var(--page-border); border-radius: var(--radius-lg);
+      padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); flex-wrap: wrap;
+    }
+    .calc-tip { font-size: 12.5px; color: var(--page-text-muted); }
+    .calc-tip b { color: var(--page-text-secondary); }
+
+    /* === KPI 卡片 === */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(184px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4); }
+    .kpi { background: var(--bg); border: 1px solid var(--page-border); border-radius: var(--radius-lg); padding: 13px 16px; min-width: 0; }
+    .kpi-label { font-size: 12px; color: var(--page-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kpi-value {
+      margin-top: 3px; font-size: 21px; font-weight: 700; color: var(--page-text);
+      font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .kpi-value.small { font-size: 15.5px; }
+    .kpi-value em { font-style: normal; font-size: 12px; font-weight: 500; color: var(--page-text-muted); }
+    .kpi-sub { margin-top: 2px; font-size: 12px; color: var(--page-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kpi.is-danger .kpi-value { color: #C53030; }
+    .kpi.is-warn .kpi-value { color: #9A6B00; }
+    .kpi.is-good .kpi-value { color: #2F7A12; }
+
+    /* === 图表 === */
+    .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-bottom: var(--space-4); }
+    .chart-box {
+      background: var(--bg); border: 1px solid var(--page-border); border-radius: var(--radius-lg);
+      padding: var(--space-4); min-width: 0;
+    }
+    .chart-box h3 { font-size: 14px; font-weight: 600; color: var(--page-text); display: flex; align-items: center; gap: 6px; }
+    .chart-box .chart-sub { margin-top: 2px; font-size: 12px; color: var(--page-text-muted); }
+    .chart-canvas { width: 100%; height: 300px; margin-top: 8px; }
+    .chart-fallback { padding: 24px 0; text-align: center; font-size: 13px; color: var(--page-text-muted); }
+
+    /* === 筛选器 === */
+    .filter-row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(180px, 1.6fr); gap: var(--space-3); }
+    .filter-row + .filter-row { margin-top: var(--space-3); }
+    .filter-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--page-text-muted); }
+    .filter-inline input.f-input { width: 84px; }
+    .filter-inline .f-select { width: 130px; }
+    .filter-tip { align-self: end; font-size: 12.5px; color: var(--page-text-muted); padding-bottom: 8px; }
+
+    /* === 表格 === */
+    .table-scroll { border: 1px solid var(--page-border); border-radius: var(--radius-md); overflow: auto; }
+    table.data-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; min-width: 1280px; }
+    table.data-table thead th {
+      position: sticky; top: 0; z-index: 5;
+      background: var(--page-surface); border-bottom: 1px solid var(--page-border);
+      font-weight: 600; font-size: 12px; color: var(--page-text-secondary);
+      padding: 8px 10px; white-space: nowrap; text-align: right;
+    }
+    table.data-table thead th.td-info { text-align: left; }
+    table.data-table thead th.sortable { cursor: pointer; user-select: none; }
+    table.data-table thead th.sortable:hover { color: var(--page-brand); }
+    table.data-table thead th .arrow { font-size: 10px; color: var(--page-text-disabled); margin-left: 2px; }
+    table.data-table thead th.is-sorted .arrow { color: var(--page-brand); }
+    table.data-table td {
+      padding: 7px 10px; border-bottom: 1px solid var(--rule);
+      white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; color: var(--page-text);
+    }
+    table.data-table td.td-info { text-align: left; }
+    table.data-table tbody tr:last-child td { border-bottom: none; }
+    table.data-table tbody tr:hover td { background: var(--page-surface); }
+    .td-product { min-width: 200px; max-width: 300px; white-space: normal !important; }
+    .td-product .p-name { font-weight: 500; line-height: 1.45; }
+    .td-product .p-sub { font-size: 11px; color: var(--page-text-muted); line-height: 1.35; }
+    .zero { color: var(--page-text-muted); }
+    .pos { color: #2F7A12; }
+    .neg { color: #C53030; }
+    .tag {
+      display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px;
+      border-radius: var(--radius-pill); font-size: 11px; font-weight: 500;
+      border: 1px solid; white-space: nowrap;
+    }
+    .tag-info { color: var(--page-brand-text); background: var(--info-soft); border-color: var(--page-brand-soft-strong); }
+    .tag-warn { color: #9A6B00; background: var(--warning-soft); border-color: #EFDFAC; }
+    .tag-danger { color: #C53030; background: var(--danger-soft); border-color: #FFD1D1; }
+    .tag-neutral { color: var(--page-text-secondary); background: var(--page-surface); border-color: var(--page-border); }
+    .tag-good { color: #2F7A12; background: var(--success-soft); border-color: #CBEABF; }
+    .table-footnote { margin-top: 10px; font-size: 12px; color: var(--page-text-muted); line-height: 1.7; }
+
+    /* === 口径说明 === */
+    details.notes {
+      background: var(--bg); border: 1px solid var(--page-border);
+      border-radius: var(--radius-lg); margin-bottom: var(--space-4); overflow: hidden;
+    }
+    details.notes summary {
+      cursor: pointer; padding: 13px 20px; font-weight: 600; font-size: 14px;
+      color: var(--page-text); list-style: none;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    details.notes summary::-webkit-details-marker { display: none; }
+    details.notes summary .chev { transition: transform .15s ease; color: var(--page-text-muted); font-size: 12px; }
+    details.notes[open] summary .chev { transform: rotate(180deg); }
+    details.notes[open] summary { border-bottom: 1px solid var(--page-border); }
+    .notes-body { padding: 14px 20px 18px; font-size: 13px; color: var(--page-text-secondary); line-height: 1.75; }
+    .notes-body h4 { font-size: 13px; font-weight: 600; color: var(--page-text); margin: 14px 0 4px; }
+    .notes-body h4:first-child { margin-top: 0; }
+    .notes-body ul { padding-left: 18px; }
+    .notes-body li { margin: 3px 0; }
+    .notes-body .formula { font-family: var(--font-mono); font-size: 12.5px; color: var(--page-text); }
+    .notes-body .warn-line { color: #9A6B00; }
+
+    footer { border-top: 1px solid var(--page-border); padding-top: var(--space-4); margin-top: var(--space-4); }
+    footer .gen-note { font-size: 12px; color: var(--page-text-disabled); }
+
+    [hidden] { display: none !important; }
+
+    /* === 响应式 === */
+    @media (max-width: 1240px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 1024px) {
+      .file-grid { grid-template-columns: 1fr; }
+      .chart-grid { grid-template-columns: 1fr; }
+      .filter-row { grid-template-columns: 1fr 1fr; }
+      .filter-tip { display: none; }
+    }
+    @media (max-width: 768px) {
+      body { padding: 12px 0 32px; }
+      .report-intro__surface { padding: var(--space-5); }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .file-controls, .map-grid { grid-template-columns: 1fr; }
+      .filter-row { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 520px) { .kpi-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <article class="page">
+    <header class="report-intro">
+      <div class="report-intro__surface">
+        <div class="intro-grid">
+          <div>
+            <h1>库存分析看板</h1>
+            <p class="report-intro__summary">
+              上传两个时间点的库存明细（期初 / 期末），对比库存变化，输出售罄率、库存周转率与周转天数、动销率、
+              新增 / 清空 SKU、滞销与断货风险、库存金额与品类结构，并可导出 Excel。
+            </p>
+          </div>
+          <div class="intro-actions">
+            <span class="badge-src" id="dataSourceBadge" title=""><span class="dot"></span><span id="dataSourceText">未载入数据</span></span>
+            <button class="btn" id="btnExport" type="button" disabled title="完成计算后可导出">导出 Excel</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="page__content">
+      <main>
+        <!-- 口径假设：始终显示 -->
+        <div class="banner" id="assumptionBanner">
+          <span class="icon">!</span>
+          <div>
+            <b>口径假设：以「期初库存 − 期末库存」的净减少量估算期间销量。</b>
+            净减少 = 销售 − 补货（含退货、调拨入库等其他入库）。因此若期间发生补货或其他入库，
+            <b>会低估销量，从而低估售罄率与库存周转率</b>；若期间发生盘亏、报废等出库，则会高估销量。
+            本看板不包含销售数据上传，全部周转、售罄指标均为净减少口径，请勿直接用于财务口径结算。
+          </div>
+        </div>
+
+        <div class="banner error" id="errorBanner" hidden></div>
+
+        <!-- 文件上传 -->
+        <section class="panel" aria-label="上传期初与期末库存文件">
+          <div class="panel-head">
+            <h2>第一步：上传两个时点的库存明细</h2>
+            <div class="head-note">支持 .xlsx / .xls / .csv，可多工作表、表头不在第一行</div>
+          </div>
+          <div class="file-grid" id="filesGrid"></div>
+          <input type="file" id="fileBegin" accept=".xlsx,.xls,.csv" hidden>
+          <input type="file" id="fileEnd" accept=".xlsx,.xls,.csv" hidden>
+        </section>
+
+        <!-- 计算 -->
+        <section class="calc-bar" id="calcBar">
+          <div class="calc-tip" id="calcTip">请分别上传期初与期末库存文件，确认字段映射和日期后开始计算。</div>
+          <button class="btn btn-primary btn-lg" id="btnCalc" type="button" disabled>确认并计算</button>
+        </section>
+
+        <!-- 结果 -->
+        <section id="resultRoot" hidden>
+          <section class="kpi-grid" id="kpiGrid" aria-label="核心指标卡片"></section>
+
+          <div class="chart-grid" id="chartGrid">
+            <div class="chart-box">
+              <h3>期末库存结构</h3>
+              <div class="chart-sub" id="chart1Sub">按品类的库存金额占比</div>
+              <div class="chart-canvas" id="chart1"></div>
+            </div>
+            <div class="chart-box">
+              <h3>期初 vs 期末库存</h3>
+              <div class="chart-sub">按品类的库存数量对比</div>
+              <div class="chart-canvas" id="chart2"></div>
+            </div>
+            <div class="chart-box">
+              <h3>售罄率与周转天数</h3>
+              <div class="chart-sub">售罄率（柱）与周转天数（线）按品类</div>
+              <div class="chart-canvas" id="chart3"></div>
+            </div>
+            <div class="chart-box">
+              <h3>库存变化拆解</h3>
+              <div class="chart-sub">期初 − 净减少 + 净增加 = 期末（仅两个时点，非连续趋势）</div>
+              <div class="chart-canvas" id="chart4"></div>
+            </div>
+          </div>
+
+          <!-- 品类汇总 -->
+          <section class="panel">
+            <div class="panel-head">
+              <h2>品类汇总</h2>
+              <div class="head-note" id="categoryMeta">—</div>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table" id="categoryTable" style="min-width:1100px;"></table>
+            </div>
+            <div class="table-footnote">整体售罄率 / 周转率按品类汇总口径计算（汇总净减少 ÷ 汇总期初库存、汇总平均库存），不是 SKU 指标的简单平均。</div>
+          </section>
+
+          <!-- SKU 明细 -->
+          <section class="panel">
+            <div class="panel-head">
+              <h2>SKU 明细</h2>
+              <div class="head-note" id="detailMeta">—</div>
+            </div>
+            <div class="filter-row">
+              <div>
+                <div class="f-label">品类</div>
+                <select class="f-select" id="filterCategory"></select>
+              </div>
+              <div>
+                <div class="f-label">库存状态</div>
+                <select class="f-select" id="filterStatus">
+                  <option>全部</option><option>正常</option><option>新增</option><option>清空</option>
+                </select>
+              </div>
+              <div>
+                <div class="f-label">风险类型</div>
+                <select class="f-select" id="filterRisk">
+                  <option>全部</option><option>断货风险</option><option>滞销</option><option>无风险</option>
+                </select>
+              </div>
+              <div>
+                <div class="f-label">搜索 SKU / 品名 / 规格</div>
+                <input class="f-input" id="filterSearch" type="search" placeholder="输入关键字过滤">
+              </div>
+            </div>
+            <div class="filter-row" style="grid-template-columns:1fr;">
+              <div class="filter-inline">
+                <span>库存天数阈值：</span>
+                <span>滞销 &gt;</span>
+                <input class="f-input" id="slowDaysInput" type="number" min="0" step="5" value="90" title="期末库存按净减少速度可卖天数超过该值，判定为滞销">
+                <span>天</span>
+                <span style="margin-left:8px;">断货 &lt;</span>
+                <input class="f-input" id="stockoutDaysInput" type="number" min="0" step="1" value="14" title="期末库存按净减少速度可卖天数低于该值且仍有期末库存，判定为断货风险">
+                <span>天</span>
+                <span class="hint" title="净减少 ≤ 0（期间无动销）且期末仍有库存，直接判定为滞销">i</span>
+                <span style="margin-left:12px;color:var(--page-text-disabled);">修改阈值后自动重新计算风险分类</span>
+              </div>
+            </div>
+            <div class="table-scroll" style="margin-top:12px;">
+              <table class="data-table" id="detailTable"></table>
+            </div>
+            <div class="table-footnote" id="detailFootnote">—</div>
+          </section>
+
+          <!-- 口径说明 -->
+          <details class="notes" open>
+            <summary>计算口径与指标说明<span class="chev">▼</span></summary>
+            <div class="notes-body">
+              <h4>核心假设（务必先读）</h4>
+              <ul>
+                <li><span class="formula">估算销量 = 期初库存 − 期末库存</span>（SKU 层取 max(0, 差值) 用于售罄率；整体 / 品类用汇总净减少，可能为负，表示净入库）。</li>
+                <li>净减少同时包含销售、退货、补货、调拨、报废等所有出入库影响，<span class="warn-line">有补货时会低估销量与周转、售罄指标</span>。</li>
+                <li>两个时点之间只有首尾快照，无法还原中间过程；周转指标是「期间平均库存」近似，不是财务明细账口径。</li>
+              </ul>
+              <h4>售罄率（SKU / 品类 / 整体）</h4>
+              <ul>
+                <li><span class="formula">售罄率 = 净减少量 ÷ 期初库存</span></li>
+                <li>SKU：期初库存为 0 时不计算（显示 —）；品类 / 整体：Σ净减少 ÷ Σ期初库存，新增 SKU 会拉低整体售罄率。</li>
+                <li>售罄率为 100% 表示期初库存全部减少，不等于全部卖出（可能含报废、调拨）。</li>
+              </ul>
+              <h4>库存周转率与周转天数</h4>
+              <ul>
+                <li><span class="formula">平均库存 = (期初库存 + 期末库存) ÷ 2</span></li>
+                <li><span class="formula">周转率 = 净减少量 ÷ 平均库存</span>（净减少 ≤ 0 时不计算）</li>
+                <li><span class="formula">周转天数 = 期间天数 ÷ 周转率 = 平均库存 × 期间天数 ÷ 净减少量</span>，期间天数 = 期末日期 − 期初日期。</li>
+              </ul>
+              <h4>动销率</h4>
+              <ul>
+                <li><span class="formula">动销率 = 净减少 &gt; 0 的 SKU 数 ÷ 期初库存 &gt; 0 的 SKU 数</span></li>
+                <li>净减少 ≤ 0（含无变化与净增加）均视为未动销。</li>
+              </ul>
+              <h4>滞销与断货风险</h4>
+              <ul>
+                <li><span class="formula">库存天数 = 期末库存 × 期间天数 ÷ 净减少量</span>：按期间净减少速度，现有库存还能卖多少天。</li>
+                <li>滞销：期末库存 &gt; 0，且（净减少 ≤ 0，或库存天数 &gt; 滞销阈值，默认 90 天）。</li>
+                <li>断货风险：期初有库存但期末 ≤ 0；或仍有期末库存但库存天数 &lt; 断货阈值（默认 14 天）。</li>
+                <li>阈值可在明细筛选区调整，修改后风险分类与 KPI 同步刷新。</li>
+              </ul>
+              <h4>库存金额与结构</h4>
+              <ul>
+                <li>单价优先取期末文件对应列，缺失时回退期初文件；表头含「成本 / 进价 / 采购价」识别为成本价，其余识别为零售价，可在上传卡手动改。</li>
+                <li><span class="formula">库存金额 = 库存数量 × 单价</span>；两个时点使用同一单价，金额变化只反映数量变化。</li>
+                <li>未识别到单价列时不展示金额类指标，结构图按库存数量展示；部分 SKU 缺单价时金额为已覆盖部分，KPI 会提示覆盖率。</li>
+                <li>金额占比 = 某品类期末金额 ÷ 全部品类期末金额。</li>
+              </ul>
+              <h4>商品匹配与字段识别</h4>
+              <ul>
+                <li>优先按 SKU / 货号 / 条码匹配；无该类字段时按「品名 + 规格」匹配。同一文件内重复商品自动累加数量。</li>
+                <li>自动识别工作表与表头行（扫描前 20 行），列名支持常见别名模糊匹配；识别不准可在上传卡手动指定。</li>
+                <li>品名自动省略「BLACK PAW / 黑爪」字样。</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <!-- 空状态 -->
+        <section class="panel" id="emptyState">
+          <div style="text-align:center;padding:22px 12px;">
+            <h2 style="font-size:17px;color:var(--page-text);margin-bottom:8px;">上传期初与期末库存明细后开始分析</h2>
+            <p style="font-size:13px;color:var(--page-text-muted);max-width:72ch;margin:0 auto 8px;">
+              系统会自动识别工作表、表头行和常见列名（货号 / SKU / 条码、品名、规格、品类、库存数量、单价）。
+              识别结果会先展示，确认无误后再点击「确认并计算」。
+            </p>
+            <p style="font-size:12.5px;color:var(--page-text-muted);">数据仅在本地浏览器解析，不会上传任何服务器。</p>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <p class="gen-note">库存分析看板 · 净减少口径 · 数据仅在本地浏览器解析（SheetJS），不会上传服务器 · 建议使用电脑浏览器（Chrome / Edge）打开</p>
+      </footer>
+    </div>
+  </article>
+
+  <script src="./assets/xlsx.full.min.js"></script>
+  <script src="./assets/echarts.min.js"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    var PREVIEW_ROWS = 3;
+    var TABLE_LIMIT = 300;
+    var STORAGE_NOTE = '';
+
+    /* ================= 字段定义 ================= */
+    var FIELD_DEFS = [
+      {
+        key: 'sku', label: 'SKU / 货号 / 条码', required: false,
+        hint: '两个文件之间用于匹配商品；缺失时按「品名 + 规格」匹配',
+        aliases: ['sku', '货号', '商品编码', '商品编号', '产品编码', '款号', '编码', '条码', '69码', '规格编码', '商品条码', '条形码', '国际条码', '物料编码', '货品编码', '商品货号']
+      },
+      {
+        key: 'name', label: '品名', required: false,
+        hint: '商品名称，用于展示与无 SKU 时的匹配',
+        aliases: ['品名', '商品名称', '产品名称', '名称', '商品', '产品名', '货品名称', '商品名']
+      },
+      {
+        key: 'spec', label: '规格', required: false,
+        hint: '净含量 / 型号 / 包装规格',
+        aliases: ['规格', '净含量', '规格型号', '型号', '规格名称', '包装规格', '容量']
+      },
+      {
+        key: 'category', label: '品类', required: false,
+        hint: '分类 / 品类 / 类别，用于品类汇总与结构分析',
+        aliases: ['分类', '品类', '类别', '商品分类', '产品分类', '商品类别', '产品类别', '大类', '系列']
+      },
+      {
+        key: 'qty', label: '库存数量', required: true,
+        hint: '该时点的库存件数（必填）',
+        aliases: ['库存数量', '库存', '结存数量', '可用库存', '实物库存', '即时库存', '现存库存', '在库数量', '库存数', '期末库存', '期初库存', '库存件数', '库存总量', '数量']
+      },
+      {
+        key: 'price', label: '单价', required: false,
+        hint: '零售价 / 成本价，用于库存金额',
+        aliases: ['单价', '零售价', '吊牌价', '成本价', '成本单价', '进货价', '采购价', '售价', '商品单价', '标准售价', '零售价格', '成本价格']
+      },
+      {
+        key: 'amount', label: '库存金额（可选）', required: false,
+        hint: '有金额无单价时，可用金额 ÷ 数量反推单价',
+        aliases: ['库存金额', '存货金额', '金额', '总金额', '库存总额', '库存成本金额', '库存货值']
+      }
+    ];
+
+    /* ================= 状态 ================= */
+    var state = {
+      files: {
+        begin: createEmptyFile('begin'),
+        end: createEmptyFile('end')
+      },
+      result: null,
+      filters: {
+        category: '全部',
+        status: '全部',
+        risk: '全部',
+        search: ''
+      },
+      sort: { key: 'delta', dir: 'desc' },
+      thresholds: { slow: 90, stockout: 14 }
+    };
+
+    var chartInstances = {};
+
+    function createEmptyFile(kind) {
+      return {
+        kind: kind,
+        fileName: '',
+        fileSize: 0,
+        sheets: [],
+        sheetIndex: 0,
+        headerRow: 0,
+        headers: [],
+        mapping: {},
+        date: '',
+        priceKind: 'auto',
+        loaded: false
+      };
+    }
+
+    /* ================= 通用工具 ================= */
+    function $(id) { return document.getElementById(id); }
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    function fmtInt(n) {
+      if (n === null || n === undefined || !isFinite(n)) return '—';
+      return Number(n).toLocaleString('zh-CN', { maximumFractionDigits: 0 });
+    }
+    function fmtNum(n, digits) {
+      if (n === null || n === undefined || !isFinite(n)) return '—';
+      return Number(n).toLocaleString('zh-CN', { minimumFractionDigits: digits || 0, maximumFractionDigits: digits == null ? 2 : digits });
+    }
+    function fmtMoney(n) {
+      if (n === null || n === undefined || !isFinite(n)) return '—';
+      return '¥' + Number(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function fmtPct(v) {
+      if (v === null || v === undefined || !isFinite(v)) return '—';
+      return (v * 100).toFixed(1) + '%';
+    }
+    function fmtDays(v) {
+      if (v === null || v === undefined) return '—';
+      if (v === Infinity) return '∞';
+      if (!isFinite(v)) return '—';
+      return Number(v).toFixed(0);
+    }
+    function fmtDateTime() {
+      var d = new Date();
+      function p(n) { return String(n).padStart(2, '0'); }
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+    function cleanProductName(name) {
+      return String(name || '')
+        .replace(/BLACK\s*PAW/gi, '')
+        .replace(/黑爪/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/^[\s\-—·、,，]+|[\s\-—·、,，]+$/g, '')
+        .trim();
+    }
+    function parseNum(v) {
+      if (v === null || v === undefined || v === '') return null;
+      if (typeof v === 'number') return isFinite(v) ? v : null;
+      var m = String(v).replace(/,/g, '').replace(/[¥￥元]/g, '').trim().match(/-?\d+(?:\.\d+)?/);
+      if (!m) return null;
+      return Number(m[0]);
+    }
+    function cellText(v) {
+      if (v === null || v === undefined) return '';
+      if (v instanceof Date) return v.toISOString().slice(0, 10);
+      return String(v).trim();
+    }
+    function normHeader(s) {
+      return String(s == null ? '' : s)
+        .replace(/\s+/g, '')
+        .replace(/[（(].*?[)）]/g, '')
+        .replace(/[：:*＊]/g, '')
+        .toLowerCase();
+    }
+    function normKey(s) {
+      return String(s == null ? '' : s).replace(/\s+/g, '').replace(/[，,]/g, '').toLowerCase();
+    }
+    function colLetter(idx) {
+      var s = '';
+      var n = idx + 1;
+      while (n > 0) {
+        var m = (n - 1) % 26;
+        s = String.fromCharCode(65 + m) + s;
+        n = Math.floor((n - 1) / 26);
+      }
+      return s;
+    }
+    function todayInput(offsetDays) {
+      var d = new Date();
+      d.setDate(d.getDate() + (offsetDays || 0));
+      var p = function (n) { return String(n).padStart(2, '0'); };
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    }
+    function dateToDays(text) {
+      if (!text) return null;
+      var m = String(text).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!m) return null;
+      var d = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      return isFinite(d) ? d : null;
+    }
+    function periodDaysBetween(begin, end) {
+      var a = dateToDays(begin), b = dateToDays(end);
+      if (a === null || b === null) return null;
+      return Math.round((b - a) / 86400000);
+    }
+
+    /* ================= 列名模糊匹配 ================= */
+    function mapColumns(headers) {
+      var map = {};
+      var used = {};
+      FIELD_DEFS.forEach(function (f) { map[f.key] = -1; });
+
+      function tryMatch(f, exact) {
+        for (var a = 0; a < f.aliases.length; a++) {
+          var na = normHeader(f.aliases[a]);
+          if (!na) continue;
+          for (var i = 0; i < headers.length; i++) {
+            if (used[i]) continue;
+            var h = normHeader(headers[i]);
+            if (!h) continue;
+            var hit = exact ? (h === na) : (h.indexOf(na) >= 0 || (h.length >= 2 && na.indexOf(h) >= 0));
+            if (!hit) continue;
+            if (exact && f.key === 'qty' && /(金额|单价|售价|占比|天数|周转)/.test(h)) continue;
+            if (!exact && f.key === 'qty' && /(金额|单价|售价|占比|天数|周转)/.test(h)) continue;
+            if (!exact && f.key === 'price' && /(金额|总额)/.test(h)) continue;
+            map[f.key] = i;
+            used[i] = 1;
+            return true;
+          }
+        }
+        return false;
+      }
+
+      FIELD_DEFS.forEach(function (f) { tryMatch(f, true); });
+      FIELD_DEFS.forEach(function (f) {
+        if (map[f.key] >= 0) return;
+        tryMatch(f, false);
+      });
+      return map;
+    }
+
+    function detectHeader(rows) {
+      var best = { row: 0, headers: [], mapping: {}, score: -999 };
+      var max = Math.min(20, rows.length);
+      for (var i = 0; i < max; i++) {
+        var row = rows[i] || [];
+        var headers = row.map(cellText);
+        var nonEmpty = headers.filter(function (h) { return h !== ''; }).length;
+        if (nonEmpty < 2) continue;
+        var mapping = mapColumns(headers);
+        var score = 0;
+        FIELD_DEFS.forEach(function (f) {
+          if (mapping[f.key] >= 0) score += (f.key === 'qty' ? 4 : (f.key === 'sku' ? 2 : 1));
+        });
+        if (mapping.qty < 0) score -= 3;
+        if (mapping.sku < 0 && mapping.name < 0) score -= 3;
+        if (score > best.score) best = { row: i, headers: headers, mapping: mapping, score: score };
+      }
+      return best;
+    }
+
+    function detectSheet(sheets) {
+      var best = { index: 0, header: null, score: -Infinity };
+      sheets.forEach(function (sheet, idx) {
+        if (!sheet.rows || sheet.rows.length < 2) return;
+        var header = detectHeader(sheet.rows);
+        var dataRows = countDataRows(sheet.rows, header.row);
+        var score = header.score + Math.min(3, Math.log10(Math.max(1, dataRows)) );
+        if (score > best.score) best = { index: idx, header: header, score: score };
+      });
+      if (!best.header) {
+        best.index = 0;
+        best.header = sheets[0] ? detectHeader(sheets[0].rows || []) : detectHeader([]);
+      }
+      return best;
+    }
+
+    function countDataRows(rows, headerRow) {
+      var count = 0;
+      for (var i = headerRow + 1; i < rows.length; i++) {
+        var r = rows[i] || [];
+        if (r.some(function (c) { return cellText(c) !== ''; })) count++;
+      }
+      return count;
+    }
+
+    /* ================= 文件读取 ================= */
+    async function readFileToSheets(file) {
+      if (typeof XLSX === 'undefined') throw new Error('Excel 解析库未加载，请检查 assets/xlsx.full.min.js 是否存在');
+      var buf = await file.arrayBuffer();
+      var wb = XLSX.read(buf, { type: 'array', cellDates: false });
+      var sheets = wb.SheetNames.map(function (name) {
+        var ws = wb.Sheets[name];
+        var rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '', blankrows: false });
+        return { name: name, rows: rows };
+      }).filter(function (s) { return s.rows.length > 0; });
+      if (!sheets.length) throw new Error('文件里没有可读取的工作表');
+      return sheets;
+    }
+
+    async function handleFile(kind, file) {
+      hideError();
+      var fs = state.files[kind];
+      try {
+        var sheets = await readFileToSheets(file);
+        fs.fileName = file.name;
+        fs.fileSize = file.size;
+        fs.sheets = sheets;
+        fs.loaded = true;
+        fs.priceKind = 'auto';
+        applyDetectedSheet(fs, detectSheet(sheets));
+        var other = kind === 'begin' ? state.files.end : state.files.begin;
+        if (!fs.date) fs.date = kind === 'begin' ? todayInput(-30) : todayInput(0);
+        if (other.loaded && !other.date) other.date = other.kind === 'begin' ? todayInput(-30) : todayInput(0);
+        state.result = null;
+        $('resultRoot').hidden = true;
+        $('emptyState').hidden = false;
+        $('btnExport').disabled = true;
+        updateBadge();
+        renderFiles();
+        updateCalcBar();
+      } catch (err) {
+        console.error(err);
+        showError('读取「' + (kind === 'begin' ? '期初' : '期末') + '」文件失败：' + (err && err.message ? err.message : err));
+      }
+    }
+
+    function applyDetectedSheet(fs, detected) {
+      fs.sheetIndex = detected.index;
+      fs.headerRow = detected.header ? detected.header.row : 0;
+      fs.headers = detected.header ? detected.header.headers : [];
+      fs.mapping = detected.header ? detected.header.mapping : {};
+    }
+
+    function refreshSheet(fs) {
+      var sheet = fs.sheets[fs.sheetIndex];
+      if (!sheet) return;
+      var header = detectHeader(sheet.rows);
+      fs.headerRow = header.row;
+      fs.headers = header.headers;
+      fs.mapping = header.mapping;
+    }
+
+    function refreshHeaderRow(fs) {
+      var sheet = fs.sheets[fs.sheetIndex];
+      if (!sheet) return;
+      var row = sheet.rows[fs.headerRow] || [];
+      fs.headers = row.map(cellText);
+      fs.mapping = mapColumns(fs.headers);
+    }
+
+    /* ================= 渲染文件卡 ================= */
+    function renderFiles() {
+      var host = $('filesGrid');
+      host.innerHTML = renderFileCard(state.files.begin, '期初库存', '1', 'begin') +
+        renderFileCard(state.files.end, '期末库存', '2', 'end');
+    }
+
+    function renderFileCard(fs, title, step, kind) {
+      var loaded = fs.loaded;
+      var mappingOk = loaded && fs.mapping.qty >= 0;
+      var sheetOptions = fs.sheets.map(function (s, i) {
+        return '<option value="' + i + '"' + (i === fs.sheetIndex ? ' selected' : '') + '>' +
+          escapeHtml(s.name) + '（' + countDataRows(s.rows, 0) + ' 行）</option>';
+      }).join('');
+      var allHeaders = fs.headers || [];
+
+      var mappingHtml = FIELD_DEFS.map(function (f) {
+        var current = fs.mapping[f.key] >= 0 ? fs.mapping[f.key] : -1;
+        var options = '<option value="-1"' + (current === -1 ? ' selected' : '') + '>未匹配</option>' +
+          allHeaders.map(function (h, i) {
+            var label = colLetter(i) + ' · ' + (h === '' ? '(空)' : h);
+            return '<option value="' + i + '"' + (i === current ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+          }).join('');
+        return '<div class="map-item">' +
+          '<div class="f-label">' + escapeHtml(f.label) +
+          (f.required ? '<span class="req">*</span>' : '') +
+          '<span class="hint" title="' + escapeHtml(f.hint) + '">i</span></div>' +
+          '<select class="f-select" data-map="' + f.key + '" data-kind="' + kind + '">' + options + '</select>' +
+          '</div>';
+      }).join('');
+
+      var priceKindHtml = '';
+      if (fs.mapping.price >= 0) {
+        var pk = fs.priceKind || 'auto';
+        priceKindHtml = '<div class="map-item"><div class="f-label">单价类型<span class="hint" title="影响金额口径标注，不改变数值">i</span></div>' +
+          '<select class="f-select" data-pricekind="1" data-kind="' + kind + '">' +
+          '<option value="auto"' + (pk === 'auto' ? ' selected' : '') + '>自动识别</option>' +
+          '<option value="retail"' + (pk === 'retail' ? ' selected' : '') + '>零售价</option>' +
+          '<option value="cost"' + (pk === 'cost' ? ' selected' : '') + '>成本价</option>' +
+          '</select></div>';
+      }
+
+      var previewHtml = '';
+      if (loaded && mappingOk) {
+        var parsed = parseFileRows(fs);
+        previewHtml = '<div class="preview-wrap"><table class="mini-table"><thead><tr>' +
+          '<th>SKU / 条码</th><th>品名</th><th>规格</th><th>品类</th><th style="text-align:right;">库存数量</th><th style="text-align:right;">单价</th>' +
+          '</tr></thead><tbody>' +
+          parsed.rows.slice(0, PREVIEW_ROWS).map(function (r) {
+            return '<tr><td>' + escapeHtml(r.sku || '—') + '</td><td>' + escapeHtml(r.name || '—') + '</td><td>' + escapeHtml(r.spec || '—') +
+              '</td><td>' + escapeHtml(r.category || '—') + '</td><td style="text-align:right;">' + fmtInt(r.qty) +
+              '</td><td style="text-align:right;">' + (r.price == null ? '—' : fmtNum(r.price, 2)) + '</td></tr>';
+          }).join('') +
+          '</tbody></table></div>';
+        if (!parsed.rows.length) previewHtml = '<div class="map-warn">表头下方没有有效数据行，请检查工作表或表头行号。</div>';
+      }
+
+      var warn = '';
+      if (loaded && fs.mapping.qty < 0) {
+        warn = '<div class="map-warn">未识别到「库存数量」列，请在下方字段映射中手动指定后再计算。</div>';
+      }
+      if (loaded && fs.mapping.qty >= 0 && fs.mapping.sku < 0 && fs.mapping.name < 0) {
+        warn = '<div class="map-warn">未识别到 SKU/货号/条码，也未识别到品名，无法匹配商品，请手动指定至少一项。</div>';
+      }
+
+      var parsedCount = loaded && mappingOk ? parseFileRows(fs).rows.length : 0;
+      var matchedFields = FIELD_DEFS.filter(function (f) { return fs.mapping && fs.mapping[f.key] >= 0; }).length;
+
+      return '<div class="file-card' + (loaded ? ' is-loaded' : '') + '">' +
+        '<div class="file-head">' +
+          '<div><div class="file-title"><span class="step">' + step + '</span>' + title + '</div>' +
+          '<div class="file-sub">' + (kind === 'begin' ? '作为分母与对比起点' : '作为对比终点') + '</div></div>' +
+          '<span class="file-status' + (loaded ? ' ok' : '') + '">' + (loaded ? '已载入' : '待上传') + '</span>' +
+        '</div>' +
+        '<div class="file-name">' + (loaded ? escapeHtml(fs.fileName) + ' · ' + (fs.fileSize / 1024).toFixed(0) + ' KB' : '<span class="empty">尚未选择文件</span>') + '</div>' +
+        '<div class="file-controls">' +
+          '<div><div class="f-label">数据日期<span class="req">*</span><span class="hint" title="该库存快照对应的日期，用于计算期间天数">i</span></div>' +
+          '<input class="f-input" type="date" data-date="1" data-kind="' + kind + '" value="' + escapeHtml(fs.date) + '"' + (loaded ? '' : ' disabled') + '></div>' +
+          '<div><div class="f-label">工作表<span class="hint" title="自动选择匹配度最高的工作表，可手动切换">i</span></div>' +
+          '<select class="f-select" data-sheet="1" data-kind="' + kind + '"' + (loaded ? '' : ' disabled') + '>' + (loaded ? sheetOptions : '<option>未载入</option>') + '</select></div>' +
+          '<div><div class="f-label">表头行号<span class="hint" title="表头所在行（从 1 开始）；表头不在第一行时修改此值">i</span></div>' +
+          '<input class="f-input" type="number" min="1" max="50" step="1" data-header-row="1" data-kind="' + kind + '" value="' + (loaded ? (fs.headerRow + 1) : 1) + '"' + (loaded ? '' : ' disabled') + '></div>' +
+          '<div><div class="f-label">操作</div>' +
+          '<button class="btn" type="button" data-upload="' + kind + '" style="width:100%;">' + (loaded ? '重新选择文件' : '选择文件') + '</button></div>' +
+        '</div>' +
+        (loaded ? '<div class="map-grid">' + mappingHtml + priceKindHtml + '</div>' : '') +
+        warn +
+        (loaded ? '<div class="card-meta">' +
+          '<span>有效数据行 <b>' + fmtInt(parsedCount) + '</b></span>' +
+          '<span>识别字段 <b>' + matchedFields + ' / ' + FIELD_DEFS.length + '</b></span>' +
+          '<span>工作表 <b>' + escapeHtml((fs.sheets[fs.sheetIndex] || {}).name || '—') + '</b></span>' +
+          '</div>' : '') +
+        previewHtml +
+      '</div>';
+    }
+
+    /* ================= 行解析 ================= */
+    function parseFileRows(fs) {
+      var sheet = fs.sheets[fs.sheetIndex];
+      if (!sheet) return { rows: [], totalRows: 0, skipped: 0 };
+      var map = fs.mapping || {};
+      var rows = sheet.rows;
+      var out = [];
+      var skipped = 0;
+      var byKey = {};
+
+      for (var i = fs.headerRow + 1; i < rows.length; i++) {
+        var row = rows[i] || [];
+        if (!row.some(function (c) { return cellText(c) !== ''; })) continue;
+
+        var sku = map.sku >= 0 ? cellText(row[map.sku]) : '';
+        var name = map.name >= 0 ? cleanProductName(cellText(row[map.name])) : '';
+        var spec = map.spec >= 0 ? cellText(row[map.spec]) : '';
+        var category = map.category >= 0 ? cellText(row[map.category]) : '';
+        var qtyRaw = map.qty >= 0 ? parseNum(row[map.qty]) : null;
+        var price = map.price >= 0 ? parseNum(row[map.price]) : null;
+        var amount = map.amount >= 0 ? parseNum(row[map.amount]) : null;
+
+        if (!sku && !name) { skipped++; continue; }
+        var qty = qtyRaw == null ? 0 : qtyRaw;
+        if (price == null && amount != null && qty > 0) price = amount / qty;
+        if (price == null && amount != null && qty === 0) price = null;
+
+        var key = sku ? ('S:' + normKey(sku)) : ('N:' + normKey(name) + '|' + normKey(spec));
+        var altKey = name ? ('N:' + normKey(name) + '|' + normKey(spec)) : '';
+
+        if (!byKey[key]) {
+          byKey[key] = {
+            key: key,
+            altKey: altKey,
+            sku: sku,
+            name: name,
+            spec: spec,
+            category: category,
+            qty: 0,
+            amount: 0,
+            pricedQty: 0,
+            price: null
+          };
+          out.push(byKey[key]);
+        }
+        var target = byKey[key];
+        target.qty += qty;
+        if (!target.name && name) target.name = name;
+        if (!target.spec && spec) target.spec = spec;
+        if (!target.category && category) target.category = category;
+        if (!target.altKey && altKey) target.altKey = altKey;
+        if (price != null) {
+          target.amount += price * qty;
+          target.pricedQty += qty;
+          target.price = target.pricedQty > 0 ? target.amount / target.pricedQty : price;
+        }
+      }
+
+      return { rows: out, totalRows: Math.max(0, rows.length - fs.headerRow - 1), skipped: skipped };
+    }
+
+    /* ================= 计算模型 ================= */
+    function computeModel() {
+      var beginParsed = parseFileRows(state.files.begin);
+      var endParsed = parseFileRows(state.files.end);
+      var periodDays = periodDaysBetween(state.files.begin.date, state.files.end.date);
+
+      var endByKey = {}, endByAlt = {};
+      endParsed.rows.forEach(function (r) {
+        endByKey[r.key] = r;
+        if (r.altKey && !endByAlt[r.altKey]) endByAlt[r.altKey] = r;
+      });
+      var usedEnd = {};
+      var items = [];
+
+      beginParsed.rows.forEach(function (b) {
+        var e = endByKey[b.key] || (b.altKey ? endByAlt[b.altKey] : null);
+        if (e) usedEnd[e.key] = 1;
+        items.push(buildItem(b, e || null, periodDays));
+      });
+      endParsed.rows.forEach(function (e) {
+        if (usedEnd[e.key]) return;
+        items.push(buildItem(null, e, periodDays));
+      });
+
+      items = items.filter(function (it) { return it.beginQty !== 0 || it.endQty !== 0 || it.name || it.sku; });
+      items.forEach(function (it) { classifyRisk(it, state.thresholds); });
+
+      var totals = aggregate(items, periodDays);
+      var categories = buildCategories(items, totals, periodDays);
+
+      return {
+        items: items,
+        totals: totals,
+        categories: categories,
+        periodDays: periodDays,
+        beginDate: state.files.begin.date,
+        endDate: state.files.end.date,
+        priceKind: resolvePriceKind(),
+        parsedBegin: beginParsed.rows.length,
+        parsedEnd: endParsed.rows.length,
+        skippedBegin: beginParsed.skipped,
+        skippedEnd: endParsed.skipped
+      };
+    }
+
+    function buildItem(b, e, periodDays) {
+      var beginQty = b ? b.qty : 0;
+      var endQty = e ? e.qty : 0;
+      var price = null;
+      if (e && e.price != null) price = e.price;
+      else if (b && b.price != null) price = b.price;
+      var category = (e && e.category) || (b && b.category) || '未分类';
+      var name = (e && e.name) || (b && b.name) || '';
+      var spec = (e && e.spec) || (b && b.spec) || '';
+      var sku = (b && b.sku) || (e && e.sku) || '';
+      var delta = beginQty - endQty;
+      var avgStock = (beginQty + endQty) / 2;
+      var status = beginQty <= 0 && endQty > 0 ? '新增' : (beginQty > 0 && endQty <= 0 ? '清空' : '正常');
+      var sellThrough = beginQty > 0 ? delta / beginQty : null;
+      var turnover = (avgStock > 0 && delta > 0) ? delta / avgStock : null;
+      var turnDays = (turnover != null && turnover > 0) ? periodDays / turnover : null;
+      var stockDays = null;
+      if (endQty <= 0) stockDays = 0;
+      else if (delta > 0) stockDays = endQty * periodDays / delta;
+      else stockDays = Infinity;
+
+      return {
+        key: (b && b.key) || (e && e.key) || '',
+        sku: sku,
+        name: name,
+        spec: spec,
+        category: category,
+        beginQty: beginQty,
+        endQty: endQty,
+        delta: delta,
+        price: price,
+        beginAmount: price == null ? null : price * beginQty,
+        endAmount: price == null ? null : price * endQty,
+        avgStock: avgStock,
+        sellThrough: sellThrough,
+        turnover: turnover,
+        turnDays: turnDays,
+        stockDays: stockDays,
+        status: status,
+        active: delta > 0,
+        slow: false,
+        stockout: false,
+        changeQty: endQty - beginQty
+      };
+    }
+
+    function classifyRisk(it, thresholds) {
+      var slowDays = thresholds.slow;
+      var stockoutDays = thresholds.stockout;
+      it.slow = false;
+      it.stockout = false;
+      if (it.endQty > 0) {
+        if (it.delta <= 0) it.slow = true;
+        else if (isFinite(it.stockDays) && it.stockDays > slowDays) it.slow = true;
+        if (it.delta > 0 && isFinite(it.stockDays) && it.stockDays < stockoutDays) it.stockout = true;
+      } else if (it.beginQty > 0 && it.endQty <= 0) {
+        it.stockout = true;
+      }
+      if (it.stockout) it.slow = false;
+    }
+
+    function aggregate(items, periodDays) {
+      var t = {
+        skuCount: items.length,
+        beginQty: 0,
+        endQty: 0,
+        delta: 0,
+        beginAmount: 0,
+        endAmount: 0,
+        pricedCount: 0,
+        beginPositiveCount: 0,
+        activeCount: 0,
+        newCount: 0,
+        clearedCount: 0,
+        increaseQty: 0,
+        decreaseQty: 0,
+        increaseAmount: 0,
+        decreaseAmount: 0,
+        slowCount: 0,
+        stockoutCount: 0,
+        hasPrice: false
+      };
+      items.forEach(function (it) {
+        t.beginQty += it.beginQty;
+        t.endQty += it.endQty;
+        t.delta += it.delta;
+        if (it.beginQty > 0) t.beginPositiveCount++;
+        if (it.active) t.activeCount++;
+        if (it.status === '新增') t.newCount++;
+        if (it.status === '清空') t.clearedCount++;
+        if (it.changeQty > 0) t.increaseQty += it.changeQty;
+        if (it.changeQty < 0) t.decreaseQty += -it.changeQty;
+        if (it.slow) t.slowCount++;
+        if (it.stockout) t.stockoutCount++;
+        if (it.price != null) {
+          t.pricedCount++;
+          t.hasPrice = true;
+          t.beginAmount += it.price * it.beginQty;
+          t.endAmount += it.price * it.endQty;
+          if (it.changeQty > 0) t.increaseAmount += it.price * it.changeQty;
+          if (it.changeQty < 0) t.decreaseAmount += it.price * -it.changeQty;
+        }
+      });
+      t.avgStock = (t.beginQty + t.endQty) / 2;
+      t.sellThrough = t.beginQty > 0 ? t.delta / t.beginQty : null;
+      t.turnover = (t.avgStock > 0 && t.delta > 0) ? t.delta / t.avgStock : null;
+      t.turnDays = (t.turnover != null && t.turnover > 0) ? periodDays / t.turnover : null;
+      t.activeRate = t.beginPositiveCount > 0 ? t.activeCount / t.beginPositiveCount : null;
+      t.priceCoverage = t.skuCount > 0 ? t.pricedCount / t.skuCount : 0;
+      return t;
+    }
+
+    function buildCategories(items, totals, periodDays) {
+      var groups = {};
+      items.forEach(function (it) {
+        var c = it.category || '未分类';
+        if (!groups[c]) groups[c] = [];
+        groups[c].push(it);
+      });
+      var list = Object.keys(groups).map(function (c) {
+        var agg = aggregate(groups[c], periodDays);
+        agg.category = c;
+        agg.amountShare = totals.endAmount > 0 ? agg.endAmount / totals.endAmount : null;
+        return agg;
+      });
+      list.sort(function (a, b) { return b.endQty - a.endQty; });
+      return list;
+    }
+
+    function resolvePriceKind() {
+      var kinds = [state.files.end, state.files.begin].map(function (fs) {
+        if (!fs.loaded || fs.mapping.price < 0) return null;
+        if (fs.priceKind === 'retail' || fs.priceKind === 'cost') return fs.priceKind;
+        var header = fs.headers[fs.mapping.price] || '';
+        if (/成本|进价|进货|采购/.test(header)) return 'cost';
+        return 'retail';
+      }).filter(Boolean);
+      if (kinds.indexOf('cost') >= 0 && kinds.indexOf('retail') < 0) return 'cost';
+      if (kinds.indexOf('cost') >= 0 && kinds.indexOf('retail') >= 0) return 'mixed';
+      return 'retail';
+    }
+
+    function priceKindLabel(kind) {
+      if (kind === 'cost') return '成本价';
+      if (kind === 'mixed') return '零售价/成本价混合';
+      return '零售价';
+    }
+
+    /* ================= 结果渲染 ================= */
+    function renderResult() {
+      var model = computeModel();
+      state.result = model;
+      $('resultRoot').hidden = false;
+      $('emptyState').hidden = true;
+      $('btnExport').disabled = false;
+
+      renderKpis(model);
+      renderCharts(model);
+      renderCategoryTable(model);
+      renderFilterOptions(model);
+      renderDetailTable(model);
+    }
+
+    function renderKpis(model) {
+      var t = model.totals;
+      var priceNote = t.hasPrice
+        ? (priceKindLabel(model.priceKind) + ' · 单价覆盖 ' + (t.priceCoverage * 100).toFixed(0) + '%')
+        : '未识别到单价列，金额类指标不展示';
+      var html = [
+        kpiCard('期初库存', fmtInt(t.beginQty) + ' <em>件</em>', model.beginDate || '—', ''),
+        kpiCard('期末库存', fmtInt(t.endQty) + ' <em>件</em>', model.endDate || '—', ''),
+        kpiCard('净减少 ≈ 估算销量', fmtInt(t.delta) + ' <em>件</em>', '期间 ' + model.periodDays + ' 天 · 含补货影响', 'is-warn'),
+        kpiCard('整体售罄率', fmtPct(t.sellThrough), 'Σ净减少 ÷ Σ期初库存', ''),
+        kpiCard('库存周转率', t.turnover == null ? '—' : fmtNum(t.turnover, 2) + ' <em>次</em>', 'Σ净减少 ÷ 平均库存', ''),
+        kpiCard('周转天数', t.turnDays == null ? '—' : fmtDays(t.turnDays) + ' <em>天</em>', '期间天数 ÷ 周转率', ''),
+        kpiCard('动销率', fmtPct(t.activeRate), '净减少&gt;0 的 SKU ÷ 期初有库存 SKU', ''),
+        kpiCard('期末库存金额', t.hasPrice ? fmtMoney(t.endAmount) : '未提供单价', priceNote, t.hasPrice ? '' : 'is-warn'),
+        kpiCard('库存增加', fmtInt(t.increaseQty) + ' <em>件</em>', t.hasPrice ? '增加金额 ' + fmtMoney(t.increaseAmount) : '金额未提供单价', ''),
+        kpiCard('库存减少', fmtInt(t.decreaseQty) + ' <em>件</em>', t.hasPrice ? '减少金额 ' + fmtMoney(t.decreaseAmount) : '金额未提供单价', ''),
+        kpiCard('新增 / 清空 SKU', fmtInt(t.newCount) + ' / ' + fmtInt(t.clearedCount), '新增 ' + fmtInt(t.newCount) + ' 款 · 清空 ' + fmtInt(t.clearedCount) + ' 款', ''),
+        kpiCard('滞销 / 断货风险', fmtInt(t.slowCount) + ' / ' + fmtInt(t.stockoutCount), '阈值 ' + state.thresholds.slow + ' 天 / ' + state.thresholds.stockout + ' 天', (t.slowCount || t.stockoutCount) ? 'is-danger' : 'is-good')
+      ];
+      $('kpiGrid').innerHTML = html.join('');
+    }
+
+    function kpiCard(label, value, sub, cls) {
+      return '<div class="kpi ' + (cls || '') + '">' +
+        '<div class="kpi-label">' + label + '</div>' +
+        '<div class="kpi-value' + (String(value).length > 16 ? ' small' : '') + '">' + value + '</div>' +
+        '<div class="kpi-sub" title="' + escapeHtml(String(sub).replace(/<[^>]+>/g, '')) + '">' + sub + '</div>' +
+        '</div>';
+    }
+
+    /* ================= 图表 ================= */
+    function renderCharts(model) {
+      if (typeof echarts === 'undefined') {
+        ['chart1', 'chart2', 'chart3', 'chart4'].forEach(function (id) {
+          var el = $(id);
+          if (el) el.innerHTML = '<div class="chart-fallback">图表库未加载，无法展示图表</div>';
+        });
+        return;
+      }
+      Object.keys(chartInstances).forEach(function (k) {
+        try { chartInstances[k].dispose(); } catch (e) {}
+      });
+      chartInstances = {};
+
+      var cats = model.categories;
+      var chartCats = cats.slice(0, 12);
+      var rest = cats.slice(12);
+      var labels = chartCats.map(function (c) { return c.category; });
+      if (rest.length) {
+        var other = rest.reduce(function (acc, c) {
+          acc.endQty += c.endQty;
+          acc.beginQty += c.beginQty;
+          acc.endAmount += c.endAmount;
+          acc.delta += c.delta;
+          acc.avgStock += c.avgStock;
+          return acc;
+        }, { category: '其他', endQty: 0, beginQty: 0, endAmount: 0, delta: 0, avgStock: 0 });
+        chartCats = chartCats.concat([other]);
+        labels = chartCats.map(function (c) { return c.category; });
+      }
+
+      var hasPrice = model.totals.hasPrice;
+      $('chart1Sub').textContent = hasPrice ? ('按品类的期末库存金额占比（' + priceKindLabel(model.priceKind) + '）') : '未识别单价，按期末库存数量占比';
+
+      // 1. 结构占比
+      var structureData = chartCats.map(function (c) {
+        return { name: c.category, value: hasPrice ? Math.round(c.endAmount * 100) / 100 : c.endQty };
+      }).filter(function (d) { return d.value > 0; });
+      var c1 = echarts.init($('chart1'));
+      chartInstances.chart1 = c1;
+      c1.setOption({
+        tooltip: {
+          trigger: 'item',
+          formatter: function (p) {
+            var unit = hasPrice ? '¥' : ' 件';
+            return p.name + '<br/>' + (hasPrice ? '金额：¥' : '数量：') + Number(p.value).toLocaleString('zh-CN') + (hasPrice ? '' : ' 件') + '<br/>占比：' + p.percent + '%';
+          }
+        },
+        legend: { type: 'scroll', bottom: 0, textStyle: { fontSize: 11, color: '#67717F' } },
+        series: [{
+          type: 'pie',
+          radius: ['42%', '64%'],
+          center: ['50%', '44%'],
+          avoidLabelOverlap: true,
+          itemStyle: { borderColor: '#fff', borderWidth: 2 },
+          label: { show: true, formatter: '{b}\n{d}%', fontSize: 11, color: '#3D4757' },
+          data: structureData
+        }]
+      });
+
+      // 2. 期初 vs 期末
+      var c2 = echarts.init($('chart2'));
+      chartInstances.chart2 = c2;
+      c2.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        legend: { top: 0, textStyle: { fontSize: 11, color: '#67717F' } },
+        grid: { left: 12, right: 16, top: 36, bottom: 8, containLabel: true },
+        xAxis: { type: 'category', data: labels, axisLabel: { fontSize: 10, color: '#67717F', interval: 0, rotate: labels.length > 6 ? 30 : 0 } },
+        yAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#67717F' }, splitLine: { lineStyle: { color: '#E7ECF3' } } },
+        series: [
+          { name: '期初库存', type: 'bar', maxBarWidth: 18, itemStyle: { color: '#9CC3F5' }, data: chartCats.map(function (c) { return Math.round(c.beginQty); }) },
+          { name: '期末库存', type: 'bar', maxBarWidth: 18, itemStyle: { color: '#0969DA' }, data: chartCats.map(function (c) { return Math.round(c.endQty); }) }
+        ]
+      });
+
+      // 3. 售罄率 + 周转天数
+      var c3 = echarts.init($('chart3'));
+      chartInstances.chart3 = c3;
+      var daysValues = chartCats.map(function (c) {
+        if (c.turnDays == null || !isFinite(c.turnDays)) return null;
+        return Math.round(c.turnDays);
+      });
+      c3.setOption({
+        tooltip: {
+          trigger: 'axis',
+          formatter: function (params) {
+            var out = [params[0].axisValue];
+            params.forEach(function (p) {
+              var v = p.value;
+              if (v == null) { out.push(p.marker + p.seriesName + '：—'); return; }
+              out.push(p.marker + p.seriesName + '：' + (p.seriesName === '售罄率' ? Number(v).toFixed(1) + '%' : Number(v).toFixed(0) + ' 天'));
+            });
+            return out.join('<br/>');
+          }
+        },
+        legend: { top: 0, textStyle: { fontSize: 11, color: '#67717F' } },
+        grid: { left: 12, right: 16, top: 36, bottom: 8, containLabel: true },
+        xAxis: { type: 'category', data: labels, axisLabel: { fontSize: 10, color: '#67717F', interval: 0, rotate: labels.length > 6 ? 30 : 0 } },
+        yAxis: [
+          { type: 'value', name: '售罄率', axisLabel: { fontSize: 10, color: '#67717F', formatter: '{value}%' }, splitLine: { lineStyle: { color: '#E7ECF3' } } },
+          { type: 'value', name: '周转天数', axisLabel: { fontSize: 10, color: '#67717F', formatter: '{value}天' }, splitLine: { show: false } }
+        ],
+        series: [
+          {
+            name: '售罄率', type: 'bar', maxBarWidth: 20, itemStyle: { color: '#0969DA' },
+            data: chartCats.map(function (c) {
+              return c.sellThrough == null ? null : Math.round(c.sellThrough * 1000) / 10;
+            })
+          },
+          {
+            name: '周转天数', type: 'line', yAxisIndex: 1, smooth: true, connectNulls: false,
+            itemStyle: { color: '#FAAD14' }, lineStyle: { color: '#FAAD14', width: 2 },
+            data: daysValues
+          }
+        ]
+      });
+
+      // 4. 库存变化拆解
+      var c4 = echarts.init($('chart4'));
+      chartInstances.chart4 = c4;
+      var t = model.totals;
+      c4.setOption({
+        tooltip: {
+          trigger: 'axis',
+          formatter: function (params) {
+            var val = params[0].value;
+            return params[0].name + '：' + Number(val).toLocaleString('zh-CN') + ' 件';
+          }
+        },
+        grid: { left: 12, right: 16, top: 24, bottom: 8, containLabel: true },
+        xAxis: { type: 'category', data: ['期初库存', '净减少', '净增加', '期末库存'], axisLabel: { fontSize: 11, color: '#67717F' } },
+        yAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#67717F' }, splitLine: { lineStyle: { color: '#E7ECF3' } } },
+        series: [{
+          type: 'bar',
+          maxBarWidth: 46,
+          label: { show: true, position: 'top', fontSize: 11, formatter: function (p) { return Number(p.value).toLocaleString('zh-CN'); } },
+          itemStyle: {
+            color: function (p) {
+              if (p.name === '净减少') return '#FF4D4F';
+              if (p.name === '净增加') return '#52C41A';
+              return '#0969DA';
+            }
+          },
+          data: [t.beginQty, -t.decreaseQty, t.increaseQty, t.endQty]
+        }]
+      });
+    }
+
+    /* ================= 品类表 ================= */
+    function renderCategoryTable(model) {
+      var cats = model.categories;
+      $('categoryMeta').textContent = cats.length + ' 个品类 · 共 ' + fmtInt(model.items.length) + ' 个 SKU';
+      var hasPrice = model.totals.hasPrice;
+      var head = '<thead><tr>' +
+        '<th class="td-info">品类</th>' +
+        '<th>SKU 数</th>' +
+        '<th>期初库存</th>' +
+        '<th>期末库存</th>' +
+        '<th>净减少</th>' +
+        '<th>售罄率</th>' +
+        '<th>平均库存</th>' +
+        '<th>周转率</th>' +
+        '<th>周转天数</th>' +
+        '<th>动销率</th>' +
+        (hasPrice ? '<th>期末金额</th><th>金额占比</th>' : '') +
+        '<th>滞销</th>' +
+        '<th>断货</th>' +
+        '</tr></thead>';
+      var body = cats.map(function (c) {
+        return '<tr>' +
+          '<td class="td-info">' + escapeHtml(c.category) + '</td>' +
+          '<td>' + fmtInt(c.skuCount) + '</td>' +
+          '<td>' + fmtInt(c.beginQty) + '</td>' +
+          '<td>' + fmtInt(c.endQty) + '</td>' +
+          '<td class="' + (c.delta < 0 ? 'pos' : (c.delta > 0 ? 'neg' : 'zero')) + '">' + fmtInt(c.delta) + '</td>' +
+          '<td>' + fmtPct(c.sellThrough) + '</td>' +
+          '<td>' + fmtInt(Math.round(c.avgStock)) + '</td>' +
+          '<td>' + (c.turnover == null ? '—' : fmtNum(c.turnover, 2)) + '</td>' +
+          '<td>' + (c.turnDays == null ? '—' : fmtDays(c.turnDays)) + '</td>' +
+          '<td>' + fmtPct(c.activeRate) + '</td>' +
+          (hasPrice ? '<td>' + fmtMoney(c.endAmount) + '</td><td>' + fmtPct(c.amountShare) + '</td>' : '') +
+          '<td>' + fmtInt(c.slowCount) + '</td>' +
+          '<td>' + fmtInt(c.stockoutCount) + '</td>' +
+          '</tr>';
+      }).join('');
+      var totalHead = '<tr style="font-weight:700;background:#F4F7FB;">' +
+        '<td class="td-info">合计</td>' +
+        '<td>' + fmtInt(model.totals.skuCount) + '</td>' +
+        '<td>' + fmtInt(model.totals.beginQty) + '</td>' +
+        '<td>' + fmtInt(model.totals.endQty) + '</td>' +
+        '<td>' + fmtInt(model.totals.delta) + '</td>' +
+        '<td>' + fmtPct(model.totals.sellThrough) + '</td>' +
+        '<td>' + fmtInt(Math.round(model.totals.avgStock)) + '</td>' +
+        '<td>' + (model.totals.turnover == null ? '—' : fmtNum(model.totals.turnover, 2)) + '</td>' +
+        '<td>' + (model.totals.turnDays == null ? '—' : fmtDays(model.totals.turnDays)) + '</td>' +
+        '<td>' + fmtPct(model.totals.activeRate) + '</td>' +
+        (hasPrice ? '<td>' + fmtMoney(model.totals.endAmount) + '</td><td>100.0%</td>' : '') +
+        '<td>' + fmtInt(model.totals.slowCount) + '</td>' +
+        '<td>' + fmtInt(model.totals.stockoutCount) + '</td>' +
+        '</tr>';
+      var catCols = 13 + (hasPrice ? 2 : 0);
+      $('categoryTable').innerHTML = head + '<tbody>' + body + (cats.length ? totalHead : '<tr><td colspan="' + catCols + '" class="td-info zero">没有可汇总的品类</td></tr>') + '</tbody>';
+    }
+
+    /* ================= 明细表 ================= */
+    var DETAIL_COLS = [
+      { key: 'sku', label: 'SKU / 条码', type: 'text', info: true },
+      { key: 'name', label: '品名 / 规格', type: 'text', info: true },
+      { key: 'category', label: '品类', type: 'text', info: true },
+      { key: 'beginQty', label: '期初库存', type: 'num' },
+      { key: 'endQty', label: '期末库存', type: 'num' },
+      { key: 'delta', label: '净减少(估算销量)', type: 'num' },
+      { key: 'sellThrough', label: '售罄率', type: 'pct' },
+      { key: 'avgStock', label: '平均库存', type: 'num' },
+      { key: 'turnover', label: '周转率', type: 'num2' },
+      { key: 'turnDays', label: '周转天数', type: 'days' },
+      { key: 'stockDays', label: '库存天数', type: 'days' },
+      { key: 'price', label: '单价', type: 'money2' },
+      { key: 'beginAmount', label: '期初金额', type: 'money' },
+      { key: 'endAmount', label: '期末金额', type: 'money' },
+      { key: 'status', label: '状态', type: 'text', info: true },
+      { key: 'risk', label: '风险', type: 'text', info: true }
+    ];
+
+    function filteredItems(model) {
+      var f = state.filters;
+      var q = String(f.search || '').trim().toLowerCase();
+      return model.items.filter(function (it) {
+        if (f.category !== '全部' && it.category !== f.category) return false;
+        if (f.status !== '全部' && it.status !== f.status) return false;
+        if (f.risk === '断货风险' && !it.stockout) return false;
+        if (f.risk === '滞销' && !it.slow) return false;
+        if (f.risk === '无风险' && (it.slow || it.stockout)) return false;
+        if (q) {
+          var hay = (it.sku + ' ' + it.name + ' ' + it.spec + ' ' + it.category).toLowerCase();
+          if (hay.indexOf(q) < 0) return false;
+        }
+        return true;
+      });
+    }
+
+    function sortItems(items) {
+      var key = state.sort.key;
+      var dir = state.sort.dir === 'asc' ? 1 : -1;
+      return items.slice().sort(function (a, b) {
+        var va = sortValue(a, key);
+        var vb = sortValue(b, key);
+        if (va == null && vb == null) return 0;
+        if (va == null) return 1;
+        if (vb == null) return -1;
+        if (typeof va === 'string' || typeof vb === 'string') {
+          return String(va).localeCompare(String(vb), 'zh') * dir;
+        }
+        return (va - vb) * dir;
+      });
+    }
+
+    function sortValue(it, key) {
+      if (key === 'risk') return (it.stockout ? 2 : 0) + (it.slow ? 1 : 0);
+      if (key === 'stockDays') return it.stockDays === Infinity ? Number.MAX_SAFE_INTEGER : it.stockDays;
+      var v = it[key];
+      return v == null ? null : v;
+    }
+
+    function renderDetailTable(model) {
+      var all = filteredItems(model);
+      var sorted = sortItems(all);
+      var shown = sorted.slice(0, TABLE_LIMIT);
+      $('detailMeta').textContent = '筛选后 ' + fmtInt(all.length) + ' 个 SKU · 当前展示 ' + fmtInt(shown.length) + ' 个';
+
+      var head = '<thead><tr>' + DETAIL_COLS.map(function (c) {
+        var sortedThis = state.sort.key === c.key;
+        var arrow = sortedThis ? (state.sort.dir === 'asc' ? '▲' : '▼') : '↕';
+        return '<th class="' + (c.info ? 'td-info ' : '') + 'sortable' + (sortedThis ? ' is-sorted' : '') + '" data-sort="' + c.key + '">' +
+          c.label + '<span class="arrow">' + arrow + '</span></th>';
+      }).join('') + '</tr></thead>';
+
+      var body = shown.map(function (it) {
+        var statusTag = it.status === '新增' ? '<span class="tag tag-info">新增</span>' :
+          (it.status === '清空' ? '<span class="tag tag-warn">清空</span>' : '<span class="tag tag-neutral">正常</span>');
+        var riskTags = '';
+        if (it.stockout) riskTags += '<span class="tag tag-danger">断货风险</span> ';
+        if (it.slow) riskTags += '<span class="tag tag-warn">滞销</span> ';
+        if (!riskTags) riskTags = '<span class="zero">—</span>';
+        return '<tr>' +
+          '<td class="td-info"><div class="p-name">' + escapeHtml(it.sku || '—') + '</div></td>' +
+          '<td class="td-info td-product"><div class="p-name">' + escapeHtml(it.name || '(未命名商品)') + '</div>' +
+          (it.spec ? '<div class="p-sub">' + escapeHtml(it.spec) + '</div>' : '') + '</td>' +
+          '<td class="td-info">' + escapeHtml(it.category) + '</td>' +
+          '<td>' + fmtInt(it.beginQty) + '</td>' +
+          '<td>' + fmtInt(it.endQty) + '</td>' +
+          '<td class="' + (it.delta > 0 ? 'neg' : (it.delta < 0 ? 'pos' : 'zero')) + '">' + fmtInt(it.delta) + '</td>' +
+          '<td>' + fmtPct(it.sellThrough) + '</td>' +
+          '<td>' + fmtInt(Math.round(it.avgStock)) + '</td>' +
+          '<td>' + (it.turnover == null ? '—' : fmtNum(it.turnover, 2)) + '</td>' +
+          '<td>' + (it.turnDays == null ? '—' : fmtDays(it.turnDays)) + '</td>' +
+          '<td>' + fmtDays(it.stockDays) + '</td>' +
+          '<td>' + (it.price == null ? '—' : fmtNum(it.price, 2)) + '</td>' +
+          '<td>' + (it.beginAmount == null ? '—' : fmtNum(it.beginAmount, 2)) + '</td>' +
+          '<td>' + (it.endAmount == null ? '—' : fmtNum(it.endAmount, 2)) + '</td>' +
+          '<td class="td-info">' + statusTag + '</td>' +
+          '<td class="td-info">' + riskTags + '</td>' +
+          '</tr>';
+      }).join('');
+
+      var empty = '<tr><td colspan="' + DETAIL_COLS.length + '" class="td-info zero">没有符合筛选条件的 SKU</td></tr>';
+      $('detailTable').innerHTML = head + '<tbody>' + (shown.length ? body : empty) + '</tbody>';
+
+      var footnote = '共 ' + fmtInt(all.length) + ' 条筛选结果，表格仅展示前 ' + TABLE_LIMIT + ' 条（按当前排序），导出 Excel 包含全部数据。';
+      if (!model.totals.hasPrice) footnote += ' 未识别到单价列，金额与金额结构不展示。';
+      else if (model.totals.priceCoverage < 1) footnote += ' 单价覆盖 ' + (model.totals.priceCoverage * 100).toFixed(0) + '%，部分 SKU 金额缺失。';
+      footnote += ' 库存天数 ∞ 表示期间无动销。';
+      $('detailFootnote').textContent = footnote;
+    }
+
+    /* ================= 筛选与事件 ================= */
+    function renderFilterOptions(model) {
+      var cats = model.categories.map(function (c) { return c.category; });
+      if (state.filters.category !== '全部' && cats.indexOf(state.filters.category) < 0) {
+        state.filters.category = '全部';
+      }
+      $('filterCategory').innerHTML = '<option>全部</option>' + cats.map(function (c) {
+        return '<option' + (state.filters.category === c ? ' selected' : '') + '>' + escapeHtml(c) + '</option>';
+      }).join('');
+      $('filterStatus').value = state.filters.status;
+      $('filterRisk').value = state.filters.risk;
+      $('filterSearch').value = state.filters.search;
+      $('slowDaysInput').value = state.thresholds.slow;
+      $('stockoutDaysInput').value = state.thresholds.stockout;
+    }
+
+    function bindEvents() {
+      $('filesGrid').addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-upload]');
+        if (!btn) return;
+        var kind = btn.getAttribute('data-upload');
+        $(kind === 'begin' ? 'fileBegin' : 'fileEnd').click();
+      });
+
+      $('filesGrid').addEventListener('change', function (e) {
+        var el = e.target;
+        var kind = el.getAttribute('data-kind');
+        if (!kind) return;
+        var fs = state.files[kind];
+
+        if (el.hasAttribute('data-sheet')) {
+          fs.sheetIndex = Number(el.value) || 0;
+          refreshSheet(fs);
+          resetResultView();
+          renderFiles();
+          updateCalcBar();
+        } else if (el.hasAttribute('data-header-row')) {
+          var n = Math.max(1, Math.min(50, Number(el.value) || 1)) - 1;
+          fs.headerRow = n;
+          refreshHeaderRow(fs);
+          resetResultView();
+          renderFiles();
+          updateCalcBar();
+        } else if (el.hasAttribute('data-map')) {
+          fs.mapping[el.getAttribute('data-map')] = Number(el.value);
+          resetResultView();
+          renderFiles();
+          updateCalcBar();
+        } else if (el.hasAttribute('data-pricekind')) {
+          fs.priceKind = el.value;
+          resetResultView();
+        } else if (el.hasAttribute('data-date')) {
+          fs.date = el.value;
+          resetResultView();
+          updateCalcBar();
+        }
+      });
+
+      $('fileBegin').addEventListener('change', function () {
+        var f = this.files && this.files[0];
+        if (f) handleFile('begin', f);
+        this.value = '';
+      });
+      $('fileEnd').addEventListener('change', function () {
+        var f = this.files && this.files[0];
+        if (f) handleFile('end', f);
+        this.value = '';
+      });
+
+      $('btnCalc').addEventListener('click', function () {
+        var err = validateInputs();
+        if (err) { showError(err); return; }
+        hideError();
+        renderResult();
+        // 让结果区进入视口
+        var root = $('resultRoot');
+        if (root && root.scrollIntoView) root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+
+      $('filterCategory').addEventListener('change', function () {
+        state.filters.category = this.value;
+        renderDetailTable(state.result);
+      });
+      $('filterStatus').addEventListener('change', function () {
+        state.filters.status = this.value;
+        renderDetailTable(state.result);
+      });
+      $('filterRisk').addEventListener('change', function () {
+        state.filters.risk = this.value;
+        renderDetailTable(state.result);
+      });
+      $('filterSearch').addEventListener('input', function () {
+        state.filters.search = this.value;
+        renderDetailTable(state.result);
+      });
+      $('slowDaysInput').addEventListener('change', function () {
+        var v = Number(this.value);
+        state.thresholds.slow = isFinite(v) && v >= 0 ? v : 90;
+        this.value = state.thresholds.slow;
+        rerenderAfterThreshold();
+      });
+      $('stockoutDaysInput').addEventListener('change', function () {
+        var v = Number(this.value);
+        state.thresholds.stockout = isFinite(v) && v >= 0 ? v : 14;
+        this.value = state.thresholds.stockout;
+        rerenderAfterThreshold();
+      });
+
+      $('detailTable').addEventListener('click', function (e) {
+        var th = e.target.closest('th[data-sort]');
+        if (!th) return;
+        var key = th.getAttribute('data-sort');
+        if (state.sort.key === key) {
+          state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.sort.key = key;
+          state.sort.dir = key === 'sku' || key === 'name' || key === 'category' ? 'asc' : 'desc';
+        }
+        renderDetailTable(state.result);
+      });
+
+      $('btnExport').addEventListener('click', exportExcel);
+
+      window.addEventListener('resize', function () {
+        Object.keys(chartInstances).forEach(function (k) {
+          try { chartInstances[k].resize(); } catch (e) {}
+        });
+      });
+    }
+
+    function rerenderAfterThreshold() {
+      if (!state.result) return;
+      var model = computeModel();
+      state.result = model;
+      renderKpis(model);
+      renderCharts(model);
+      renderCategoryTable(model);
+      renderFilterOptions(model);
+      renderDetailTable(model);
+    }
+
+    function resetResultView() {
+      state.result = null;
+      $('resultRoot').hidden = true;
+      $('emptyState').hidden = false;
+      $('btnExport').disabled = true;
+      updateBadge();
+    }
+
+    function validateInputs() {
+      var b = state.files.begin, e = state.files.end;
+      if (!b.loaded || !e.loaded) return '请先分别上传期初与期末库存文件。';
+      if (b.mapping.qty < 0 || e.mapping.qty < 0) return '两个文件都需要指定「库存数量」列后才能计算。';
+      if (b.mapping.sku < 0 && b.mapping.name < 0) return '期初文件需要至少识别到 SKU/货号/条码 或 品名，用于匹配商品。';
+      if (e.mapping.sku < 0 && e.mapping.name < 0) return '期末文件需要至少识别到 SKU/货号/条码 或 品名，用于匹配商品。';
+      if (!b.date || !e.date) return '请填写期初与期末的数据日期。';
+      var days = periodDaysBetween(b.date, e.date);
+      if (days == null) return '日期格式不正确，请重新选择。';
+      if (days <= 0) return '期末日期必须晚于期初日期。';
+      var pb = parseFileRows(b).rows, pe = parseFileRows(e).rows;
+      if (!pb.length) return '期初文件没有解析到有效数据行，请检查工作表、表头行与字段映射。';
+      if (!pe.length) return '期末文件没有解析到有效数据行，请检查工作表、表头行与字段映射。';
+      return '';
+    }
+
+    function updateCalcBar() {
+      var b = state.files.begin, e = state.files.end;
+      var ready = b.loaded && e.loaded && b.mapping.qty >= 0 && e.mapping.qty >= 0;
+      var tip = '';
+      if (!b.loaded && !e.loaded) tip = '请分别上传期初与期末库存文件，确认字段映射和日期后开始计算。';
+      else if (!b.loaded) tip = '还差期初库存文件。';
+      else if (!e.loaded) tip = '还差期末库存文件。';
+      else if (!ready) tip = '请先在上传卡中指定「库存数量」列。';
+      else {
+        var days = periodDaysBetween(b.date, e.date);
+        tip = '已识别期初 ' + fmtInt(parseFileRows(b).rows.length) + ' 个商品、期末 ' + fmtInt(parseFileRows(e).rows.length) +
+          ' 个商品 · 期间 ' + (days == null ? '—' : days + ' 天') + ' · 确认映射后点击计算。';
+      }
+      $('calcTip').textContent = tip;
+      $('btnCalc').disabled = !ready;
+    }
+
+    function updateBadge() {
+      var b = state.files.begin, e = state.files.end;
+      var text = $('dataSourceText');
+      var badge = $('dataSourceBadge');
+      if (!b.loaded && !e.loaded) {
+        text.textContent = '未载入数据';
+        badge.classList.remove('is-real');
+        badge.title = '';
+      } else {
+        var parts = [];
+        if (b.loaded) parts.push('期初：' + b.fileName);
+        if (e.loaded) parts.push('期末：' + e.fileName);
+        text.textContent = parts.join(' · ');
+        badge.classList.add('is-real');
+        badge.title = parts.join('\n');
+      }
+    }
+
+    function showError(msg) {
+      var el = $('errorBanner');
+      el.textContent = msg;
+      el.hidden = false;
+    }
+    function hideError() {
+      var el = $('errorBanner');
+      el.hidden = true;
+      el.textContent = '';
+    }
+
+    /* ================= 导出 Excel ================= */
+    function exportExcel() {
+      var m = state.result;
+      if (!m) return;
+      if (typeof XLSX === 'undefined') { showError('Excel 导出库未加载，无法导出。'); return; }
+      try {
+        var wb = XLSX.utils.book_new();
+        var t = m.totals;
+
+        var overview = [
+          ['库存分析看板 · 净减少口径'],
+          ['生成时间', fmtDateTime()],
+          ['期初日期', m.beginDate],
+          ['期末日期', m.endDate],
+          ['期间天数', m.periodDays],
+          ['期初文件', state.files.begin.fileName],
+          ['期末文件', state.files.end.fileName],
+          [],
+          ['核心假设', '以「期初库存 − 期末库存」的净减少量估算期间销量；净减少 = 销售 − 补货。若期间有补货或其他入库，会低估销量、售罄率与库存周转率。'],
+          [],
+          ['指标', '数值', '说明'],
+          ['期初库存（件）', t.beginQty, '期初快照汇总'],
+          ['期末库存（件）', t.endQty, '期末快照汇总'],
+          ['净减少 ≈ 估算销量（件）', t.delta, '期初 − 期末，可为负（净入库）'],
+          ['整体售罄率', fmtPct(t.sellThrough), 'Σ净减少 ÷ Σ期初库存'],
+          ['库存周转率（次）', t.turnover == null ? '—' : t.turnover, 'Σ净减少 ÷ 平均库存'],
+          ['周转天数（天）', t.turnDays == null ? '—' : t.turnDays, '期间天数 ÷ 周转率'],
+          ['动销率', fmtPct(t.activeRate), '净减少>0 的 SKU ÷ 期初有库存 SKU'],
+          ['新增 SKU 数', t.newCount, '期初无库存、期末有库存'],
+          ['清空 SKU 数', t.clearedCount, '期初有库存、期末无库存'],
+          ['净增加数量（件）', t.increaseQty, 'Σ max(0, 期末 − 期初)'],
+          ['净减少数量（件）', t.decreaseQty, 'Σ max(0, 期初 − 期末)'],
+          ['期末库存金额', t.hasPrice ? t.endAmount : '未提供单价', '数量 × 单价（' + priceKindLabel(m.priceKind) + '）'],
+          ['期初库存金额', t.hasPrice ? t.beginAmount : '未提供单价', '数量 × 单价（' + priceKindLabel(m.priceKind) + '）'],
+          ['金额增加', t.hasPrice ? t.increaseAmount : '未提供单价', 'Σ 增加数量 × 单价'],
+          ['金额减少', t.hasPrice ? t.decreaseAmount : '未提供单价', 'Σ 减少数量 × 单价'],
+          ['滞销 SKU 数', t.slowCount, '阈值为库存天数 > ' + state.thresholds.slow + ' 天'],
+          ['断货风险 SKU 数', t.stockoutCount, '阈值为库存天数 < ' + state.thresholds.stockout + ' 天或期末 ≤ 0'],
+          ['单价覆盖率', fmtPct(t.priceCoverage), '有单价的 SKU ÷ 全部 SKU']
+        ];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(overview), '总览');
+
+        var catRows = [['品类', 'SKU 数', '期初库存', '期末库存', '净减少', '售罄率', '平均库存', '周转率', '周转天数', '动销率', '期末金额', '金额占比', '滞销数', '断货数']];
+        m.categories.forEach(function (c) {
+          catRows.push([
+            c.category, c.skuCount, c.beginQty, c.endQty, c.delta,
+            c.sellThrough == null ? '' : Number((c.sellThrough * 100).toFixed(1)),
+            Math.round(c.avgStock), c.turnover == null ? '' : Number(c.turnover.toFixed(2)),
+            c.turnDays == null ? '' : Math.round(c.turnDays),
+            c.activeRate == null ? '' : Number((c.activeRate * 100).toFixed(1)),
+            t.hasPrice ? Number(c.endAmount.toFixed(2)) : '',
+            t.hasPrice && c.amountShare != null ? Number((c.amountShare * 100).toFixed(2)) : '',
+            c.slowCount, c.stockoutCount
+          ]);
+        });
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(catRows), '品类汇总');
+
+        var detailRows = [['SKU/条码', '品名', '规格', '品类', '期初库存', '期末库存', '净减少(估算销量)', '售罄率(%)', '平均库存', '周转率', '周转天数', '库存天数', '单价', '期初金额', '期末金额', '状态', '风险']];
+        sortItems(filteredItems(m)).forEach(function (it) {
+          var risk = it.stockout ? '断货风险' : (it.slow ? '滞销' : '');
+          detailRows.push([
+            it.sku, it.name, it.spec, it.category, it.beginQty, it.endQty, it.delta,
+            it.sellThrough == null ? '' : Number((it.sellThrough * 100).toFixed(1)),
+            Math.round(it.avgStock),
+            it.turnover == null ? '' : Number(it.turnover.toFixed(2)),
+            it.turnDays == null ? '' : Math.round(it.turnDays),
+            it.stockDays === Infinity ? '∞' : Math.round(it.stockDays),
+            it.price == null ? '' : it.price,
+            it.beginAmount == null ? '' : Number(it.beginAmount.toFixed(2)),
+            it.endAmount == null ? '' : Number(it.endAmount.toFixed(2)),
+            it.status, risk
+          ]);
+        });
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detailRows), 'SKU明细');
+
+        var notes = [
+          ['口径与指标说明'],
+          ['估算销量', '期初库存 − 期末库存；SKU 层售罄率使用 max(0, 差值)，整体/品类使用汇总净减少（可为负）。'],
+          ['净减少偏差', '净减少 = 销售 − 补货。期间有补货会低估销量、售罄率与周转率；有盘亏/报废会高估销量。'],
+          ['售罄率', '净减少 ÷ 期初库存。期初为 0 时不计算。'],
+          ['平均库存', '(期初 + 期末) ÷ 2。'],
+          ['周转率', '净减少 ÷ 平均库存，净减少 ≤ 0 时不计算。'],
+          ['周转天数', '期间天数 ÷ 周转率 = 平均库存 × 期间天数 ÷ 净减少。'],
+          ['动销率', '净减少 > 0 的 SKU 数 ÷ 期初库存 > 0 的 SKU 数。'],
+          ['库存天数', '期末库存 × 期间天数 ÷ 净减少；净减少 ≤ 0 记为 ∞。'],
+          ['滞销判定', '期末库存 > 0 且（净减少 ≤ 0 或 库存天数 > ' + state.thresholds.slow + ' 天）。'],
+          ['断货判定', '期初有库存但期末 ≤ 0；或期末 > 0 且库存天数 < ' + state.thresholds.stockout + ' 天。'],
+          ['金额口径', '库存金额 = 数量 × 单价；单价优先取期末文件，缺失回退期初；单价类型：' + priceKindLabel(m.priceKind) + '。'],
+          ['数据过滤', '导出的 SKU 明细遵循当前筛选条件；表格页面仅展示前 ' + TABLE_LIMIT + ' 条。']
+        ];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(notes), '口径说明');
+
+        var name = '库存分析_' + m.beginDate + '_至_' + m.endDate + '.xlsx';
+        XLSX.writeFile(wb, name);
+      } catch (err) {
+        console.error(err);
+        showError('导出失败：' + (err && err.message ? err.message : err));
+      }
+    }
+
+    /* ================= 初始化 ================= */
+    function init() {
+      state.files.begin.date = todayInput(-30);
+      state.files.end.date = todayInput(0);
+      bindEvents();
+      renderFiles();
+      updateCalcBar();
+      updateBadge();
+    }
+
+    init();
+  })();
+  </script>
+</body>
+</html>
