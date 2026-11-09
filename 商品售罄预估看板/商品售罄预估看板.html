@@ -141,7 +141,7 @@
     /* === 筛选器 === */
     .filter-row {
       display: grid;
-      grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(200px, 1.4fr);
+      grid-template-columns: minmax(170px, 1fr) minmax(170px, 1fr) minmax(220px, 1.5fr);
       gap: var(--space-4);
     }
     .f-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--page-text-muted); margin-bottom: 5px; }
@@ -223,14 +223,6 @@
       border: 1px solid var(--rule); background: #FFFFFF; display: block; margin: 0 auto;
     }
     .thumb.empty { display: flex; align-items: center; justify-content: center; color: var(--page-text-disabled); font-size: 10px; }
-    .tag {
-      display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px;
-      border-radius: var(--radius-pill); font-size: 11px; font-weight: 500;
-      border: 1px solid; white-space: nowrap;
-    }
-    .tag-info { color: var(--page-brand-text); background: var(--info-soft); border-color: var(--page-brand-soft-strong); }
-    .tag-warn { color: #9A6B00; background: var(--warning-soft); border-color: #EFDFAC; }
-    .tag-neutral { color: var(--page-text-secondary); background: var(--page-surface); border-color: var(--page-border); }
     .zero { color: var(--page-text-muted); }
     .table-footnote { margin-top: 10px; font-size: 12px; color: var(--page-text-muted); line-height: 1.7; }
 
@@ -279,7 +271,7 @@
             <h1>商品售罄预估看板</h1>
             <p class="report-intro__summary">
               导入《商品售罄预估数据源》（《商品总览》工作表），按「今年库存月」预估每款商品的售罄月份，
-              展示未来一年内各月会售罄的商品明细（图片、品名、规格、分类），支持按分类和补单备注筛选，
+              展示未来一年内各月会售罄的商品明细（图片、品名、规格、分类），支持按分类和生产备注筛选，
               并统计每个月度部分的库存数量与库存占比。
             </p>
           </div>
@@ -305,7 +297,7 @@
           <ul>
             <li><b>商品总览</b>：条码、图片、产品名称、货号、净含量/规格、分类、零售价</li>
             <li><b>库存与销售</b>：在仓库存、门店库存、总库存数量、在途库存、今年日销系数、今年库存月</li>
-            <li><b>补单备注</b>：生产/补单情况（如在途），用于筛选</li>
+            <li><b>生产备注</b>：如 正常 / 停产 / 暂停，用于筛选</li>
           </ul>
           <p>数据仅在你的浏览器本地解析，不会上传到任何服务器。</p>
           <button class="btn btn-primary" id="btnUploadEmpty" type="button">选择文件</button>
@@ -353,12 +345,8 @@
               <select class="f-select" id="categorySel"></select>
             </div>
             <div>
-              <div class="f-label">生产备注<span class="hint" title="对应数据源「生产备注」列，如 正常/停产/暂停/升级">i</span></div>
+              <div class="f-label">生产备注<span class="hint" title="对应数据源「生产备注」列，如 正常/停产/暂停">i</span></div>
               <select class="f-select" id="productionSel"></select>
-            </div>
-            <div>
-              <div class="f-label">补单备注<span class="hint" title="对应数据源「补单备注」列，表示生产/补单情况（如在途）">i</span></div>
-              <select class="f-select" id="reorderSel"></select>
             </div>
             <div class="filter-tip" id="filterTip">共 0 款商品 · 库存 0 件</div>
           </div>
@@ -405,8 +393,8 @@
             </ul>
             <h4>筛选与展示</h4>
             <ul>
-              <li>分类、补单备注筛选同时作用于汇总部分与分月明细；占比分母随筛选结果变化。</li>
-              <li>补单备注为空时归入「未设置」；「在途」表示该商品有在途补单。</li>
+              <li>分类、生产备注、售罄月份范围筛选同时作用于汇总部分与分月明细；占比分母随筛选结果变化。</li>
+              <li>生产备注为空时归入「未设置」。</li>
               <li>商品图片来自 Excel 内嵌图片（WPS 单元格图片），在浏览器本地解压读取；品名自动省略「BLACK PAW / 黑爪」字样。</li>
             </ul>
           </div>
@@ -434,7 +422,6 @@
       baseKey: 0,       // 数据日期（yyyymmdd）
       category: '全部',
       productionNote: '全部',
-      reorderNote: '全部',
       monthFromIdx: -1, // -1 = 不筛
       monthToIdx: -1,
       parts: [],        // 月份/部分定义（带 orderId）
@@ -599,7 +586,7 @@
       }
       return null;
     }
-    function mapColumns(headerCells, fields, fallback) {
+    function mapColumns(headerCells, fields) {
       var colByField = {};
       var normValues = {};
       Object.keys(headerCells).forEach(function (col) {
@@ -611,7 +598,6 @@
         for (var i = 0; i < aliases.length; i++) {
           if (normValues[aliases[i]]) { colByField[field] = normValues[aliases[i]]; break; }
         }
-        if (!colByField[field] && fallback && fallback[field]) colByField[field] = fallback[field];
       });
       return colByField;
     }
@@ -739,15 +725,15 @@
         totalStock: ['总库存数量', '总库存'],
         inTransit: ['在途库存'],
         daily: ['今年日销系数', '日销系数'],
-        months: ['今年库存月', '库存月'],
-        reorderNote: ['补单备注']
+        months: ['今年库存月', '库存月']
       };
-      var FALLBACK = {
-        barcode: 'A', image: 'D', productName: 'E', specCode: 'F', spec: 'G', category: 'H', retailPrice: 'I',
-        productionNote: 'J',
-        inWarehouse: 'R', storeStock: 'S', totalStock: 'T', inTransit: 'U', daily: 'V', months: 'W', reorderNote: 'X'
-      };
-      var cols = mapColumns(header.cells, FIELDS, FALLBACK);
+      // 纯按表头名匹配，不再按列字母/索引兜底：避免数据源调整列顺序后静默错位
+      var cols = mapColumns(header.cells, FIELDS);
+      var missing = Object.keys(FIELDS).filter(function (f) { return !cols[f]; });
+      if (missing.length) {
+        var missLabels = missing.map(function (f) { return FIELDS[f][0]; });
+        console.warn('售罄看板：以下列未在表头中匹配到，将留空 →', missLabels.join('、'));
+      }
       var wanted = wantedSet(cols);
       var ID_RE = /ID_[0-9A-Fa-f]+/i;
 
@@ -824,7 +810,6 @@
           days: days,
           soldOutKey: soldOutKey,
           productionNote: String(pc[cols.productionNote] || '').trim(),
-          reorderNote: String(pc[cols.reorderNote] || '').trim(),
           imageUrl: imageUrl,
           bucket: bucket
         });
@@ -844,10 +829,6 @@
         if (state.category !== '全部' && p.category !== state.category) return false;
         if (state.productionNote !== '全部') {
           if ((p.productionNote || '未设置') !== state.productionNote) return false;
-        }
-        if (state.reorderNote !== '全部') {
-          var note = p.reorderNote || '未设置';
-          if (note !== state.reorderNote) return false;
         }
         if (minOrder !== null || maxOrder !== null) {
           var oid = bucketOrder[p.bucket];
@@ -907,12 +888,6 @@
     }
 
     /* ================= 渲染 ================= */
-    function reorderTagClass(note) {
-      if (note === '在途') return 'tag-info';
-      if (!note) return 'tag-neutral';
-      return 'tag-warn';
-    }
-
     function renderKpis(model) {
       $('kpiDate').textContent = keyToIso(state.baseKey) || '—';
       $('kpiSku').textContent = fmtInt(model.filtered.length);
@@ -939,17 +914,6 @@
       prodList.sort(function (a, b) { return a.localeCompare(b, 'zh'); });
       $('productionSel').innerHTML = ['全部'].concat(prodList).map(function (n) {
         return '<option value="' + escapeHtml(n) + '"' + (state.productionNote === n ? ' selected' : '') + '>' + escapeHtml(n) + '</option>';
-      }).join('');
-
-      var notes = Array.from(new Set(state.products.map(function (p) { return p.reorderNote || '未设置'; })));
-      var order = ['在途', '50ml等设计', '等50ml一起', '未设置'];
-      notes.sort(function (a, b) {
-        var ia = order.indexOf(a), ib = order.indexOf(b);
-        if (ia < 0) ia = 90; if (ib < 0) ib = 90;
-        return ia === ib ? a.localeCompare(b, 'zh') : ia - ib;
-      });
-      $('reorderSel').innerHTML = ['全部'].concat(notes).map(function (n) {
-        return '<option value="' + escapeHtml(n) + '"' + (state.reorderNote === n ? ' selected' : '') + '>' + escapeHtml(n) + '</option>';
       }).join('');
 
       var partOpts = state.parts.map(function (p, i) { return { idx: i, label: p.label }; });
@@ -991,7 +955,7 @@
       var filled = model.parts.filter(function (p) { return p.rows.length > 0; });
       if (!filled.length) {
         host.innerHTML = '<section class="panel"><div class="empty-state" style="border:none;padding:28px 12px;margin:0;">'
-          + '<h2>当前筛选条件下没有商品</h2><p>请调整分类或补单备注筛选。</p></div></section>';
+          + '<h2>当前筛选条件下没有商品</h2><p>请调整分类、生产备注或售罄月份范围筛选。</p></div></section>';
         return;
       }
       host.innerHTML = filled.map(function (p) {
@@ -999,9 +963,6 @@
           var img = r.imageUrl
             ? '<img class="thumb" src="' + r.imageUrl + '" alt="' + escapeHtml(r.cleanName) + '" loading="lazy">'
             : '<div class="thumb empty">无图</div>';
-          var note = r.reorderNote
-            ? '<span class="tag ' + reorderTagClass(r.reorderNote) + '">' + escapeHtml(r.reorderNote) + '</span>'
-            : '<span class="zero">—</span>';
           var price = r.retailPrice === null || !isFinite(r.retailPrice) ? '<span class="zero">—</span>' : fmtPrice(r.retailPrice);
           var dateText = r.bucket === 'nosales'
             ? '<span class="zero">不售罄</span>'
@@ -1021,7 +982,6 @@
             + '<td>' + fmtMonths(r.months) + '</td>'
             + '<td>' + dateText + '</td>'
             + '<td>' + remain + '</td>'
-            + '<td>' + note + '</td>'
             + '</tr>';
         }).join('');
 
@@ -1045,7 +1005,6 @@
           + '<th scope="col">库存月</th>'
           + '<th scope="col">预计售罄日期</th>'
           + '<th scope="col">剩余天数</th>'
-          + '<th scope="col">补单备注</th>'
           + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
           + '</section>';
       }).join('');
@@ -1079,7 +1038,6 @@
       $('fileInput').addEventListener('change', handleFile);
       $('categorySel').addEventListener('change', function () { state.category = this.value; renderAll(); });
       $('productionSel').addEventListener('change', function () { state.productionNote = this.value; renderAll(); });
-      $('reorderSel').addEventListener('change', function () { state.reorderNote = this.value; renderAll(); });
       $('monthFromSel').addEventListener('change', function () {
         var v = parseInt(this.value, 10);
         if (isNaN(v)) v = -1;
@@ -1167,7 +1125,6 @@
       state.parts = result.parts;
       state.category = '全部';
       state.productionNote = '全部';
-      state.reorderNote = '全部';
       state.monthFromIdx = -1;
       state.monthToIdx = -1;
       state.loaded = true;

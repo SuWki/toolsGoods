@@ -4628,13 +4628,13 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
         `;
       } else if (state.activeTab === "sellOut") {
         titleEl.textContent = "商品售罄预估看板";
-        subtitleEl.textContent = "售罄预估模式：在右侧看板内上传《商品售罄预估数据源》（《商品总览》工作表），按「今年库存月」预估每款商品的售罄月份，展示未来一年内各月售罄的商品（图片、品名、规格、分类），支持按分类与补单备注筛选，并统计各月份的库存数量与占比。";
+        subtitleEl.textContent = "售罄预估模式：在右侧看板内上传《商品售罄预估数据源》（《商品总览》工作表），按「今年库存月」预估每款商品的售罄月份，展示未来一年内各月售罄的商品（图片、品名、规格、分类），支持按分类与生产备注筛选，并统计各月份的库存数量与占比。";
         notesEl.innerHTML = `
           <div class="note">1. 点击看板内「上传数据源」选择 Excel 文件，需包含《商品总览》工作表。</div>
           <div class="note">2. 预计售罄日期 = 数据日期（表头日期）+ 今年库存月 × 30 天；库存月为 0 归入「已售罄」。</div>
           <div class="note">3. 未来 12 个月按月分组，超出一年归入「12 个月以后」；今年日销系数为 0 的商品归入「无销量」，不参与售罄预估。</div>
           <div class="note">4. 每个月度部分都统计库存数量与库存占比（该月库存 ÷ 当前筛选下全部商品库存总量）。</div>
-          <div class="note">5. 在途库存仅作提示，不计入售罄时间；补单备注为空时归入「未设置」。</div>
+          <div class="note">5. 在途库存仅作提示，不计入售罄时间；生产备注为空时归入「未设置」。</div>
           <div class="note">6. 品名自动省略「BLACK PAW / 黑爪」字样；商品图片来自 Excel 内嵌图片，本地解析。</div>
           <div class="note">7. 数据仅在本地浏览器解析，不会上传服务器。</div>
         `;
