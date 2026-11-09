@@ -365,7 +365,7 @@
             <h1>库存分析看板</h1>
             <p class="report-intro__summary">
               上传两个时间点的库存明细（期初 / 期末）与商品信息主数据，对比库存变化，输出售罄率、库存周转率与周转天数、动销率、
-              新增 / 清空 SKU、滞销与断货风险、库存金额与品类结构；商品信息字段可用于多选筛选并随明细导出 Excel。
+              新增 / 清空 SKU、滞销与断货风险、库存金额与品类结构；商品信息字段可用于多选筛选并随明细导出 Excel。金额默认按零售价计算（非成本），库存文件无价格时自动用商品信息零售价回填。
             </p>
           </div>
           <div class="intro-actions">
@@ -542,10 +542,12 @@
               </ul>
               <h4>库存金额与结构</h4>
               <ul>
-                <li>单价优先取期末文件对应列，缺失时回退期初文件；表头含「成本 / 进价 / 采购价」识别为成本价，其余识别为零售价，可在上传卡手动改。</li>
-                <li><span class="formula">库存金额 = 库存数量 × 单价</span>；两个时点使用同一单价，金额变化只反映数量变化。</li>
-                <li>未识别到单价列时不展示金额类指标，结构图按库存数量展示；部分 SKU 缺单价时金额为已覆盖部分，KPI 会提示覆盖率。</li>
-                <li>金额占比 = 某品类期末金额 ÷ 全部品类期末金额。</li>
+                <li><span class="formula">库存金额 = 库存数量 × 单价</span>；<b>默认按零售价口径计算，非成本</b>。期初、期末使用同一单价，金额变化只反映数量变化。</li>
+                <li>单价来源优先级：① 库存文件自带的有效单价（&gt; 0，期末优先、缺失回退期初）；② 库存文件无有效价格时，自动回填商品信息的价格字段（默认优先零售价 / 吊牌价 / 售价，其次单价，最后才是成本 / 进价）。</li>
+                <li>商品信息价格列会做清洗：去除「¥ / ￥ / 元 / RMB」、千分位、空格与全角数字；空值、<code>#N/A</code> 等无法解析的计为「价格缺失」，在结果页提示数量，其金额不计入合计。</li>
+                <li>商品信息同时存在零售价与成本价时默认取零售价，可在上传卡手动切换；若切到成本价，页面与导出会标注为成本口径。</li>
+                <li>未识别到任何有效价格时不展示金额类指标，结构图按库存数量展示；部分 SKU 缺价格时金额为已覆盖部分，KPI 与明细脚注会提示覆盖率和缺失数量。</li>
+                <li>金额占比 = 某品类期末金额 ÷ 全部品类期末金额；清空 SKU 的期初金额计入「清空金额（售罄金额）」。</li>
               </ul>
               <h4>商品信息（商品主数据）</h4>
               <ul>
@@ -723,6 +725,49 @@
       var m = String(v).replace(/,/g, '').replace(/[¥￥元]/g, '').trim().match(/-?\d+(?:\.\d+)?/);
       if (!m) return null;
       return Number(m[0]);
+    }
+    /* 价格清洗：兼容文本、货币符号、千分位、全角数字、空格；#N/A、空值返回 null */
+    function parseMoney(v) {
+      if (v === null || v === undefined) return null;
+      if (typeof v === 'number') return isFinite(v) ? v : null;
+      var s = String(v);
+      if (typeof v === 'object') return null;
+      var compact = s.replace(/[\s\u00A0\u3000]/g, '');
+      if (!compact || /^(#|n\/?a|null|nan|undefined|--?|—+)/i.test(compact)) return null;
+      s = compact
+        .replace(/[０-９]/g, function (ch) { return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); })
+        .replace(/[．]/g, '.')
+        .replace(/[,，]/g, '')
+        .replace(/(RMB|CNY)/gi, '')
+        .replace(/[¥￥$元圆]/g, '');
+      var m = s.match(/-?\d+(?:\.\d+)?/);
+      if (!m) return null;
+      var n = Number(m[0]);
+      if (!isFinite(n) || n < 0) return null;
+      return n;
+    }
+    function validPrice(n) {
+      return n != null && isFinite(n) && n > 0;
+    }
+    function isCostHeader(h) {
+      return /成本|进价|进货|采购/.test(normHeader(h));
+    }
+    function isRetailHeader(h) {
+      return /零售|吊牌|指导价|售价/.test(normHeader(h)) && !isCostHeader(h);
+    }
+    /* 商品信息价格列优选：零售/吊牌/售价 > 单价/会员价 > 成本/进价/采购 */
+    function pickMasterPriceIndex(headers) {
+      var best = -1, bestRank = 99;
+      (headers || []).forEach(function (h, i) {
+        if (!h) return;
+        var nh = normHeader(h);
+        var rank = 99;
+        if (isCostHeader(h)) rank = 3;
+        else if (isRetailHeader(h)) rank = 1;
+        else if (/单价|价格|会员价/.test(nh)) rank = 2;
+        if (rank < bestRank) { bestRank = rank; best = i; }
+      });
+      return bestRank < 99 ? best : -1;
     }
     function cellText(v) {
       if (v === null || v === undefined) return '';
@@ -907,6 +952,7 @@
       fs.headerRow = detected.header ? detected.header.row : 0;
       fs.headers = detected.header ? detected.header.headers : [];
       fs.mapping = detected.header ? detected.header.mapping : {};
+      if (fs.kind === 'master') fs.mapping.price = pickMasterPriceIndex(fs.headers);
     }
 
     function refreshSheet(fs) {
@@ -916,6 +962,7 @@
       fs.headerRow = header.row;
       fs.headers = header.headers;
       fs.mapping = header.mapping;
+      if (fs.kind === 'master') fs.mapping.price = pickMasterPriceIndex(fs.headers);
     }
 
     function refreshHeaderRow(fs) {
@@ -924,6 +971,7 @@
       var row = sheet.rows[fs.headerRow] || [];
       fs.headers = row.map(cellText);
       fs.mapping = mapColumns(fs.headers);
+      if (fs.kind === 'master') fs.mapping.price = pickMasterPriceIndex(fs.headers);
     }
 
     /* ================= 渲染文件卡 ================= */
@@ -1046,9 +1094,13 @@
             var label = colLetter(i) + ' · ' + (h === '' ? '(空)' : h);
             return '<option value="' + i + '"' + (i === current ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
           }).join('');
-        var hint = f.key === 'sku' ? '主键：优先按货号/SKU/商品编码匹配，未命中时用条码、品名+规格兜底' : f.hint;
+        var isPrice = f.key === 'price';
+        var hint = f.key === 'sku'
+          ? '主键：优先按货号/SKU/商品编码匹配，未命中时用条码、品名+规格兜底'
+          : (isPrice ? '默认优先零售价（零售/吊牌/售价），其次单价，最后成本价；手动改选后按所选口径计算并标注' : f.hint);
+        var label = f.key === 'sku' ? '主键（货号/SKU）' : (isPrice ? '价格字段（默认零售价）' : f.label);
         return '<div class="map-item">' +
-          '<div class="f-label">' + (f.key === 'sku' ? '主键（货号/SKU）' : escapeHtml(f.label)) +
+          '<div class="f-label">' + escapeHtml(label) +
           (f.key === 'sku' ? '<span class="req">*</span>' : '') +
           '<span class="hint" title="' + escapeHtml(hint) + '">i</span></div>' +
           '<select class="f-select" data-map="' + f.key + '" data-kind="master">' + options + '</select>' +
@@ -1063,11 +1115,16 @@
       if (loaded && parsed && !parsed.list.length) {
         warn = '<div class="map-warn">商品信息没有解析到有效数据行，请检查工作表、表头行与主键映射。</div>';
       }
+      var priceIdx = fs.mapping.price >= 0 ? fs.mapping.price : -1;
+      var priceHeader = priceIdx >= 0 ? (allHeaders[priceIdx] || '') : '';
+      if (loaded && priceHeader && isCostHeader(priceHeader)) {
+        warn += '<div class="map-warn">当前价格字段「' + escapeHtml(priceHeader) + '」属于成本 / 进价口径，金额将按成本价计算；如需零售金额，请在下方改选零售价列。</div>';
+      }
 
       var previewHtml = '';
       if (parsed && parsed.list.length) {
         previewHtml = '<div class="preview-wrap"><table class="mini-table"><thead><tr>' +
-          '<th>主键</th><th>品名</th><th>规格</th><th>品类</th><th style="text-align:right;">单价</th>' +
+          '<th>主键</th><th>品名</th><th>规格</th><th>品类</th><th style="text-align:right;">' + (priceHeader ? escapeHtml(priceHeader) : '单价') + '</th>' +
           '</tr></thead><tbody>' +
           parsed.list.slice(0, PREVIEW_ROWS).map(function (r) {
             return '<tr><td>' + escapeHtml(r.sku || '—') + '</td><td>' + escapeHtml(r.name || '—') + '</td><td>' + escapeHtml(r.spec || '—') +
@@ -1082,6 +1139,7 @@
           '<span>唯一主键 <b>' + fmtInt(parsed.list.length) + '</b></span>' +
           '<span>数据行 <b>' + fmtInt(parsed.totalRows) + '</b></span>' +
           '<span>字段 <b>' + fmtInt(allHeaders.filter(Boolean).length) + '</b></span>' +
+          (priceHeader ? '<span>价格字段 <b>' + escapeHtml(priceHeader) + '</b></span>' : '<span>价格字段 <b>未指定</b></span>') +
           (parsed.duplicateCount ? '<span style="color:#9A6B00;">主键重复 <b>' + fmtInt(parsed.duplicateCount) + '</b>（保留首条）</span>' : '') +
           '</div>';
       }
@@ -1146,7 +1204,7 @@
         var name = map.name >= 0 ? cleanProductName(cellText(row[map.name])) : '';
         var spec = map.spec >= 0 ? cellText(row[map.spec]) : '';
         var category = map.category >= 0 ? cellText(row[map.category]) : '';
-        var price = map.price >= 0 ? parseNum(row[map.price]) : null;
+        var price = map.price >= 0 ? parseMoney(row[map.price]) : null;
         if (!sku && !name) continue;
 
         var display = {};
@@ -1216,8 +1274,8 @@
         var spec = map.spec >= 0 ? cellText(row[map.spec]) : '';
         var category = map.category >= 0 ? cellText(row[map.category]) : '';
         var qtyRaw = map.qty >= 0 ? parseNum(row[map.qty]) : null;
-        var price = map.price >= 0 ? parseNum(row[map.price]) : null;
-        var amount = map.amount >= 0 ? parseNum(row[map.amount]) : null;
+        var price = map.price >= 0 ? parseMoney(row[map.price]) : null;
+        var amount = map.amount >= 0 ? parseMoney(row[map.amount]) : null;
 
         if (!sku && !name) { skipped++; continue; }
         var qty = qtyRaw == null ? 0 : qtyRaw;
@@ -1296,7 +1354,7 @@
           masterInfo.duplicateCount = master.duplicateCount;
           masterInfo.fieldCount = (masterFs.headers || []).filter(Boolean).length;
 
-          var roleIdx = [masterFs.mapping.sku, masterFs.mapping.name, masterFs.mapping.spec, masterFs.mapping.category].filter(function (i) { return i >= 0; });
+          var roleIdx = [masterFs.mapping.sku, masterFs.mapping.name, masterFs.mapping.spec, masterFs.mapping.category, masterFs.mapping.price].filter(function (i) { return i >= 0; });
           masterExtraHeaders = (masterFs.headers || []).filter(function (h, i) { return h && roleIdx.indexOf(i) < 0; });
 
           var matchedItems = [];
@@ -1313,6 +1371,17 @@
           masterInfo.matched = matchedItems.length;
           masterInfo.unmatched = unmatchedItems.length;
           masterInfo.total = items.length;
+          var mPriceIdx = masterFs.mapping.price >= 0 ? masterFs.mapping.price : -1;
+          masterInfo.priceHeader = mPriceIdx >= 0 ? ((masterFs.headers || [])[mPriceIdx] || '') : '';
+          masterInfo.priceKind = masterInfo.priceHeader ? (isCostHeader(masterInfo.priceHeader) ? 'cost' : 'retail') : '';
+          masterInfo.priceFromInventory = 0;
+          masterInfo.priceFromMaster = 0;
+          masterInfo.priceMissing = 0;
+          matchedItems.forEach(function (it) {
+            if (it.priceSource === 'master') masterInfo.priceFromMaster++;
+            else if (it.priceSource === 'inventory') masterInfo.priceFromInventory++;
+            else masterInfo.priceMissing++;
+          });
           masterInfo.unmatchedList = unmatchedItems.map(function (it) {
             return { sku: it.sku || '', name: it.name || '', spec: it.spec || '', beginQty: it.beginQty, endQty: it.endQty };
           });
@@ -1334,7 +1403,7 @@
         periodDays: periodDays,
         beginDate: state.files.begin.date,
         endDate: state.files.end.date,
-        priceKind: resolvePriceKind(),
+        priceKind: resolvePriceKind(masterInfo, beginParsed.rows.some(function (r) { return validPrice(r.price); }) || endParsed.rows.some(function (r) { return validPrice(r.price); })),
         parsedBegin: beginParsed.rows.length,
         parsedEnd: endParsed.rows.length,
         skippedBegin: beginParsed.skipped,
@@ -1352,10 +1421,19 @@
       if (rec.name) it.name = rec.name;
       if (rec.spec) it.spec = rec.spec;
       if (rec.category) it.category = rec.category;
-      if (it.price == null && rec.price != null) {
+      /* 价格规则：库存文件自带有效单价优先；缺失或 ≤0 时回填商品信息价格列（默认零售价） */
+      if (validPrice(it.price)) {
+        it.priceSource = 'inventory';
+      } else if (validPrice(rec.price)) {
         it.price = rec.price;
+        it.priceSource = 'master';
         it.beginAmount = it.beginQty * rec.price;
         it.endAmount = it.endQty * rec.price;
+      } else {
+        it.price = null;
+        it.priceSource = '';
+        it.beginAmount = null;
+        it.endAmount = null;
       }
     }
 
@@ -1458,6 +1536,8 @@
         decreaseQty: 0,
         increaseAmount: 0,
         decreaseAmount: 0,
+        clearedAmount: 0,
+        newAmount: 0,
         slowCount: 0,
         stockoutCount: 0,
         hasPrice: false
@@ -1474,13 +1554,15 @@
         if (it.changeQty < 0) t.decreaseQty += -it.changeQty;
         if (it.slow) t.slowCount++;
         if (it.stockout) t.stockoutCount++;
-        if (it.price != null) {
+        if (validPrice(it.price)) {
           t.pricedCount++;
           t.hasPrice = true;
           t.beginAmount += it.price * it.beginQty;
           t.endAmount += it.price * it.endQty;
           if (it.changeQty > 0) t.increaseAmount += it.price * it.changeQty;
           if (it.changeQty < 0) t.decreaseAmount += it.price * -it.changeQty;
+          if (it.status === '清空') t.clearedAmount += it.price * it.beginQty;
+          if (it.status === '新增') t.newAmount += it.price * it.endQty;
         }
       });
       t.avgStock = (t.beginQty + t.endQty) / 2;
@@ -1489,6 +1571,7 @@
       t.turnDays = (t.turnover != null && t.turnover > 0) ? periodDays / t.turnover : null;
       t.activeRate = t.beginPositiveCount > 0 ? t.activeCount / t.beginPositiveCount : null;
       t.priceCoverage = t.skuCount > 0 ? t.pricedCount / t.skuCount : 0;
+      t.priceMissing = t.skuCount - t.pricedCount;
       return t;
     }
 
@@ -1509,7 +1592,7 @@
       return list;
     }
 
-    function resolvePriceKind() {
+    function resolvePriceKind(masterInfo, inventoryHasPrice) {
       var kinds = [state.files.end, state.files.begin].map(function (fs) {
         if (!fs.loaded || fs.mapping.price < 0) return null;
         if (fs.priceKind === 'retail' || fs.priceKind === 'cost') return fs.priceKind;
@@ -1517,6 +1600,8 @@
         if (/成本|进价|进货|采购/.test(header)) return 'cost';
         return 'retail';
       }).filter(Boolean);
+      if (!inventoryHasPrice) kinds = [];
+      if (masterInfo && masterInfo.priceFromMaster > 0 && masterInfo.priceKind) kinds.push(masterInfo.priceKind);
       if (kinds.indexOf('cost') >= 0 && kinds.indexOf('retail') < 0) return 'cost';
       if (kinds.indexOf('cost') >= 0 && kinds.indexOf('retail') >= 0) return 'mixed';
       return 'retail';
@@ -1550,7 +1635,8 @@
       var info = model.masterInfo || {};
       if (!info.loaded) {
         el.className = 'match-banner warn';
-        el.innerHTML = '<span class="icon">!</span><div><b>未上传商品信息：</b>当前按全部库存商品分析，未启用主数据匹配过滤。上传商品信息后，仅保留能匹配上的商品，并可按品牌、分类、规格、状态等字段筛选。</div>';
+        el.innerHTML = '<span class="icon">!</span><div><b>未上传商品信息：</b>当前按全部库存商品分析，未启用主数据匹配过滤。上传商品信息后，仅保留能匹配上的商品，并可按品牌、分类、规格、状态等字段筛选。' +
+          (model.totals.hasPrice ? '' : '<br>当前库存文件未识别到有效价格，金额类指标不展示；上传商品信息后将按零售价回填金额。') + '</div>';
         return;
       }
       if (!info.valid) {
@@ -1567,6 +1653,10 @@
           (samples.length ? '（示例：' + escapeHtml(samples.join('、')) + '）' : '') + '。';
       } else {
         msg += '；全部库存 SKU 均已匹配。';
+      }
+      msg += '<br>金额口径：' + escapeHtml(moneyBasisText(model)) + '。';
+      if (info.priceKind === 'cost') {
+        msg += ' 当前商品信息所选价格字段疑似<b>成本/进价</b>，如需零售金额请在商品信息卡改选零售价列。';
       }
       msg += '</div>';
       el.className = 'match-banner' + (info.unmatched ? ' warn' : '');
@@ -1614,11 +1704,24 @@
       });
     }
 
+    function moneyBasisText(model) {
+      var t = model.totals;
+      if (!t.hasPrice) return '未识别到有效价格，金额类指标不展示';
+      var parts = [model.priceKind === 'retail' ? '金额按零售价计算，非成本' : '金额按' + priceKindLabel(model.priceKind) + '计算'];
+      parts.push('单价覆盖 ' + (t.priceCoverage * 100).toFixed(0) + '%');
+      var mi = model.masterInfo;
+      if (mi && mi.loaded && mi.valid) {
+        if (mi.priceFromMaster > 0) parts.push('商品信息回填 ' + fmtInt(mi.priceFromMaster) + ' 个');
+        if (mi.priceMissing > 0) parts.push('价格缺失 ' + fmtInt(mi.priceMissing) + ' 个（金额未计入合计）');
+      } else if (t.priceMissing > 0) {
+        parts.push('价格缺失 ' + fmtInt(t.priceMissing) + ' 个（金额未计入合计）');
+      }
+      return parts.join(' · ');
+    }
+
     function renderKpis(model) {
       var t = model.totals;
-      var priceNote = t.hasPrice
-        ? (priceKindLabel(model.priceKind) + ' · 单价覆盖 ' + (t.priceCoverage * 100).toFixed(0) + '%')
-        : '未识别到单价列，金额类指标不展示';
+      var priceNote = moneyBasisText(model);
       var html = [
         kpiCard('期初库存', fmtInt(t.beginQty) + ' <em>件</em>', model.beginDate || '—', ''),
         kpiCard('期末库存', fmtInt(t.endQty) + ' <em>件</em>', model.endDate || '—', ''),
@@ -1630,7 +1733,7 @@
         kpiCard('期末库存金额', t.hasPrice ? fmtMoney(t.endAmount) : '未提供单价', priceNote, t.hasPrice ? '' : 'is-warn'),
         kpiCard('库存增加', fmtInt(t.increaseQty) + ' <em>件</em>', t.hasPrice ? '增加金额 ' + fmtMoney(t.increaseAmount) : '金额未提供单价', ''),
         kpiCard('库存减少', fmtInt(t.decreaseQty) + ' <em>件</em>', t.hasPrice ? '减少金额 ' + fmtMoney(t.decreaseAmount) : '金额未提供单价', ''),
-        kpiCard('新增 / 清空 SKU', fmtInt(t.newCount) + ' / ' + fmtInt(t.clearedCount), '新增 ' + fmtInt(t.newCount) + ' 款 · 清空 ' + fmtInt(t.clearedCount) + ' 款', ''),
+        kpiCard('新增 / 清空 SKU', fmtInt(t.newCount) + ' / ' + fmtInt(t.clearedCount), '新增 ' + fmtInt(t.newCount) + ' 款 · 清空 ' + fmtInt(t.clearedCount) + ' 款' + (t.hasPrice ? ' · 清空金额 ' + fmtMoney(t.clearedAmount) : ''), ''),
         kpiCard('滞销 / 断货风险', fmtInt(t.slowCount) + ' / ' + fmtInt(t.stockoutCount), '阈值 ' + state.thresholds.slow + ' 天 / ' + state.thresholds.stockout + ' 天', (t.slowCount || t.stockoutCount) ? 'is-danger' : 'is-good')
       ];
       $('kpiGrid').innerHTML = html.join('');
@@ -1872,7 +1975,10 @@
       var extras = (model.masterExtraHeaders || []).map(function (h) {
         return { key: 'M:' + h, label: h, type: 'text', info: true, master: true };
       });
-      return BASE_DETAIL_COLS.slice(0, -2).concat(extras, BASE_DETAIL_COLS.slice(-2));
+      var cols = BASE_DETAIL_COLS.slice();
+      if (model.priceKind === 'retail') cols[11] = { key: 'price', label: '零售单价', type: 'money2' };
+      else if (model.priceKind === 'cost') cols[11] = { key: 'price', label: '成本单价', type: 'money2' };
+      return cols.slice(0, -2).concat(extras, cols.slice(-2));
     }
 
     function masterFilterPass(it) {
@@ -1966,8 +2072,13 @@
         if (model.masterInfo.unmatched) footnote += '，未匹配 ' + fmtInt(model.masterInfo.unmatched) + ' 个已排除';
         footnote += '；品名/规格/品类使用主数据，主数据其余字段已追加到明细列。';
       }
-      if (!model.totals.hasPrice) footnote += ' 未识别到单价列，金额与金额结构不展示。';
-      else if (model.totals.priceCoverage < 1) footnote += ' 单价覆盖 ' + (model.totals.priceCoverage * 100).toFixed(0) + '%，部分 SKU 金额缺失。';
+      if (!model.totals.hasPrice) footnote += ' 未识别到有效价格，金额与金额结构不展示。';
+      else {
+        footnote += ' 金额按' + priceKindLabel(model.priceKind) + '计算' + (model.priceKind === 'retail' ? '（零售口径，非成本）' : '') + '。';
+        var priceMissing = (model.masterInfo && model.masterInfo.loaded && model.masterInfo.valid) ? model.masterInfo.priceMissing : model.totals.priceMissing;
+        if (priceMissing > 0) footnote += ' 价格缺失 ' + fmtInt(priceMissing) + ' 个 SKU，其金额未计入合计。';
+        else if (model.totals.priceCoverage < 1) footnote += ' 单价覆盖 ' + (model.totals.priceCoverage * 100).toFixed(0) + '%，部分 SKU 金额缺失。';
+      }
       footnote += ' 库存天数 ∞ 表示期间无动销。';
       $('detailFootnote').textContent = footnote;
     }
@@ -1998,7 +2109,7 @@
         case 'stockDays':
           return '<td>' + fmtDays(it.stockDays) + '</td>';
         case 'price':
-          return '<td>' + (it.price == null ? '—' : fmtNum(it.price, 2)) + '</td>';
+          return '<td>' + (validPrice(it.price) ? fmtNum(it.price, 2) : (it.masterMatched ? '<span class="zero" title="库存文件与商品信息均无有效价格">缺失</span>' : '—')) + '</td>';
         case 'beginAmount':
           return '<td>' + (it.beginAmount == null ? '—' : fmtNum(it.beginAmount, 2)) + '</td>';
         case 'endAmount':
@@ -2345,6 +2456,17 @@
           ['商品信息匹配', m.masterInfo && m.masterInfo.loaded && m.masterInfo.valid
             ? ('已匹配 ' + m.masterInfo.matched + ' 个 SKU，未匹配 ' + m.masterInfo.unmatched + ' 个（已排除）')
             : '未启用'],
+          ['商品信息价格字段', m.masterInfo && m.masterInfo.loaded && m.masterInfo.valid && m.masterInfo.priceHeader
+            ? m.masterInfo.priceHeader
+            : '未指定'],
+          ['金额口径', t.hasPrice
+            ? (priceKindLabel(m.priceKind) + (m.priceKind === 'retail' ? '（零售口径，非成本）' : '') + '；库存文件有效单价优先，缺失时回填商品信息价格')
+            : '未识别到有效价格，金额类指标不展示'],
+          ['价格回填 / 缺失', t.hasPrice
+            ? ('商品信息回填 ' + (m.masterInfo && m.masterInfo.loaded ? m.masterInfo.priceFromMaster : 0) +
+              ' 个；库存文件自带 ' + (m.masterInfo && m.masterInfo.loaded ? m.masterInfo.priceFromInventory : t.pricedCount) +
+              ' 个；价格缺失 ' + (m.masterInfo && m.masterInfo.loaded ? m.masterInfo.priceMissing : t.priceMissing) + ' 个（金额未计入）')
+            : '—'],
           [],
           ['核心假设', '以「期初库存 − 期末库存」的净减少量估算期间销量；净减少 = 销售 − 补货。若期间有补货或其他入库，会低估销量、售罄率与库存周转率。'],
           [],
@@ -2360,10 +2482,11 @@
           ['清空 SKU 数', t.clearedCount, '期初有库存、期末无库存'],
           ['净增加数量（件）', t.increaseQty, 'Σ max(0, 期末 − 期初)'],
           ['净减少数量（件）', t.decreaseQty, 'Σ max(0, 期初 − 期末)'],
-          ['期末库存金额', t.hasPrice ? t.endAmount : '未提供单价', '数量 × 单价（' + priceKindLabel(m.priceKind) + '）'],
-          ['期初库存金额', t.hasPrice ? t.beginAmount : '未提供单价', '数量 × 单价（' + priceKindLabel(m.priceKind) + '）'],
+          ['期末库存金额', t.hasPrice ? t.endAmount : '未提供单价', '数量 × 单价（' + priceKindLabel(m.priceKind) + (m.priceKind === 'retail' ? '，非成本' : '') + '）'],
+          ['期初库存金额', t.hasPrice ? t.beginAmount : '未提供单价', '数量 × 单价（' + priceKindLabel(m.priceKind) + (m.priceKind === 'retail' ? '，非成本' : '') + '）'],
           ['金额增加', t.hasPrice ? t.increaseAmount : '未提供单价', 'Σ 增加数量 × 单价'],
           ['金额减少', t.hasPrice ? t.decreaseAmount : '未提供单价', 'Σ 减少数量 × 单价'],
+          ['清空金额（售罄金额）', t.hasPrice ? t.clearedAmount : '未提供单价', '清空 SKU 的期初数量 × 单价'],
           ['滞销 SKU 数', t.slowCount, '阈值为库存天数 > ' + state.thresholds.slow + ' 天'],
           ['断货风险 SKU 数', t.stockoutCount, '阈值为库存天数 < ' + state.thresholds.stockout + ' 天或期末 ≤ 0'],
           ['单价覆盖率', fmtPct(t.priceCoverage), '有单价的 SKU ÷ 全部 SKU']
@@ -2386,7 +2509,7 @@
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(catRows), '品类汇总');
 
         var extraHeaders = m.masterExtraHeaders || [];
-        var detailHead = ['SKU/条码', '品名', '规格', '品类', '期初库存', '期末库存', '净减少(估算销量)', '售罄率(%)', '平均库存', '周转率', '周转天数', '库存天数', '单价', '期初金额', '期末金额']
+        var detailHead = ['SKU/条码', '品名', '规格', '品类', '期初库存', '期末库存', '净减少(估算销量)', '售罄率(%)', '平均库存', '周转率', '周转天数', '库存天数', m.priceKind === 'retail' ? '零售单价' : (m.priceKind === 'cost' ? '成本单价' : '单价'), '期初金额', '期末金额']
           .concat(extraHeaders)
           .concat(['状态', '风险']);
         var detailRows = [detailHead];
@@ -2399,7 +2522,7 @@
             it.turnover == null ? '' : Number(it.turnover.toFixed(2)),
             it.turnDays == null ? '' : Math.round(it.turnDays),
             it.stockDays === Infinity ? '∞' : Math.round(it.stockDays),
-            it.price == null ? '' : it.price,
+            validPrice(it.price) ? it.price : '',
             it.beginAmount == null ? '' : Number(it.beginAmount.toFixed(2)),
             it.endAmount == null ? '' : Number(it.endAmount.toFixed(2))
           ];
@@ -2431,7 +2554,8 @@
           ['库存天数', '期末库存 × 期间天数 ÷ 净减少；净减少 ≤ 0 记为 ∞。'],
           ['滞销判定', '期末库存 > 0 且（净减少 ≤ 0 或 库存天数 > ' + state.thresholds.slow + ' 天）。'],
           ['断货判定', '期初有库存但期末 ≤ 0；或期末 > 0 且库存天数 < ' + state.thresholds.stockout + ' 天。'],
-          ['金额口径', '库存金额 = 数量 × 单价；单价优先取期末文件，缺失回退期初；单价类型：' + priceKindLabel(m.priceKind) + '。'],
+          ['金额口径', '库存金额 = 数量 × 单价；单价优先取库存文件的有效价格（> 0，期末优先、缺失回退期初），库存文件无有效价格时回填商品信息价格字段（默认零售价）。单价类型：' + priceKindLabel(m.priceKind) + (m.priceKind === 'retail' ? '（零售口径，非成本）' : '') + '。'],
+          ['价格缺失处理', '商品信息价格列已清洗 ¥/￥/元/RMB、千分位、空格与全角数字；空值、#N/A 等无法解析的计为价格缺失，其金额不计入合计，结果页与总览会提示数量。'],
           ['商品信息匹配', '上传商品信息后，仅分析能在主数据中匹配上的商品：优先按货号/SKU/商品编码，未命中时用条码、品名+规格兜底；未匹配商品从指标与明细中排除，并在「未匹配商品」工作表列出。'],
           ['商品信息字段', '主数据的品名、规格、品类用于覆盖库存明细对应字段，其余字段追加为明细列；商品信息所有字段均可作为多选筛选条件。'],
           ['数据过滤', '导出的 SKU 明细遵循当前筛选条件（含商品信息多选筛选）；表格页面仅展示前 ' + TABLE_LIMIT + ' 条。']
