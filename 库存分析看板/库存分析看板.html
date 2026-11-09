@@ -128,7 +128,7 @@
     .head-note b { color: var(--page-text-secondary); font-weight: 600; }
 
     /* === 文件上传卡 === */
-    .file-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+    .file-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
     .file-card {
       border: 1px solid var(--page-border); border-radius: var(--radius-lg);
       background: #FFFFFF; padding: var(--space-4); min-width: 0;
@@ -288,7 +288,57 @@
 
     [hidden] { display: none !important; }
 
+    /* === 商品信息筛选 === */
+    .master-filter-wrap { border-top: 1px dashed var(--page-border); margin-top: var(--space-3); padding-top: var(--space-3); }
+    .master-filter-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+    .mf-title { font-size: 13px; font-weight: 600; color: var(--page-text); display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .mf-hint { font-size: 11.5px; font-weight: 400; color: var(--page-text-muted); }
+    .mf-actions { display: flex; gap: 8px; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: var(--radius-sm); }
+    .master-filter-grid { margin-top: var(--space-2); display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--space-2); }
+    .ms { position: relative; min-width: 0; }
+    .ms[hidden] { display: none; }
+    .ms-toggle {
+      width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px;
+      padding: 6px 10px; border: 1px solid var(--page-border); border-radius: var(--radius-md);
+      background: #FFFFFF; font-size: 12.5px; color: var(--page-text-secondary); cursor: pointer; text-align: left;
+    }
+    .ms-toggle:hover { border-color: var(--page-brand); }
+    .ms.open .ms-toggle { border-color: var(--page-brand); color: var(--page-brand); }
+    .ms-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ms-count { margin-left: auto; font-size: 11px; color: var(--page-text-muted); white-space: nowrap; }
+    .ms.open .ms-count { color: var(--page-brand); }
+    .ms-panel {
+      position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; width: 260px;
+      background: #FFFFFF; border: 1px solid var(--page-border); border-radius: var(--radius-md);
+      box-shadow: 0 8px 24px rgba(31, 41, 55, .14); padding: 8px; display: none;
+    }
+    .ms.open .ms-panel { display: block; }
+    .ms-search { width: 100%; padding: 5px 8px; border: 1px solid var(--page-border); border-radius: var(--radius-sm); font-size: 12px; }
+    .ms-options { max-height: 232px; overflow: auto; margin: 6px 0; }
+    .ms-opt { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: var(--radius-sm); font-size: 12.5px; color: var(--page-text); cursor: pointer; }
+    .ms-opt:hover { background: var(--page-surface); }
+    .ms-opt input { flex: none; }
+    .ms-opt span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ms-opt em { margin-left: auto; font-style: normal; font-size: 11px; color: var(--page-text-disabled); flex: none; }
+    .ms-empty { padding: 8px 6px; font-size: 12px; color: var(--page-text-muted); text-align: center; }
+    .ms-actions { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--rule); padding-top: 6px; }
+    .ms-actions button {
+      padding: 3px 10px; border: 1px solid var(--page-border); background: #FFFFFF;
+      border-radius: var(--radius-sm); font-size: 12px; color: var(--page-text-secondary); cursor: pointer;
+    }
+    .ms-actions button:hover { border-color: var(--page-brand); color: var(--page-brand); }
+    .match-banner {
+      display: flex; align-items: flex-start; gap: 10px; margin-bottom: var(--space-4);
+      background: var(--info-soft); border: 1px solid var(--page-brand-soft-strong);
+      border-radius: var(--radius-lg); padding: 10px 16px; font-size: 12.5px; color: var(--page-brand-text);
+    }
+    .match-banner.warn { background: var(--warning-soft); border-color: #F0E4B8; color: #7A5B10; }
+    .match-banner b { font-weight: 700; }
+    .match-banner .icon { flex: none; font-weight: 700; }
+
     /* === 响应式 === */
+    @media (max-width: 1400px) { .file-grid { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 1240px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
     @media (max-width: 1024px) {
       .file-grid { grid-template-columns: 1fr; }
@@ -314,8 +364,8 @@
           <div>
             <h1>库存分析看板</h1>
             <p class="report-intro__summary">
-              上传两个时间点的库存明细（期初 / 期末），对比库存变化，输出售罄率、库存周转率与周转天数、动销率、
-              新增 / 清空 SKU、滞销与断货风险、库存金额与品类结构，并可导出 Excel。
+              上传两个时间点的库存明细（期初 / 期末）与商品信息主数据，对比库存变化，输出售罄率、库存周转率与周转天数、动销率、
+              新增 / 清空 SKU、滞销与断货风险、库存金额与品类结构；商品信息字段可用于多选筛选并随明细导出 Excel。
             </p>
           </div>
           <div class="intro-actions">
@@ -342,14 +392,15 @@
         <div class="banner error" id="errorBanner" hidden></div>
 
         <!-- 文件上传 -->
-        <section class="panel" aria-label="上传期初与期末库存文件">
+        <section class="panel" aria-label="上传期初、期末库存与商品信息文件">
           <div class="panel-head">
-            <h2>第一步：上传两个时点的库存明细</h2>
-            <div class="head-note">支持 .xlsx / .xls / .csv，可多工作表、表头不在第一行</div>
+            <h2>第一步：上传库存明细与商品信息</h2>
+            <div class="head-note">支持 .xlsx / .xls / .csv，可多工作表、表头不在第一行；商品信息可选，上传后本会话内缓存</div>
           </div>
           <div class="file-grid" id="filesGrid"></div>
           <input type="file" id="fileBegin" accept=".xlsx,.xls,.csv" hidden>
           <input type="file" id="fileEnd" accept=".xlsx,.xls,.csv" hidden>
+          <input type="file" id="fileMaster" accept=".xlsx,.xls,.csv" hidden>
         </section>
 
         <!-- 计算 -->
@@ -360,6 +411,7 @@
 
         <!-- 结果 -->
         <section id="resultRoot" hidden>
+          <div class="match-banner" id="matchBanner"></div>
           <section class="kpi-grid" id="kpiGrid" aria-label="核心指标卡片"></section>
 
           <div class="chart-grid" id="chartGrid">
@@ -402,6 +454,16 @@
             <div class="panel-head">
               <h2>SKU 明细</h2>
               <div class="head-note" id="detailMeta">—</div>
+            </div>
+            <div class="master-filter-wrap" id="masterFilterWrap" hidden>
+              <div class="master-filter-head">
+                <div class="mf-title">商品信息筛选<span class="mf-hint">同一字段内多选为 OR，不同字段与现有筛选为 AND</span></div>
+                <div class="mf-actions">
+                  <button class="btn btn-sm" id="btnMoreMasterFilters" type="button" hidden>更多筛选项</button>
+                  <button class="btn btn-sm" id="btnClearMasterFilters" type="button">清空商品筛选</button>
+                </div>
+              </div>
+              <div class="master-filter-grid" id="masterFilterGrid"></div>
             </div>
             <div class="filter-row">
               <div>
@@ -485,9 +547,17 @@
                 <li>未识别到单价列时不展示金额类指标，结构图按库存数量展示；部分 SKU 缺单价时金额为已覆盖部分，KPI 会提示覆盖率。</li>
                 <li>金额占比 = 某品类期末金额 ÷ 全部品类期末金额。</li>
               </ul>
+              <h4>商品信息（商品主数据）</h4>
+              <ul>
+                <li>商品信息为可选文件，用于限定分析范围并补充运营字段；上传后在当前页面会话内缓存，切换模块或重新计算无需重传，刷新页面后需重新上传。</li>
+                <li>匹配顺序：库存明细的货号 / SKU 先匹配商品信息的主键列（货号 / SKU / 商品编码），未命中再匹配条码，最后按「品名 + 规格」兜底；主键列可手动指定。</li>
+                <li>启用商品信息后，<b>仅分析能匹配上的商品</b>；未匹配数量会在结果页顶部提示，并在导出 Excel 的「未匹配商品」工作表中列出，不会被静默丢弃。</li>
+                <li>商品信息的主键、品名、规格、品类会覆盖库存明细对应字段，其余字段（条码、零售价、生产备注等）追加为明细列；全部字段均可作为多选筛选条件，与滞销 / 断货阈值、搜索等筛选为 AND 组合。</li>
+                <li>不区分大小写与首尾空格；主数据内主键重复时保留首条并在上传卡提示。</li>
+              </ul>
               <h4>商品匹配与字段识别</h4>
               <ul>
-                <li>优先按 SKU / 货号 / 条码匹配；无该类字段时按「品名 + 规格」匹配。同一文件内重复商品自动累加数量。</li>
+                <li>库存明细内部优先按 SKU / 货号 / 条码匹配；无该类字段时按「品名 + 规格」匹配。同一文件内重复商品自动累加数量。</li>
                 <li>自动识别工作表与表头行（扫描前 20 行），列名支持常见别名模糊匹配；识别不准可在上传卡手动指定。</li>
                 <li>品名自动省略「BLACK PAW / 黑爪」字样。</li>
               </ul>
@@ -502,6 +572,10 @@
             <p style="font-size:13px;color:var(--page-text-muted);max-width:72ch;margin:0 auto 8px;">
               系统会自动识别工作表、表头行和常见列名（货号 / SKU / 条码、品名、规格、品类、库存数量、单价）。
               识别结果会先展示，确认无误后再点击「确认并计算」。
+            </p>
+            <p style="font-size:13px;color:var(--page-text-muted);max-width:72ch;margin:0 auto 8px;">
+              可选上传「商品信息」作为主数据：上传后仅分析能按货号 / 条码 / 品名+规格匹配上的商品，
+              未匹配数量会在结果页提示；商品信息的全部字段可作为多选筛选条件，并随明细一起导出 Excel。
             </p>
             <p style="font-size:12.5px;color:var(--page-text-muted);">数据仅在本地浏览器解析，不会上传任何服务器。</p>
           </div>
@@ -567,7 +641,8 @@
     var state = {
       files: {
         begin: createEmptyFile('begin'),
-        end: createEmptyFile('end')
+        end: createEmptyFile('end'),
+        master: createEmptyFile('master')
       },
       result: null,
       filters: {
@@ -576,6 +651,8 @@
         risk: '全部',
         search: ''
       },
+      masterFilters: {},
+      showMoreMasterFilters: false,
       sort: { key: 'delta', dir: 'desc' },
       thresholds: { slow: 90, stockout: 14 }
     };
@@ -726,7 +803,7 @@
       return map;
     }
 
-    function detectHeader(rows) {
+    function detectHeader(rows, isMaster) {
       var best = { row: 0, headers: [], mapping: {}, score: -999 };
       var max = Math.min(20, rows.length);
       for (var i = 0; i < max; i++) {
@@ -737,27 +814,33 @@
         var mapping = mapColumns(headers);
         var score = 0;
         FIELD_DEFS.forEach(function (f) {
-          if (mapping[f.key] >= 0) score += (f.key === 'qty' ? 4 : (f.key === 'sku' ? 2 : 1));
+          if (mapping[f.key] >= 0) {
+            score += (f.key === 'sku' ? (isMaster ? 4 : 2) : (f.key === 'qty' ? 4 : 1));
+          }
         });
-        if (mapping.qty < 0) score -= 3;
-        if (mapping.sku < 0 && mapping.name < 0) score -= 3;
+        if (isMaster) {
+          if (mapping.sku < 0) score -= 3;
+        } else {
+          if (mapping.qty < 0) score -= 3;
+          if (mapping.sku < 0 && mapping.name < 0) score -= 3;
+        }
         if (score > best.score) best = { row: i, headers: headers, mapping: mapping, score: score };
       }
       return best;
     }
 
-    function detectSheet(sheets) {
+    function detectSheet(sheets, isMaster) {
       var best = { index: 0, header: null, score: -Infinity };
       sheets.forEach(function (sheet, idx) {
         if (!sheet.rows || sheet.rows.length < 2) return;
-        var header = detectHeader(sheet.rows);
+        var header = detectHeader(sheet.rows, isMaster);
         var dataRows = countDataRows(sheet.rows, header.row);
         var score = header.score + Math.min(3, Math.log10(Math.max(1, dataRows)) );
         if (score > best.score) best = { index: idx, header: header, score: score };
       });
       if (!best.header) {
         best.index = 0;
-        best.header = sheets[0] ? detectHeader(sheets[0].rows || []) : detectHeader([]);
+        best.header = sheets[0] ? detectHeader(sheets[0].rows || [], isMaster) : detectHeader([], isMaster);
       }
       return best;
     }
@@ -778,7 +861,7 @@
       var wb = XLSX.read(buf, { type: 'array', cellDates: false });
       var sheets = wb.SheetNames.map(function (name) {
         var ws = wb.Sheets[name];
-        var rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '', blankrows: false });
+        var rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '', blankrows: true });
         return { name: name, rows: rows };
       }).filter(function (s) { return s.rows.length > 0; });
       if (!sheets.length) throw new Error('文件里没有可读取的工作表');
@@ -795,10 +878,16 @@
         fs.sheets = sheets;
         fs.loaded = true;
         fs.priceKind = 'auto';
-        applyDetectedSheet(fs, detectSheet(sheets));
-        var other = kind === 'begin' ? state.files.end : state.files.begin;
-        if (!fs.date) fs.date = kind === 'begin' ? todayInput(-30) : todayInput(0);
-        if (other.loaded && !other.date) other.date = other.kind === 'begin' ? todayInput(-30) : todayInput(0);
+        var isMaster = kind === 'master';
+        applyDetectedSheet(fs, detectSheet(sheets, isMaster));
+        if (!isMaster) {
+          var other = kind === 'begin' ? state.files.end : state.files.begin;
+          if (!fs.date) fs.date = kind === 'begin' ? todayInput(-30) : todayInput(0);
+          if (other.loaded && !other.date) other.date = other.kind === 'begin' ? todayInput(-30) : todayInput(0);
+        } else {
+          state.masterFilters = {};
+          state.showMoreMasterFilters = false;
+        }
         state.result = null;
         $('resultRoot').hidden = true;
         $('emptyState').hidden = false;
@@ -808,7 +897,8 @@
         updateCalcBar();
       } catch (err) {
         console.error(err);
-        showError('读取「' + (kind === 'begin' ? '期初' : '期末') + '」文件失败：' + (err && err.message ? err.message : err));
+        var kindLabel = kind === 'begin' ? '期初' : (kind === 'end' ? '期末' : '商品信息');
+        showError('读取「' + kindLabel + '」文件失败：' + (err && err.message ? err.message : err));
       }
     }
 
@@ -822,7 +912,7 @@
     function refreshSheet(fs) {
       var sheet = fs.sheets[fs.sheetIndex];
       if (!sheet) return;
-      var header = detectHeader(sheet.rows);
+      var header = detectHeader(sheet.rows, fs.kind === 'master');
       fs.headerRow = header.row;
       fs.headers = header.headers;
       fs.mapping = header.mapping;
@@ -840,10 +930,12 @@
     function renderFiles() {
       var host = $('filesGrid');
       host.innerHTML = renderFileCard(state.files.begin, '期初库存', '1', 'begin') +
-        renderFileCard(state.files.end, '期末库存', '2', 'end');
+        renderFileCard(state.files.end, '期末库存', '2', 'end') +
+        renderFileCard(state.files.master, '商品信息', '3', 'master');
     }
 
     function renderFileCard(fs, title, step, kind) {
+      if (kind === 'master') return renderMasterCard(fs);
       var loaded = fs.loaded;
       var mappingOk = loaded && fs.mapping.qty >= 0;
       var sheetOptions = fs.sheets.map(function (s, i) {
@@ -932,6 +1024,179 @@
       '</div>';
     }
 
+    /* ================= 商品信息主数据 ================= */
+    function masterRoleDefs() {
+      return FIELD_DEFS.filter(function (f) { return f.key === 'sku' || f.key === 'name' || f.key === 'spec' || f.key === 'category' || f.key === 'price'; });
+    }
+
+    function renderMasterCard(fs) {
+      var loaded = fs.loaded;
+      var mappingOk = loaded && fs.mapping.sku >= 0;
+      var sheetOptions = fs.sheets.map(function (s, i) {
+        return '<option value="' + i + '"' + (i === fs.sheetIndex ? ' selected' : '') + '>' +
+          escapeHtml(s.name) + '（' + countDataRows(s.rows, 0) + ' 行）</option>';
+      }).join('');
+      var allHeaders = fs.headers || [];
+      var defs = masterRoleDefs();
+
+      var mappingHtml = defs.map(function (f) {
+        var current = fs.mapping[f.key] >= 0 ? fs.mapping[f.key] : -1;
+        var options = '<option value="-1"' + (current === -1 ? ' selected' : '') + '>未匹配</option>' +
+          allHeaders.map(function (h, i) {
+            var label = colLetter(i) + ' · ' + (h === '' ? '(空)' : h);
+            return '<option value="' + i + '"' + (i === current ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+          }).join('');
+        var hint = f.key === 'sku' ? '主键：优先按货号/SKU/商品编码匹配，未命中时用条码、品名+规格兜底' : f.hint;
+        return '<div class="map-item">' +
+          '<div class="f-label">' + (f.key === 'sku' ? '主键（货号/SKU）' : escapeHtml(f.label)) +
+          (f.key === 'sku' ? '<span class="req">*</span>' : '') +
+          '<span class="hint" title="' + escapeHtml(hint) + '">i</span></div>' +
+          '<select class="f-select" data-map="' + f.key + '" data-kind="master">' + options + '</select>' +
+          '</div>';
+      }).join('');
+
+      var parsed = loaded && mappingOk ? parseMasterRows(fs) : null;
+      var warn = '';
+      if (loaded && fs.mapping.sku < 0) {
+        warn = '<div class="map-warn">未识别到主键列（货号 / SKU / 商品编码），请手动指定后再计算；否则无法用商品信息过滤库存明细。</div>';
+      }
+      if (loaded && parsed && !parsed.list.length) {
+        warn = '<div class="map-warn">商品信息没有解析到有效数据行，请检查工作表、表头行与主键映射。</div>';
+      }
+
+      var previewHtml = '';
+      if (parsed && parsed.list.length) {
+        previewHtml = '<div class="preview-wrap"><table class="mini-table"><thead><tr>' +
+          '<th>主键</th><th>品名</th><th>规格</th><th>品类</th><th style="text-align:right;">单价</th>' +
+          '</tr></thead><tbody>' +
+          parsed.list.slice(0, PREVIEW_ROWS).map(function (r) {
+            return '<tr><td>' + escapeHtml(r.sku || '—') + '</td><td>' + escapeHtml(r.name || '—') + '</td><td>' + escapeHtml(r.spec || '—') +
+              '</td><td>' + escapeHtml(r.category || '—') + '</td><td style="text-align:right;">' + (r.price == null ? '—' : fmtNum(r.price, 2)) + '</td></tr>';
+          }).join('') + '</tbody></table></div>';
+      }
+
+      var metaHtml = '';
+      if (parsed) {
+        var matchedFields = defs.filter(function (f) { return fs.mapping[f.key] >= 0; }).length;
+        metaHtml = '<div class="card-meta">' +
+          '<span>唯一主键 <b>' + fmtInt(parsed.list.length) + '</b></span>' +
+          '<span>数据行 <b>' + fmtInt(parsed.totalRows) + '</b></span>' +
+          '<span>字段 <b>' + fmtInt(allHeaders.filter(Boolean).length) + '</b></span>' +
+          (parsed.duplicateCount ? '<span style="color:#9A6B00;">主键重复 <b>' + fmtInt(parsed.duplicateCount) + '</b>（保留首条）</span>' : '') +
+          '</div>';
+      }
+
+      return '<div class="file-card' + (loaded ? ' is-loaded' : '') + '">' +
+        '<div class="file-head">' +
+          '<div><div class="file-title"><span class="step">3</span>商品信息</div>' +
+          '<div class="file-sub">商品主数据 · 会话内缓存，刷新页面后需重传</div></div>' +
+          '<span class="file-status' + (loaded ? ' ok' : '') + '">' + (loaded ? '已缓存' : '待上传') + '</span>' +
+        '</div>' +
+        '<div class="file-name">' + (loaded ? escapeHtml(fs.fileName) + ' · ' + (fs.fileSize / 1024).toFixed(0) + ' KB' : '<span class="empty">尚未选择文件（可选，上传后仅分析匹配上的商品）</span>') + '</div>' +
+        '<div class="file-controls" style="grid-template-columns:1fr 1fr 1fr;">' +
+          '<div><div class="f-label">工作表<span class="hint" title="自动选择匹配度最高的工作表，可手动切换">i</span></div>' +
+          '<select class="f-select" data-sheet="1" data-kind="master"' + (loaded ? '' : ' disabled') + '>' + (loaded ? sheetOptions : '<option>未载入</option>') + '</select></div>' +
+          '<div><div class="f-label">表头行号<span class="hint" title="表头所在行（从 1 开始）">i</span></div>' +
+          '<input class="f-input" type="number" min="1" max="50" step="1" data-header-row="1" data-kind="master" value="' + (loaded ? (fs.headerRow + 1) : 1) + '"' + (loaded ? '' : ' disabled') + '></div>' +
+          '<div><div class="f-label">操作</div>' +
+          '<button class="btn" type="button" data-upload="master" style="width:100%;">' + (loaded ? '重新选择' : '选择文件') + '</button></div>' +
+        '</div>' +
+        (loaded ? '<div class="map-grid">' + mappingHtml + '</div>' : '') +
+        warn + metaHtml + previewHtml +
+      '</div>';
+    }
+
+    function isImageColumn(rows, idx) {
+      var checked = 0, imageLike = 0;
+      for (var i = 0; i < rows.length && checked < 30; i++) {
+        var v = cellText((rows[i] || [])[idx]);
+        if (!v) continue;
+        checked++;
+        if (/DISPIMG|^=<IMAGE|<img|EOR_PICTURE/i.test(v)) imageLike++;
+      }
+      return checked > 0 && imageLike / checked >= 0.8;
+    }
+
+    function parseMasterRows(fs) {
+      var sheet = fs.sheets[fs.sheetIndex];
+      if (!sheet) return { list: [], bySku: {}, byBarcode: {}, byAlt: {}, duplicateCount: 0, totalRows: 0, imageCols: {} };
+      var rows = sheet.rows;
+      var headers = (fs.headers || []).map(function (h) { return h || ''; });
+      var map = fs.mapping || {};
+      var imageCols = {};
+      headers.forEach(function (h, idx) {
+        if (h && isImageColumn(rows.slice(fs.headerRow + 1), idx)) imageCols[idx] = true;
+      });
+      var barcodeIdx = -1;
+      headers.forEach(function (h, idx) {
+        if (barcodeIdx >= 0) return;
+        if (/条码|69码|条形码/.test(normHeader(h))) barcodeIdx = idx;
+      });
+
+      var list = [];
+      var bySku = {}, byBarcode = {}, byAlt = {};
+      var duplicateCount = 0;
+      var totalRows = 0;
+
+      for (var i = fs.headerRow + 1; i < rows.length; i++) {
+        var row = rows[i] || [];
+        if (!row.some(function (c) { return cellText(c) !== ''; })) continue;
+        totalRows++;
+        var sku = map.sku >= 0 ? cellText(row[map.sku]) : '';
+        var name = map.name >= 0 ? cleanProductName(cellText(row[map.name])) : '';
+        var spec = map.spec >= 0 ? cellText(row[map.spec]) : '';
+        var category = map.category >= 0 ? cellText(row[map.category]) : '';
+        var price = map.price >= 0 ? parseNum(row[map.price]) : null;
+        if (!sku && !name) continue;
+
+        var display = {};
+        headers.forEach(function (h, idx) {
+          if (!h) return;
+          var v = cellText(row[idx]);
+          display[h] = imageCols[idx] ? (v ? '有图' : '') : v;
+        });
+
+        var barcode = barcodeIdx >= 0 ? cellText(row[barcodeIdx]) : '';
+        var altKey = name ? ('N:' + normKey(name) + '|' + normKey(spec)) : '';
+        var record = {
+          sku: sku,
+          name: name,
+          spec: spec,
+          category: category,
+          price: price,
+          display: display,
+          altKey: altKey
+        };
+
+        if (sku) {
+          var key = 'S:' + normKey(sku);
+          if (bySku[key]) { duplicateCount++; continue; }
+          bySku[key] = record;
+        }
+        if (barcode) {
+          var bcKey = 'S:' + normKey(barcode);
+          if (!byBarcode[bcKey]) byBarcode[bcKey] = record;
+        }
+        if (altKey && !byAlt[altKey]) byAlt[altKey] = record;
+        list.push(record);
+      }
+
+      return { list: list, bySku: bySku, byBarcode: byBarcode, byAlt: byAlt, duplicateCount: duplicateCount, totalRows: totalRows, imageCols: imageCols };
+    }
+
+    function findMasterRecord(item, master) {
+      if (item.sku) {
+        var key = 'S:' + normKey(item.sku);
+        if (master.bySku[key]) return master.bySku[key];
+        if (master.byBarcode[key]) return master.byBarcode[key];
+      }
+      if (item.name) {
+        var altKey = 'N:' + normKey(item.name) + '|' + normKey(item.spec);
+        if (master.byAlt[altKey]) return master.byAlt[altKey];
+      }
+      return null;
+    }
+
     /* ================= 行解析 ================= */
     function parseFileRows(fs) {
       var sheet = fs.sheets[fs.sheetIndex];
@@ -1018,6 +1283,45 @@
       });
 
       items = items.filter(function (it) { return it.beginQty !== 0 || it.endQty !== 0 || it.name || it.sku; });
+
+      var masterFs = state.files.master;
+      var masterInfo = { loaded: false, valid: false, matched: 0, unmatched: 0, total: items.length, samples: [], duplicateCount: 0, fieldCount: 0 };
+      var masterExtraHeaders = [];
+      var masterFilterFields = [];
+      if (masterFs.loaded) {
+        masterInfo.loaded = true;
+        masterInfo.valid = masterFs.mapping.sku >= 0;
+        if (masterInfo.valid) {
+          var master = parseMasterRows(masterFs);
+          masterInfo.duplicateCount = master.duplicateCount;
+          masterInfo.fieldCount = (masterFs.headers || []).filter(Boolean).length;
+
+          var roleIdx = [masterFs.mapping.sku, masterFs.mapping.name, masterFs.mapping.spec, masterFs.mapping.category].filter(function (i) { return i >= 0; });
+          masterExtraHeaders = (masterFs.headers || []).filter(function (h, i) { return h && roleIdx.indexOf(i) < 0; });
+
+          var matchedItems = [];
+          var unmatchedItems = [];
+          items.forEach(function (it) {
+            var rec = findMasterRecord(it, master);
+            if (rec) {
+              applyMaster(it, rec);
+              matchedItems.push(it);
+            } else {
+              unmatchedItems.push(it);
+            }
+          });
+          masterInfo.matched = matchedItems.length;
+          masterInfo.unmatched = unmatchedItems.length;
+          masterInfo.total = items.length;
+          masterInfo.unmatchedList = unmatchedItems.map(function (it) {
+            return { sku: it.sku || '', name: it.name || '', spec: it.spec || '', beginQty: it.beginQty, endQty: it.endQty };
+          });
+          masterInfo.samples = masterInfo.unmatchedList.slice(0, 12);
+          masterFilterFields = buildMasterFilterFields(matchedItems, masterFs.headers || []);
+          items = matchedItems;
+        }
+      }
+
       items.forEach(function (it) { classifyRisk(it, state.thresholds); });
 
       var totals = aggregate(items, periodDays);
@@ -1034,8 +1338,46 @@
         parsedBegin: beginParsed.rows.length,
         parsedEnd: endParsed.rows.length,
         skippedBegin: beginParsed.skipped,
-        skippedEnd: endParsed.skipped
+        skippedEnd: endParsed.skipped,
+        masterInfo: masterInfo,
+        masterExtraHeaders: masterExtraHeaders,
+        masterFilterFields: masterFilterFields
       };
+    }
+
+    function applyMaster(it, rec) {
+      it.masterMatched = true;
+      it.masterDisplay = rec.display || {};
+      if (rec.sku) it.sku = rec.sku;
+      if (rec.name) it.name = rec.name;
+      if (rec.spec) it.spec = rec.spec;
+      if (rec.category) it.category = rec.category;
+      if (it.price == null && rec.price != null) {
+        it.price = rec.price;
+        it.beginAmount = it.beginQty * rec.price;
+        it.endAmount = it.endQty * rec.price;
+      }
+    }
+
+    function buildMasterFilterFields(items, headers) {
+      var fields = [];
+      headers.forEach(function (h) {
+        if (!h) return;
+        var counts = {};
+        items.forEach(function (it) {
+          var v = (it.masterDisplay && it.masterDisplay[h]) || '';
+          counts[v] = (counts[v] || 0) + 1;
+        });
+        var values = Object.keys(counts);
+        if (!values.length) return;
+        var options = values.map(function (v) { return { value: v, count: counts[v] }; });
+        options.sort(function (a, b) {
+          if (b.count !== a.count) return b.count - a.count;
+          return String(a.value).localeCompare(String(b.value), 'zh');
+        });
+        fields.push({ header: h, options: options, distinct: options.length, highCard: options.length > 60 });
+      });
+      return fields;
     }
 
     function buildItem(b, e, periodDays) {
@@ -1198,7 +1540,78 @@
       renderCharts(model);
       renderCategoryTable(model);
       renderFilterOptions(model);
+      renderMatchBanner(model);
+      renderMasterFilters(model);
       renderDetailTable(model);
+    }
+
+    function renderMatchBanner(model) {
+      var el = $('matchBanner');
+      var info = model.masterInfo || {};
+      if (!info.loaded) {
+        el.className = 'match-banner warn';
+        el.innerHTML = '<span class="icon">!</span><div><b>未上传商品信息：</b>当前按全部库存商品分析，未启用主数据匹配过滤。上传商品信息后，仅保留能匹配上的商品，并可按品牌、分类、规格、状态等字段筛选。</div>';
+        return;
+      }
+      if (!info.valid) {
+        el.className = 'match-banner warn';
+        el.innerHTML = '<span class="icon">!</span><div><b>商品信息未指定主键列：</b>无法匹配商品，当前结果按全部库存商品计算。请在上传卡选择「主键（货号/SKU）」后重新计算。</div>';
+        return;
+      }
+      var samples = (info.samples || []).slice(0, 6).map(function (s) { return s.sku || s.name; }).filter(Boolean);
+      var msg = '<span class="icon">' + (info.unmatched ? '!' : '✓') + '</span><div>' +
+        '商品信息匹配：已匹配 <b>' + fmtInt(info.matched) + '</b> 个 SKU（主数据 ' + fmtInt(info.fieldCount) + ' 个字段' +
+        (info.duplicateCount ? '，货号重复 ' + fmtInt(info.duplicateCount) + ' 条已保留首条' : '') + '）';
+      if (info.unmatched) {
+        msg += '；<b>' + fmtInt(info.unmatched) + ' 个 SKU 未匹配</b>，已从指标、图表与明细中排除，可在导出 Excel 的「未匹配商品」工作表查看' +
+          (samples.length ? '（示例：' + escapeHtml(samples.join('、')) + '）' : '') + '。';
+      } else {
+        msg += '；全部库存 SKU 均已匹配。';
+      }
+      msg += '</div>';
+      el.className = 'match-banner' + (info.unmatched ? ' warn' : '');
+      el.innerHTML = msg;
+    }
+
+    function renderMasterFilters(model) {
+      var wrap = $('masterFilterWrap');
+      var fields = model.masterFilterFields || [];
+      if (!model.masterInfo || !model.masterInfo.loaded || !model.masterInfo.valid || !fields.length) {
+        wrap.hidden = true;
+        $('masterFilterGrid').innerHTML = '';
+        return;
+      }
+      wrap.hidden = false;
+      var hasHighCard = fields.some(function (f) { return f.highCard; });
+      var moreBtn = $('btnMoreMasterFilters');
+      moreBtn.hidden = !hasHighCard;
+      moreBtn.textContent = state.showMoreMasterFilters ? '收起更多筛选项' : '更多筛选项';
+
+      var html = fields.map(function (f) {
+        if (f.highCard && !state.showMoreMasterFilters) return '';
+        var sel = state.masterFilters[f.header] || {};
+        var selectedCount = Object.keys(sel).filter(function (k) { return sel[k]; }).length;
+        var options = f.options.slice(0, 500).map(function (o) {
+          var label = o.value === '' ? '(空值)' : o.value;
+          return '<label class="ms-opt"><input type="checkbox" value="' + escapeHtml(o.value) + '"' + (sel[o.value] ? ' checked' : '') + '>' +
+            '<span title="' + escapeHtml(label) + '">' + escapeHtml(label) + '</span><em>' + o.count + '</em></label>';
+        }).join('');
+        return '<div class="ms" data-field="' + escapeHtml(f.header) + '">' +
+          '<button type="button" class="ms-toggle"><span class="ms-name">' + escapeHtml(f.header) + '</span>' +
+          '<span class="ms-count">' + (selectedCount ? selectedCount + ' 项' : '全部') + '</span><span style="color:#9AA4B2;">▾</span></button>' +
+          '<div class="ms-panel">' +
+          '<input class="ms-search" type="text" placeholder="搜索选项">' +
+          '<div class="ms-options">' + (options || '<div class="ms-empty">暂无可选值</div>') + '</div>' +
+          '<div class="ms-actions"><button type="button" data-ms-clear>清空</button><button type="button" data-ms-close>完成</button></div>' +
+          '</div></div>';
+      }).join('');
+      $('masterFilterGrid').innerHTML = html;
+
+      var validHeaders = {};
+      fields.forEach(function (f) { validHeaders[f.header] = 1; });
+      Object.keys(state.masterFilters).forEach(function (h) {
+        if (!validHeaders[h]) delete state.masterFilters[h];
+      });
     }
 
     function renderKpis(model) {
@@ -1436,7 +1849,7 @@
     }
 
     /* ================= 明细表 ================= */
-    var DETAIL_COLS = [
+    var BASE_DETAIL_COLS = [
       { key: 'sku', label: 'SKU / 条码', type: 'text', info: true },
       { key: 'name', label: '品名 / 规格', type: 'text', info: true },
       { key: 'category', label: '品类', type: 'text', info: true },
@@ -1455,6 +1868,28 @@
       { key: 'risk', label: '风险', type: 'text', info: true }
     ];
 
+    function detailColumns(model) {
+      var extras = (model.masterExtraHeaders || []).map(function (h) {
+        return { key: 'M:' + h, label: h, type: 'text', info: true, master: true };
+      });
+      return BASE_DETAIL_COLS.slice(0, -2).concat(extras, BASE_DETAIL_COLS.slice(-2));
+    }
+
+    function masterFilterPass(it) {
+      if (!state.result || !state.result.masterFilterFields) return true;
+      var fields = state.result.masterFilterFields;
+      for (var i = 0; i < fields.length; i++) {
+        var header = fields[i].header;
+        var sel = state.masterFilters[header];
+        if (!sel) continue;
+        var values = Object.keys(sel).filter(function (k) { return sel[k]; });
+        if (!values.length) continue;
+        var val = (it.masterDisplay && it.masterDisplay[header]) || '';
+        if (values.indexOf(val) < 0) return false;
+      }
+      return true;
+    }
+
     function filteredItems(model) {
       var f = state.filters;
       var q = String(f.search || '').trim().toLowerCase();
@@ -1465,9 +1900,14 @@
         if (f.risk === '滞销' && !it.slow) return false;
         if (f.risk === '无风险' && (it.slow || it.stockout)) return false;
         if (q) {
-          var hay = (it.sku + ' ' + it.name + ' ' + it.spec + ' ' + it.category).toLowerCase();
+          var masterText = '';
+          if (it.masterDisplay) {
+            masterText = Object.keys(it.masterDisplay).map(function (k) { return it.masterDisplay[k]; }).join(' ');
+          }
+          var hay = (it.sku + ' ' + it.name + ' ' + it.spec + ' ' + it.category + ' ' + masterText).toLowerCase();
           if (hay.indexOf(q) < 0) return false;
         }
+        if (!masterFilterPass(it)) return false;
         return true;
       });
     }
@@ -1491,6 +1931,10 @@
     function sortValue(it, key) {
       if (key === 'risk') return (it.stockout ? 2 : 0) + (it.slow ? 1 : 0);
       if (key === 'stockDays') return it.stockDays === Infinity ? Number.MAX_SAFE_INTEGER : it.stockDays;
+      if (key.indexOf('M:') === 0) {
+        var hv = it.masterDisplay ? it.masterDisplay[key.slice(2)] : '';
+        return hv == null ? null : hv;
+      }
       var v = it[key];
       return v == null ? null : v;
     }
@@ -1501,52 +1945,90 @@
       var shown = sorted.slice(0, TABLE_LIMIT);
       $('detailMeta').textContent = '筛选后 ' + fmtInt(all.length) + ' 个 SKU · 当前展示 ' + fmtInt(shown.length) + ' 个';
 
-      var head = '<thead><tr>' + DETAIL_COLS.map(function (c) {
+      var cols = detailColumns(model);
+      var head = '<thead><tr>' + cols.map(function (c) {
         var sortedThis = state.sort.key === c.key;
         var arrow = sortedThis ? (state.sort.dir === 'asc' ? '▲' : '▼') : '↕';
-        return '<th class="' + (c.info ? 'td-info ' : '') + 'sortable' + (sortedThis ? ' is-sorted' : '') + '" data-sort="' + c.key + '">' +
-          c.label + '<span class="arrow">' + arrow + '</span></th>';
+        return '<th class="' + (c.info ? 'td-info ' : '') + 'sortable' + (sortedThis ? ' is-sorted' : '') + '" data-sort="' + escapeHtml(c.key) + '">' +
+          escapeHtml(c.label) + '<span class="arrow">' + arrow + '</span></th>';
       }).join('') + '</tr></thead>';
 
       var body = shown.map(function (it) {
-        var statusTag = it.status === '新增' ? '<span class="tag tag-info">新增</span>' :
-          (it.status === '清空' ? '<span class="tag tag-warn">清空</span>' : '<span class="tag tag-neutral">正常</span>');
-        var riskTags = '';
-        if (it.stockout) riskTags += '<span class="tag tag-danger">断货风险</span> ';
-        if (it.slow) riskTags += '<span class="tag tag-warn">滞销</span> ';
-        if (!riskTags) riskTags = '<span class="zero">—</span>';
-        return '<tr>' +
-          '<td class="td-info"><div class="p-name">' + escapeHtml(it.sku || '—') + '</div></td>' +
-          '<td class="td-info td-product"><div class="p-name">' + escapeHtml(it.name || '(未命名商品)') + '</div>' +
-          (it.spec ? '<div class="p-sub">' + escapeHtml(it.spec) + '</div>' : '') + '</td>' +
-          '<td class="td-info">' + escapeHtml(it.category) + '</td>' +
-          '<td>' + fmtInt(it.beginQty) + '</td>' +
-          '<td>' + fmtInt(it.endQty) + '</td>' +
-          '<td class="' + (it.delta > 0 ? 'neg' : (it.delta < 0 ? 'pos' : 'zero')) + '">' + fmtInt(it.delta) + '</td>' +
-          '<td>' + fmtPct(it.sellThrough) + '</td>' +
-          '<td>' + fmtInt(Math.round(it.avgStock)) + '</td>' +
-          '<td>' + (it.turnover == null ? '—' : fmtNum(it.turnover, 2)) + '</td>' +
-          '<td>' + (it.turnDays == null ? '—' : fmtDays(it.turnDays)) + '</td>' +
-          '<td>' + fmtDays(it.stockDays) + '</td>' +
-          '<td>' + (it.price == null ? '—' : fmtNum(it.price, 2)) + '</td>' +
-          '<td>' + (it.beginAmount == null ? '—' : fmtNum(it.beginAmount, 2)) + '</td>' +
-          '<td>' + (it.endAmount == null ? '—' : fmtNum(it.endAmount, 2)) + '</td>' +
-          '<td class="td-info">' + statusTag + '</td>' +
-          '<td class="td-info">' + riskTags + '</td>' +
-          '</tr>';
+        return '<tr>' + cols.map(function (col) { return detailCellHtml(it, col); }).join('') + '</tr>';
       }).join('');
 
-      var empty = '<tr><td colspan="' + DETAIL_COLS.length + '" class="td-info zero">没有符合筛选条件的 SKU</td></tr>';
+      var empty = '<tr><td colspan="' + cols.length + '" class="td-info zero">没有符合筛选条件的 SKU</td></tr>';
       $('detailTable').innerHTML = head + '<tbody>' + (shown.length ? body : empty) + '</tbody>';
 
       var footnote = '共 ' + fmtInt(all.length) + ' 条筛选结果，表格仅展示前 ' + TABLE_LIMIT + ' 条（按当前排序），导出 Excel 包含全部数据。';
+      if (model.masterInfo && model.masterInfo.loaded && model.masterInfo.valid) {
+        footnote += ' 仅统计匹配商品信息的 ' + fmtInt(model.masterInfo.matched) + ' 个 SKU';
+        if (model.masterInfo.unmatched) footnote += '，未匹配 ' + fmtInt(model.masterInfo.unmatched) + ' 个已排除';
+        footnote += '；品名/规格/品类使用主数据，主数据其余字段已追加到明细列。';
+      }
       if (!model.totals.hasPrice) footnote += ' 未识别到单价列，金额与金额结构不展示。';
       else if (model.totals.priceCoverage < 1) footnote += ' 单价覆盖 ' + (model.totals.priceCoverage * 100).toFixed(0) + '%，部分 SKU 金额缺失。';
       footnote += ' 库存天数 ∞ 表示期间无动销。';
       $('detailFootnote').textContent = footnote;
     }
 
+    function detailCellHtml(it, col) {
+      switch (col.key) {
+        case 'sku':
+          return '<td class="td-info"><div class="p-name">' + escapeHtml(it.sku || '—') + '</div></td>';
+        case 'name':
+          return '<td class="td-info td-product"><div class="p-name">' + escapeHtml(it.name || '(未命名商品)') + '</div>' +
+            (it.spec ? '<div class="p-sub">' + escapeHtml(it.spec) + '</div>' : '') + '</td>';
+        case 'category':
+          return '<td class="td-info">' + escapeHtml(it.category) + '</td>';
+        case 'beginQty':
+          return '<td>' + fmtInt(it.beginQty) + '</td>';
+        case 'endQty':
+          return '<td>' + fmtInt(it.endQty) + '</td>';
+        case 'delta':
+          return '<td class="' + (it.delta > 0 ? 'neg' : (it.delta < 0 ? 'pos' : 'zero')) + '">' + fmtInt(it.delta) + '</td>';
+        case 'sellThrough':
+          return '<td>' + fmtPct(it.sellThrough) + '</td>';
+        case 'avgStock':
+          return '<td>' + fmtInt(Math.round(it.avgStock)) + '</td>';
+        case 'turnover':
+          return '<td>' + (it.turnover == null ? '—' : fmtNum(it.turnover, 2)) + '</td>';
+        case 'turnDays':
+          return '<td>' + (it.turnDays == null ? '—' : fmtDays(it.turnDays)) + '</td>';
+        case 'stockDays':
+          return '<td>' + fmtDays(it.stockDays) + '</td>';
+        case 'price':
+          return '<td>' + (it.price == null ? '—' : fmtNum(it.price, 2)) + '</td>';
+        case 'beginAmount':
+          return '<td>' + (it.beginAmount == null ? '—' : fmtNum(it.beginAmount, 2)) + '</td>';
+        case 'endAmount':
+          return '<td>' + (it.endAmount == null ? '—' : fmtNum(it.endAmount, 2)) + '</td>';
+        case 'status':
+          var statusTag = it.status === '新增' ? '<span class="tag tag-info">新增</span>' :
+            (it.status === '清空' ? '<span class="tag tag-warn">清空</span>' : '<span class="tag tag-neutral">正常</span>');
+          return '<td class="td-info">' + statusTag + '</td>';
+        case 'risk':
+          var riskTags = '';
+          if (it.stockout) riskTags += '<span class="tag tag-danger">断货风险</span> ';
+          if (it.slow) riskTags += '<span class="tag tag-warn">滞销</span> ';
+          if (!riskTags) riskTags = '<span class="zero">—</span>';
+          return '<td class="td-info">' + riskTags + '</td>';
+        default:
+          if (col.key.indexOf('M:') === 0) {
+            var v = it.masterDisplay ? it.masterDisplay[col.key.slice(2)] : '';
+            return '<td class="td-info">' + (v ? escapeHtml(v) : '<span class="zero">—</span>') + '</td>';
+          }
+          return '<td class="td-info">—</td>';
+      }
+    }
+
     /* ================= 筛选与事件 ================= */
+    function updateMsCount(msEl) {
+      var count = msEl.querySelectorAll('input[type=checkbox]:checked').length;
+      var label = msEl.querySelector('.ms-count');
+      if (label) label.textContent = count ? count + ' 项' : '全部';
+    }
+
     function renderFilterOptions(model) {
       var cats = model.categories.map(function (c) { return c.category; });
       if (state.filters.category !== '全部' && cats.indexOf(state.filters.category) < 0) {
@@ -1567,7 +2049,9 @@
         var btn = e.target.closest('[data-upload]');
         if (!btn) return;
         var kind = btn.getAttribute('data-upload');
-        $(kind === 'begin' ? 'fileBegin' : 'fileEnd').click();
+        var inputMap = { begin: 'fileBegin', end: 'fileEnd', master: 'fileMaster' };
+        var input = $(inputMap[kind]);
+        if (input) input.click();
       });
 
       $('filesGrid').addEventListener('change', function (e) {
@@ -1579,6 +2063,7 @@
         if (el.hasAttribute('data-sheet')) {
           fs.sheetIndex = Number(el.value) || 0;
           refreshSheet(fs);
+          if (kind === 'master') state.masterFilters = {};
           resetResultView();
           renderFiles();
           updateCalcBar();
@@ -1586,11 +2071,13 @@
           var n = Math.max(1, Math.min(50, Number(el.value) || 1)) - 1;
           fs.headerRow = n;
           refreshHeaderRow(fs);
+          if (kind === 'master') state.masterFilters = {};
           resetResultView();
           renderFiles();
           updateCalcBar();
         } else if (el.hasAttribute('data-map')) {
           fs.mapping[el.getAttribute('data-map')] = Number(el.value);
+          if (kind === 'master') state.masterFilters = {};
           resetResultView();
           renderFiles();
           updateCalcBar();
@@ -1612,6 +2099,11 @@
       $('fileEnd').addEventListener('change', function () {
         var f = this.files && this.files[0];
         if (f) handleFile('end', f);
+        this.value = '';
+      });
+      $('fileMaster').addEventListener('change', function () {
+        var f = this.files && this.files[0];
+        if (f) handleFile('master', f);
         this.value = '';
       });
 
@@ -1662,9 +2154,75 @@
           state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
         } else {
           state.sort.key = key;
-          state.sort.dir = key === 'sku' || key === 'name' || key === 'category' ? 'asc' : 'desc';
+          state.sort.dir = (key === 'sku' || key === 'name' || key === 'category' || key.indexOf('M:') === 0) ? 'asc' : 'desc';
         }
         renderDetailTable(state.result);
+      });
+
+      // ===== 商品信息多选筛选 =====
+      $('masterFilterGrid').addEventListener('click', function (e) {
+        var grid = $('masterFilterGrid');
+        var toggle = e.target.closest('.ms-toggle');
+        if (toggle) {
+          var ms = toggle.closest('.ms');
+          var wasOpen = ms.classList.contains('open');
+          grid.querySelectorAll('.ms.open').forEach(function (el) { el.classList.remove('open'); });
+          if (!wasOpen) ms.classList.add('open');
+          return;
+        }
+        var clearBtn = e.target.closest('[data-ms-clear]');
+        if (clearBtn) {
+          var msClear = clearBtn.closest('.ms');
+          delete state.masterFilters[msClear.getAttribute('data-field')];
+          msClear.querySelectorAll('input[type=checkbox]').forEach(function (cb) { cb.checked = false; });
+          updateMsCount(msClear);
+          renderDetailTable(state.result);
+          return;
+        }
+        if (e.target.closest('[data-ms-close]')) {
+          var msClose = e.target.closest('.ms');
+          msClose.classList.remove('open');
+        }
+      });
+
+      $('masterFilterGrid').addEventListener('change', function (e) {
+        if (!e.target.matches('input[type=checkbox]')) return;
+        var ms = e.target.closest('.ms');
+        var field = ms.getAttribute('data-field');
+        var val = e.target.value;
+        var sel = state.masterFilters[field] || {};
+        if (e.target.checked) sel[val] = true;
+        else delete sel[val];
+        if (Object.keys(sel).length) state.masterFilters[field] = sel;
+        else delete state.masterFilters[field];
+        updateMsCount(ms);
+        renderDetailTable(state.result);
+      });
+
+      $('masterFilterGrid').addEventListener('input', function (e) {
+        if (!e.target.classList.contains('ms-search')) return;
+        var q = e.target.value.trim().toLowerCase();
+        e.target.closest('.ms-panel').querySelectorAll('.ms-opt').forEach(function (opt) {
+          opt.style.display = opt.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
+        });
+      });
+
+      document.addEventListener('click', function (e) {
+        if (e.target.closest('#masterFilterGrid')) return;
+        $('masterFilterGrid').querySelectorAll('.ms.open').forEach(function (el) { el.classList.remove('open'); });
+      });
+
+      $('btnMoreMasterFilters').addEventListener('click', function () {
+        state.showMoreMasterFilters = !state.showMoreMasterFilters;
+        if (state.result) renderMasterFilters(state.result);
+      });
+
+      $('btnClearMasterFilters').addEventListener('click', function () {
+        state.masterFilters = {};
+        if (state.result) {
+          renderMasterFilters(state.result);
+          renderDetailTable(state.result);
+        }
       });
 
       $('btnExport').addEventListener('click', exportExcel);
@@ -1708,28 +2266,36 @@
       var pb = parseFileRows(b).rows, pe = parseFileRows(e).rows;
       if (!pb.length) return '期初文件没有解析到有效数据行，请检查工作表、表头行与字段映射。';
       if (!pe.length) return '期末文件没有解析到有效数据行，请检查工作表、表头行与字段映射。';
+      var master = state.files.master;
+      if (master.loaded) {
+        if (master.mapping.sku < 0) return '商品信息文件需要指定主键列（货号 / SKU / 商品编码）后才能启用匹配过滤。';
+        if (!parseMasterRows(master).list.length) return '商品信息文件没有解析到有效数据行，请检查工作表、表头行与主键映射。';
+      }
       return '';
     }
 
     function updateCalcBar() {
-      var b = state.files.begin, e = state.files.end;
-      var ready = b.loaded && e.loaded && b.mapping.qty >= 0 && e.mapping.qty >= 0;
+      var b = state.files.begin, e = state.files.end, master = state.files.master;
+      var masterValid = !master.loaded || master.mapping.sku >= 0;
+      var ready = b.loaded && e.loaded && b.mapping.qty >= 0 && e.mapping.qty >= 0 && masterValid;
       var tip = '';
-      if (!b.loaded && !e.loaded) tip = '请分别上传期初与期末库存文件，确认字段映射和日期后开始计算。';
+      if (!b.loaded && !e.loaded) tip = '请分别上传期初与期末库存文件，可选择性上传商品信息；确认字段映射和日期后开始计算。';
       else if (!b.loaded) tip = '还差期初库存文件。';
       else if (!e.loaded) tip = '还差期末库存文件。';
+      else if (!ready && !masterValid) tip = '商品信息已上传，但未指定主键列（货号/SKU），请手动指定后再计算。';
       else if (!ready) tip = '请先在上传卡中指定「库存数量」列。';
       else {
         var days = periodDaysBetween(b.date, e.date);
-        tip = '已识别期初 ' + fmtInt(parseFileRows(b).rows.length) + ' 个商品、期末 ' + fmtInt(parseFileRows(e).rows.length) +
-          ' 个商品 · 期间 ' + (days == null ? '—' : days + ' 天') + ' · 确认映射后点击计算。';
+        tip = '已识别期初 ' + fmtInt(parseFileRows(b).rows.length) + ' 个商品、期末 ' + fmtInt(parseFileRows(e).rows.length) + ' 个商品';
+        if (master.loaded) tip += '、商品信息 ' + fmtInt(parseMasterRows(master).list.length) + ' 个主键';
+        tip += ' · 期间 ' + (days == null ? '—' : days + ' 天') + ' · 确认映射后点击计算。';
       }
       $('calcTip').textContent = tip;
       $('btnCalc').disabled = !ready;
     }
 
     function updateBadge() {
-      var b = state.files.begin, e = state.files.end;
+      var b = state.files.begin, e = state.files.end, master = state.files.master;
       var text = $('dataSourceText');
       var badge = $('dataSourceBadge');
       if (!b.loaded && !e.loaded) {
@@ -1740,6 +2306,7 @@
         var parts = [];
         if (b.loaded) parts.push('期初：' + b.fileName);
         if (e.loaded) parts.push('期末：' + e.fileName);
+        if (master.loaded) parts.push('商品信息：' + master.fileName);
         text.textContent = parts.join(' · ');
         badge.classList.add('is-real');
         badge.title = parts.join('\n');
@@ -1774,6 +2341,10 @@
           ['期间天数', m.periodDays],
           ['期初文件', state.files.begin.fileName],
           ['期末文件', state.files.end.fileName],
+          ['商品信息文件', state.files.master.loaded ? state.files.master.fileName : '未上传（未启用主数据过滤）'],
+          ['商品信息匹配', m.masterInfo && m.masterInfo.loaded && m.masterInfo.valid
+            ? ('已匹配 ' + m.masterInfo.matched + ' 个 SKU，未匹配 ' + m.masterInfo.unmatched + ' 个（已排除）')
+            : '未启用'],
           [],
           ['核心假设', '以「期初库存 − 期末库存」的净减少量估算期间销量；净减少 = 销售 − 补货。若期间有补货或其他入库，会低估销量、售罄率与库存周转率。'],
           [],
@@ -1814,10 +2385,14 @@
         });
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(catRows), '品类汇总');
 
-        var detailRows = [['SKU/条码', '品名', '规格', '品类', '期初库存', '期末库存', '净减少(估算销量)', '售罄率(%)', '平均库存', '周转率', '周转天数', '库存天数', '单价', '期初金额', '期末金额', '状态', '风险']];
+        var extraHeaders = m.masterExtraHeaders || [];
+        var detailHead = ['SKU/条码', '品名', '规格', '品类', '期初库存', '期末库存', '净减少(估算销量)', '售罄率(%)', '平均库存', '周转率', '周转天数', '库存天数', '单价', '期初金额', '期末金额']
+          .concat(extraHeaders)
+          .concat(['状态', '风险']);
+        var detailRows = [detailHead];
         sortItems(filteredItems(m)).forEach(function (it) {
           var risk = it.stockout ? '断货风险' : (it.slow ? '滞销' : '');
-          detailRows.push([
+          var row = [
             it.sku, it.name, it.spec, it.category, it.beginQty, it.endQty, it.delta,
             it.sellThrough == null ? '' : Number((it.sellThrough * 100).toFixed(1)),
             Math.round(it.avgStock),
@@ -1826,11 +2401,23 @@
             it.stockDays === Infinity ? '∞' : Math.round(it.stockDays),
             it.price == null ? '' : it.price,
             it.beginAmount == null ? '' : Number(it.beginAmount.toFixed(2)),
-            it.endAmount == null ? '' : Number(it.endAmount.toFixed(2)),
-            it.status, risk
-          ]);
+            it.endAmount == null ? '' : Number(it.endAmount.toFixed(2))
+          ];
+          extraHeaders.forEach(function (h) {
+            row.push(it.masterDisplay ? (it.masterDisplay[h] || '') : '');
+          });
+          row.push(it.status, risk);
+          detailRows.push(row);
         });
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detailRows), 'SKU明细');
+
+        if (m.masterInfo && m.masterInfo.loaded && m.masterInfo.valid) {
+          var unmatchedRows = [['未匹配 SKU', '品名', '规格', '期初库存', '期末库存', '说明']];
+          (m.masterInfo.unmatchedList || []).forEach(function (it) {
+            unmatchedRows.push([it.sku, it.name, it.spec, it.beginQty, it.endQty, '未在商品信息中找到（按货号/条码/品名+规格均未命中），已从分析中排除']);
+          });
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(unmatchedRows), '未匹配商品');
+        }
 
         var notes = [
           ['口径与指标说明'],
@@ -1845,7 +2432,9 @@
           ['滞销判定', '期末库存 > 0 且（净减少 ≤ 0 或 库存天数 > ' + state.thresholds.slow + ' 天）。'],
           ['断货判定', '期初有库存但期末 ≤ 0；或期末 > 0 且库存天数 < ' + state.thresholds.stockout + ' 天。'],
           ['金额口径', '库存金额 = 数量 × 单价；单价优先取期末文件，缺失回退期初；单价类型：' + priceKindLabel(m.priceKind) + '。'],
-          ['数据过滤', '导出的 SKU 明细遵循当前筛选条件；表格页面仅展示前 ' + TABLE_LIMIT + ' 条。']
+          ['商品信息匹配', '上传商品信息后，仅分析能在主数据中匹配上的商品：优先按货号/SKU/商品编码，未命中时用条码、品名+规格兜底；未匹配商品从指标与明细中排除，并在「未匹配商品」工作表列出。'],
+          ['商品信息字段', '主数据的品名、规格、品类用于覆盖库存明细对应字段，其余字段追加为明细列；商品信息所有字段均可作为多选筛选条件。'],
+          ['数据过滤', '导出的 SKU 明细遵循当前筛选条件（含商品信息多选筛选）；表格页面仅展示前 ' + TABLE_LIMIT + ' 条。']
         ];
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(notes), '口径说明');
 
