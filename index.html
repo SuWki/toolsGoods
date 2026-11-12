@@ -90,17 +90,23 @@
     }
 
     .mode-switch {
-      display: inline-flex;
-      gap: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 2px;
+      max-width: min(100vw - 48px, 1100px);
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 999px;
+      border-radius: 22px;
       padding: 4px;
       box-shadow: 0 2px 8px rgba(45, 36, 29, 0.06);
     }
 
     .mode-btn {
-      padding: 9px 22px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 16px;
       border: none;
       background: transparent;
       color: var(--muted);
@@ -112,14 +118,52 @@
       white-space: nowrap;
     }
 
+    .mode-btn .mode-icon {
+      width: 15px;
+      height: 15px;
+      flex: none;
+      color: var(--mode-color, var(--accent));
+    }
+
     .mode-btn:hover {
-      color: var(--accent);
+      color: var(--mode-color, var(--accent));
     }
 
     .mode-btn.active {
-      background: var(--accent);
+      background: var(--mode-color, var(--accent));
       color: #fff;
-      box-shadow: 0 2px 10px rgba(20, 99, 86, 0.28);
+      box-shadow: 0 2px 10px rgba(45, 36, 29, 0.24);
+    }
+
+    .mode-btn.active .mode-icon {
+      color: #fff;
+    }
+
+    .mode-customize-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      margin-left: 2px;
+      border: none;
+      border-left: 1px solid var(--line);
+      border-radius: 0 999px 999px 0;
+      background: transparent;
+      color: var(--muted);
+    }
+
+    .mode-customize-btn .mode-icon {
+      width: 17px;
+      height: 17px;
+    }
+
+    .mode-customize-btn:hover {
+      color: var(--accent);
+      background: rgba(20, 99, 86, 0.08);
+      border-color: var(--line);
+      transform: none;
     }
 
     .actions {
@@ -1525,6 +1569,277 @@ pointer-events: none;
       overflow: auto;
     }
 
+    /* 模式自定义设置抽屉 */
+    .mode-settings-mask {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      background: rgba(45, 36, 29, .34);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease;
+    }
+
+    .mode-settings-mask.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .mode-settings-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      z-index: 61;
+      display: flex;
+      flex-direction: column;
+      width: min(92vw, 430px);
+      height: 100%;
+      background: var(--panel);
+      border-left: 1px solid var(--line);
+      box-shadow: -16px 0 40px rgba(45, 36, 29, .18);
+      transform: translateX(102%);
+      transition: transform .24s ease;
+    }
+
+    .mode-settings-drawer.open {
+      transform: translateX(0);
+    }
+
+    .ms-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .ms-head h2 {
+      margin: 0 0 6px;
+      font-size: 18px;
+    }
+
+    .ms-sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .ms-close {
+      flex: none;
+      padding: 2px 9px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .ms-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 18px;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .ms-row {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, .58);
+    }
+
+    .ms-row.is-hidden {
+      opacity: .64;
+    }
+
+    .ms-row.dragging {
+      opacity: .4;
+    }
+
+    .ms-row.drag-over {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(20, 99, 86, .14);
+    }
+
+    .ms-row-main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ms-drag {
+      color: var(--muted);
+      font-size: 14px;
+      letter-spacing: -2px;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .ms-icon {
+      display: inline-flex;
+      color: var(--mode-color, var(--accent));
+    }
+
+    .ms-icon .mode-icon {
+      width: 18px;
+      height: 18px;
+    }
+
+    .ms-name {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.3;
+      min-width: 0;
+    }
+
+    .ms-name small {
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+    }
+
+    .ms-move {
+      display: flex;
+      gap: 4px;
+    }
+
+    .ms-move button {
+      padding: 1px 8px;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .ms-move button:disabled {
+      opacity: .35;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .ms-toggle {
+      position: relative;
+      flex: none;
+      width: 36px;
+      height: 20px;
+      cursor: pointer;
+    }
+
+    .ms-toggle input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .ms-toggle-track {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: #d8cdbf;
+      transition: background .2s ease;
+    }
+
+    .ms-toggle-track::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform .2s ease;
+    }
+
+    .ms-toggle input:checked + .ms-toggle-track {
+      background: var(--accent);
+    }
+
+    .ms-toggle input:checked + .ms-toggle-track::after {
+      transform: translateX(16px);
+    }
+
+    .ms-toggle input:disabled + .ms-toggle-track {
+      background: #e4dbcf;
+      opacity: .65;
+    }
+
+    .ms-toggle:has(input:disabled) {
+      cursor: not-allowed;
+    }
+
+    .ms-row-colors {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      padding-left: 22px;
+    }
+
+    .ms-color-label {
+      margin-right: 2px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .ms-swatch {
+      width: 18px;
+      height: 18px;
+      padding: 0;
+      border: 1px solid rgba(45, 36, 29, .18);
+      border-radius: 50%;
+      background: var(--swatch);
+    }
+
+    .ms-swatch:hover {
+      transform: scale(1.12);
+    }
+
+    .ms-swatch.selected {
+      box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--swatch);
+    }
+
+    .ms-picker {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 2px;
+    }
+
+    .ms-picker input[type="color"] {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .ms-color-reset {
+      padding: 2px 8px;
+      border-radius: 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .ms-foot {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 14px 18px;
+      border-top: 1px solid var(--line);
+    }
+
     @media (max-width: 1100px) {
       .trend-toolbar { grid-template-columns: 1fr 1fr; }
       .trend-picker { grid-template-columns: 1fr; }
@@ -1541,17 +1856,7 @@ pointer-events: none;
         <div id="progress-pills" class="pill-row"></div>
       </div>
       <div class="topbar-right">
-        <div class="mode-switch" id="mode-switch">
-          <button class="mode-btn" data-mode="cockpit">驾驶舱</button>
-          <button class="mode-btn" data-mode="matrix">九宫格</button>
-          <button class="mode-btn" data-mode="salesTrend">销售趋势</button>
-          <button class="mode-btn" data-mode="kttImport">快团团导入</button>
-          <button class="mode-btn" data-mode="skuRank">门店SKU排名</button>
-          <button class="mode-btn" data-mode="stockWaterline">库存水位线</button>
-          <button class="mode-btn" data-mode="sellOut">售罄预估</button>
-          <button class="mode-btn" data-mode="inventoryAnalysis">库存分析</button>
-          <button class="mode-btn" data-mode="newStore">新店时间表</button>
-        </div>
+        <div class="mode-switch" id="mode-switch"></div>
         <div class="actions">
           <button id="batch-upload" class="ghost">批量上传</button>
           <button id="clear-all" class="ghost">清空全部</button>
@@ -1619,6 +1924,22 @@ pointer-events: none;
       </main>
     </div>
   </div>
+
+  <div class="mode-settings-mask" id="mode-settings-mask"></div>
+  <aside class="mode-settings-drawer" id="mode-settings-drawer" role="dialog" aria-modal="true" aria-labelledby="ms-title" aria-hidden="true">
+    <div class="ms-head">
+      <div>
+        <h2 id="ms-title">自定义模式</h2>
+        <p class="ms-sub">调整顶栏模式的显示 / 隐藏、顺序与图标颜色，修改后立即生效并保存在本浏览器。</p>
+      </div>
+      <button type="button" class="ms-close" data-ms-close title="关闭" aria-label="关闭">&times;</button>
+    </div>
+    <div class="ms-list" id="ms-list"></div>
+    <div class="ms-foot">
+      <button type="button" class="ghost" data-ms-reset-all>恢复默认设置</button>
+      <button type="button" class="primary" data-ms-close>完成</button>
+    </div>
+  </aside>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -4551,12 +4872,342 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       `;
     }
 
+    // ===== 顶栏模式自定义（显示/隐藏、排序、图标颜色） =====
+    const MODE_SETTINGS_KEY = "toolsGoods.cockpitModeSettings.v1";
+    const MODE_PALETTE = ["#146356", "#1d4ed8", "#7c3aed", "#0e7490", "#4d7c0f", "#b45309", "#c2410c", "#b91c1c", "#be185d", "#475569"];
+
+    function modeIcon(inner) {
+      return `<svg class="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+    }
+
+    const MODE_CONFIG = [
+      { id: "cockpit", label: "驾驶舱", defaultColor: "#146356", icon: '<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/>' },
+      { id: "matrix", label: "九宫格", defaultColor: "#b45309", icon: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>' },
+      { id: "salesTrend", label: "销售趋势", defaultColor: "#1d4ed8", icon: '<path d="M3 17l6-6 4 4 7-8"/><path d="M14 7h6v6"/>' },
+      { id: "kttImport", label: "快团团导入", defaultColor: "#c2410c", icon: '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/>' },
+      { id: "skuRank", label: "门店SKU排名", defaultColor: "#7c3aed", icon: '<path d="M5 20V10M12 20V4M19 20v-7"/>' },
+      { id: "stockWaterline", label: "库存水位线", defaultColor: "#0e7490", icon: '<path d="M2 10c2.5-3 4.5-3 7 0s4.5 3 7 0 4.5-3 6 0"/><path d="M2 17c2.5-3 4.5-3 7 0s4.5 3 7 0 4.5-3 6 0"/>' },
+      { id: "sellOut", label: "售罄预估", defaultColor: "#b91c1c", icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' },
+      { id: "inventoryAnalysis", label: "库存分析", defaultColor: "#4d7c0f", icon: '<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/>' },
+      { id: "newStore", label: "新店时间表", defaultColor: "#a16207", icon: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/>' },
+    ];
+
+    const GEAR_ICON = modeIcon('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/>');
+
+    let modeDragId = "";
+
+    function getDefaultModeSettings() {
+      return {
+        version: 1,
+        order: MODE_CONFIG.map((m) => m.id),
+        hidden: Object.fromEntries(MODE_CONFIG.map((m) => [m.id, false])),
+        colors: Object.fromEntries(MODE_CONFIG.map((m) => [m.id, m.defaultColor])),
+      };
+    }
+
+    // 兼容旧存储：只认已知模式，未知 id 丢弃；新出现的模式追加到末尾、默认可见、默认颜色
+    function normalizeModeSettings(raw) {
+      const ids = MODE_CONFIG.map((m) => m.id);
+      const order = [];
+      if (raw && Array.isArray(raw.order)) {
+        raw.order.forEach((id) => {
+          if (ids.includes(id) && !order.includes(id)) order.push(id);
+        });
+      }
+      ids.forEach((id) => {
+        if (!order.includes(id)) order.push(id);
+      });
+      const hidden = {};
+      ids.forEach((id) => {
+        hidden[id] = Boolean(raw && raw.hidden && raw.hidden[id]);
+      });
+      if (!ids.some((id) => !hidden[id])) hidden[order[0]] = false;
+      const colors = {};
+      ids.forEach((id) => {
+        const cfg = MODE_CONFIG.find((m) => m.id === id);
+        const value = raw && raw.colors ? raw.colors[id] : "";
+        colors[id] = /^#[0-9a-f]{6}$/i.test(String(value || "")) ? String(value).toLowerCase() : cfg.defaultColor;
+      });
+      return { version: 1, order, hidden, colors };
+    }
+
+    function loadModeSettings() {
+      try {
+        const raw = localStorage.getItem(MODE_SETTINGS_KEY);
+        return normalizeModeSettings(raw ? JSON.parse(raw) : null);
+      } catch {
+        return normalizeModeSettings(null);
+      }
+    }
+
+    let modeSettings = loadModeSettings();
+
+    function persistModeSettings() {
+      try {
+        localStorage.setItem(MODE_SETTINGS_KEY, JSON.stringify(modeSettings));
+      } catch {
+        // best-effort
+      }
+    }
+
+    function getModeConfig(id) {
+      return MODE_CONFIG.find((m) => m.id === id) || null;
+    }
+
+    function getVisibleModeIds() {
+      return modeSettings.order.filter((id) => !modeSettings.hidden[id]);
+    }
+
+    function getVisibleModeCount() {
+      return getVisibleModeIds().length;
+    }
+
+    function getModeColor(id) {
+      const cfg = getModeConfig(id);
+      return modeSettings.colors[id] || (cfg ? cfg.defaultColor : "#146356");
+    }
+
+    function ensureActiveModeVisible() {
+      if (!modeSettings.hidden[state.activeTab]) return;
+      const first = getVisibleModeIds()[0];
+      if (first) state.activeTab = first;
+    }
+
+    function renderModeSettingsDrawer() {
+      const list = document.getElementById("ms-list");
+      if (!list) return;
+      const visibleCount = getVisibleModeCount();
+      list.innerHTML = modeSettings.order.map((id, index) => {
+        const cfg = getModeConfig(id);
+        if (!cfg) return "";
+        const hidden = Boolean(modeSettings.hidden[id]);
+        const color = getModeColor(id);
+        const lastVisible = !hidden && visibleCount <= 1;
+        const swatches = MODE_PALETTE.map((c) => `<button type="button" class="ms-swatch${c.toLowerCase() === color.toLowerCase() ? " selected" : ""}" data-ms-swatch="${c}" data-mode-id="${id}" style="--swatch:${c}" title="${c}" aria-label="使用颜色 ${c}"></button>`).join("");
+        return `
+          <div class="ms-row${hidden ? " is-hidden" : ""}" data-mode-id="${id}" draggable="true">
+            <div class="ms-row-main">
+              <span class="ms-drag" title="拖拽排序" aria-hidden="true">⋮⋮</span>
+              <span class="ms-icon" style="--mode-color:${color}">${modeIcon(cfg.icon)}</span>
+              <span class="ms-name">${escapeHtml(cfg.label)}<small>${hidden ? "已隐藏" : `${index + 1} / ${modeSettings.order.length}`}</small></span>
+              <span class="ms-move">
+                <button type="button" data-ms-up="${id}" ${index === 0 ? "disabled" : ""} title="上移">↑</button>
+                <button type="button" data-ms-down="${id}" ${index === modeSettings.order.length - 1 ? "disabled" : ""} title="下移">↓</button>
+              </span>
+              <label class="ms-toggle" title="${lastVisible ? "至少保留一个可见模式" : hidden ? "显示该模式" : "隐藏该模式"}">
+                <input type="checkbox" data-ms-toggle="${id}" ${hidden ? "" : "checked"} ${lastVisible ? "disabled" : ""}>
+                <span class="ms-toggle-track"></span>
+              </label>
+            </div>
+            <div class="ms-row-colors">
+              <span class="ms-color-label">图标颜色</span>
+              ${swatches}
+              <label class="ms-picker" title="自定义颜色">
+                <input type="color" data-ms-color="${id}" value="${color}">
+              </label>
+              <button type="button" class="ms-color-reset" data-ms-color-reset="${id}" title="恢复该模式默认色">默认</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function openModeSettingsDrawer() {
+      renderModeSettingsDrawer();
+      const mask = document.getElementById("mode-settings-mask");
+      const drawer = document.getElementById("mode-settings-drawer");
+      if (!mask || !drawer) return;
+      mask.classList.add("open");
+      drawer.classList.add("open");
+      drawer.setAttribute("aria-hidden", "false");
+    }
+
+    function closeModeSettingsDrawer() {
+      const mask = document.getElementById("mode-settings-mask");
+      const drawer = document.getElementById("mode-settings-drawer");
+      if (!mask || !drawer) return;
+      mask.classList.remove("open");
+      drawer.classList.remove("open");
+      drawer.setAttribute("aria-hidden", "true");
+    }
+
+    function setModeColor(id, value) {
+      if (!getModeConfig(id)) return;
+      const hex = String(value || "").toLowerCase();
+      if (!/^#[0-9a-f]{6}$/.test(hex)) return;
+      modeSettings.colors[id] = hex;
+      persistModeSettings();
+      renderModeSwitch();
+      renderModeSettingsDrawer();
+    }
+
+    function moveModeBy(id, delta) {
+      const order = modeSettings.order.slice();
+      const from = order.indexOf(id);
+      const to = from + delta;
+      if (from < 0 || to < 0 || to >= order.length) return;
+      order.splice(from, 1);
+      order.splice(to, 0, id);
+      modeSettings.order = order;
+      persistModeSettings();
+      renderModeSwitch();
+      renderModeSettingsDrawer();
+    }
+
+    function moveModeBefore(dragId, targetId) {
+      if (!dragId || !targetId || dragId === targetId) return;
+      const order = modeSettings.order.filter((id) => id !== dragId);
+      const index = order.indexOf(targetId);
+      if (index < 0) return;
+      order.splice(index, 0, dragId);
+      modeSettings.order = order;
+      persistModeSettings();
+      renderModeSwitch();
+      renderModeSettingsDrawer();
+    }
+
+    function toggleModeVisibility(id, visible) {
+      if (!getModeConfig(id)) return;
+      if (!visible) {
+        // 边界：至少保留一个可见模式
+        if (getVisibleModeCount() <= 1) {
+          renderModeSettingsDrawer();
+          return;
+        }
+        modeSettings.hidden[id] = true;
+        // 边界：隐藏的正是当前模式时，自动切到剩余第一个可见模式
+        if (state.activeTab === id) {
+          const first = getVisibleModeIds()[0];
+          if (first) state.activeTab = first;
+        }
+      } else {
+        modeSettings.hidden[id] = false;
+      }
+      persistModeSettings();
+      render();
+      renderModeSettingsDrawer();
+    }
+
+    function resetModeSettings() {
+      if (!window.confirm("恢复默认设置会重置所有模式的显示/隐藏、排序和图标颜色，确定继续吗？")) return;
+      modeSettings = getDefaultModeSettings();
+      persistModeSettings();
+      ensureActiveModeVisible();
+      render();
+      renderModeSettingsDrawer();
+    }
+
+    function bindModeSettingsEvents() {
+      const switchHost = document.getElementById("mode-switch");
+      if (switchHost && !switchHost.dataset.customBound) {
+        switchHost.dataset.customBound = "1";
+        switchHost.addEventListener("click", (event) => {
+          if (event.target.closest("#mode-customize-btn")) openModeSettingsDrawer();
+        });
+      }
+
+      const mask = document.getElementById("mode-settings-mask");
+      const drawer = document.getElementById("mode-settings-drawer");
+      const list = document.getElementById("ms-list");
+      if (!drawer || !list || drawer.dataset.bound) return;
+      drawer.dataset.bound = "1";
+
+      if (mask) mask.addEventListener("click", closeModeSettingsDrawer);
+
+      drawer.addEventListener("click", (event) => {
+        if (event.target.closest("[data-ms-close]")) {
+          closeModeSettingsDrawer();
+          return;
+        }
+        if (event.target.closest("[data-ms-reset-all]")) {
+          resetModeSettings();
+          return;
+        }
+        const upBtn = event.target.closest("[data-ms-up]");
+        if (upBtn) {
+          moveModeBy(upBtn.dataset.msUp, -1);
+          return;
+        }
+        const downBtn = event.target.closest("[data-ms-down]");
+        if (downBtn) {
+          moveModeBy(downBtn.dataset.msDown, 1);
+          return;
+        }
+        const swatch = event.target.closest("[data-ms-swatch]");
+        if (swatch) {
+          setModeColor(swatch.dataset.modeId, swatch.dataset.msSwatch);
+          return;
+        }
+        const resetColor = event.target.closest("[data-ms-color-reset]");
+        if (resetColor) {
+          const cfg = getModeConfig(resetColor.dataset.msColorReset);
+          if (cfg) setModeColor(cfg.id, cfg.defaultColor);
+        }
+      });
+
+      drawer.addEventListener("change", (event) => {
+        const toggle = event.target.closest("input[data-ms-toggle]");
+        if (toggle) {
+          toggleModeVisibility(toggle.dataset.msToggle, toggle.checked);
+          return;
+        }
+        const colorInput = event.target.closest("input[data-ms-color]");
+        if (colorInput) {
+          setModeColor(colorInput.dataset.msColor, colorInput.value);
+        }
+      });
+
+      list.addEventListener("dragstart", (event) => {
+        const row = event.target.closest(".ms-row");
+        if (!row) return;
+        modeDragId = row.dataset.modeId;
+        row.classList.add("dragging");
+        try {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", modeDragId);
+        } catch {
+          // ignore
+        }
+      });
+
+      list.addEventListener("dragend", () => {
+        modeDragId = "";
+        list.querySelectorAll(".ms-row").forEach((row) => row.classList.remove("dragging", "drag-over"));
+      });
+
+      list.addEventListener("dragover", (event) => {
+        const row = event.target.closest(".ms-row");
+        if (!row || !modeDragId) return;
+        event.preventDefault();
+        list.querySelectorAll(".ms-row").forEach((item) => {
+          item.classList.toggle("drag-over", item === row && item.dataset.modeId !== modeDragId);
+        });
+      });
+
+      list.addEventListener("drop", (event) => {
+        const row = event.target.closest(".ms-row");
+        if (!row || !modeDragId) return;
+        event.preventDefault();
+        moveModeBefore(modeDragId, row.dataset.modeId);
+        modeDragId = "";
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeModeSettingsDrawer();
+      });
+    }
+
     function renderModeSwitch(model) {
       const host = document.getElementById("mode-switch");
       if (!host) return;
-      host.querySelectorAll(".mode-btn").forEach((btn) => {
-        btn.classList.toggle("active", btn.dataset.mode === state.activeTab);
-      });
+      ensureActiveModeVisible();
+      const buttons = getVisibleModeIds().map((id) => {
+        const cfg = getModeConfig(id);
+        if (!cfg) return "";
+        const active = id === state.activeTab ? " active" : "";
+        return `<button class="mode-btn${active}" data-mode="${id}" style="--mode-color:${getModeColor(id)}" title="${escapeHtml(cfg.label)}">${modeIcon(cfg.icon)}<span>${escapeHtml(cfg.label)}</span></button>`;
+      }).join("");
+      host.innerHTML = `${buttons}<button type="button" class="mode-customize-btn" id="mode-customize-btn" title="自定义模式" aria-label="自定义模式">${GEAR_ICON}</button>`;
     }
 
     function renderCockpitSubtabs(model) {
@@ -7857,6 +8508,8 @@ bindTrendTooltip(chartEl);
     });
 
     restoreAppState();
+    ensureActiveModeVisible();
+    bindModeSettingsEvents();
 
     // 全局错误处理
     window.addEventListener('error', (e) => {
