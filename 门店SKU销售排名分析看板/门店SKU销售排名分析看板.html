@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light">
   <title>门店 SKU 销售排名分析看板</title>
+  <link rel="stylesheet" href="../theme.css">
 
   <style>
     /* ============================================================
@@ -14,33 +15,27 @@
        ============================================================ */
     :root {
       /* Page / report tokens */
-      --page-bg: #FFFFFF;
-      --page-surface: #F4F7FB;
-      --page-surface-muted: #EAEFF6;
-      --page-text: #1F2937;
-      --page-text-secondary: #3D4757;
-      --page-text-muted: #67717F;
-      --page-text-disabled: #9AA4B2;
-      --page-border: #DFE5EE;
-      --page-brand: #0969DA;
-      --page-brand-hover: #0757B5;
-      --page-brand-active: #064B99;
-      --page-brand-soft: #EAF2FC;
-      --page-brand-soft-strong: #CFE2F8;
-      --page-brand-text: #0B4A94;
+      --page-bg: var(--surface);
+      --page-surface: var(--tint);
+      --page-surface-muted: var(--surface-muted);
+      --page-text: var(--text);
+      --page-text-secondary: var(--text-secondary);
+      --page-text-muted: var(--text-muted);
+      --page-text-disabled: var(--text-disabled);
+      --page-border: var(--border);
+      --page-brand: var(--accent);
+      --page-brand-hover: var(--accent-hover);
+      --page-brand-active: var(--accent-active);
+      --page-brand-soft: var(--accent-soft);
+      --page-brand-soft-strong: var(--accent-soft-strong);
+      --page-brand-text: var(--accent-text);
 
       /* Backward-compatible report variables */
-      --bg: #FFFFFF;
-      --bg2: #F4F7FB;
-      --rule: #E7ECF3;
-      --ink: #1F2937;
-      --muted: #67717F;
-      --text-secondary: #3D4757;
-      --text-disabled: #9AA4B2;
-      --accent: #0969DA;
-      --accent-hover: #0757B5;
-      --accent-active: #064B99;
-      --accent-soft: #EAF2FC;
+      --bg: var(--surface);
+      --bg2: var(--tint);
+      --rule: var(--border);
+      --ink: var(--text);
+      --muted: var(--text-muted);
       --accent2: #8250DF;
 
       /* Chart / data tokens */
@@ -203,11 +198,11 @@
       border-radius: var(--radius-lg);
       padding: 11px 16px;
       font-size: 13px;
-      color: #7A5B10;
+      color: #9A6B00;
       margin-bottom: var(--space-5);
     }
     .banner b { font-weight: 600; }
-    .banner .btn-link { color: #7A5B10; text-decoration: underline; padding: 0; margin-left: 2px; }
+    .banner .btn-link { color: #9A6B00; text-decoration: underline; padding: 0; margin-left: 2px; }
     .banner[hidden] { display: none; }
 
     /* === KPI metric cards === */
@@ -557,7 +552,7 @@
       vertical-align: 1px;
       white-space: nowrap;
     }
-    .tag-zero { color: #9A6B00; background: var(--warning-soft); border-color: #EFDFAC; }
+    .tag-zero { color: #9A6B00; background: var(--warning-soft); border-color: #F0E4B8; }
     .tag-missing { color: var(--danger); background: var(--danger-soft); border-color: #FFD1D1; }
     .table-footnote {
       margin-top: 10px;
@@ -593,9 +588,9 @@
     }
     .t-lead { color: var(--page-brand-text); background: var(--info-soft); border-color: var(--page-brand-soft-strong); }
     .t-price { color: #B25000; background: #FFF3EC; border-color: #F6D5C0; }
-    .t-zero { color: #9A6B00; background: var(--warning-soft); border-color: #EFDFAC; }
+    .t-zero { color: #9A6B00; background: var(--warning-soft); border-color: #F0E4B8; }
     .t-missing { color: var(--danger); background: var(--danger-soft); border-color: #FFD1D1; }
-    .t-risk { color: var(--warning); background: var(--warning-soft); border-color: #EFDFAC; }
+    .t-risk { color: var(--warning); background: var(--warning-soft); border-color: #F0E4B8; }
     .t-note { color: var(--page-text-muted); background: var(--page-surface); border-color: var(--page-border); }
     .insight b { font-weight: 600; color: var(--page-text); }
     .empty-tip {

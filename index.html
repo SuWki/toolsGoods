@@ -8,24 +8,20 @@
   <meta http-equiv="Expires" content="0">
   <title>黑爪商品驾驶舱 v2.1</title>
   <link rel="icon" href="icon.png">
+  <link rel="stylesheet" href="theme.css">
   <style>
     :root {
-      --bg: #f4f1ea;
-      --panel: #fbf8f2;
-      --panel-strong: #fffdf8;
-      --ink: #2d241d;
-      --muted: #736454;
-      --line: #d8cdbf;
-      --accent: #146356;
-      --accent-soft: #d8ece7;
-      --warn: #d97706;
-      --warn-soft: #fce9ce;
-      --danger: #b42318;
-      --danger-soft: #f9dfdb;
-      --good: #4c7a1f;
-      --good-soft: #e4efd4;
-      --shadow: 0 10px 30px rgba(45, 36, 29, 0.08);
-      --radius: 10px;
+      --panel: var(--surface);
+      --panel-strong: var(--surface);
+      --ink: var(--text);
+      --muted: var(--text-muted);
+      --line: var(--border);
+      --warn: var(--warning-text);
+      --warn-soft: var(--warning-soft);
+      --danger: var(--danger-text);
+      --danger-soft: var(--danger-soft);
+      --good: var(--positive-text);
+      --good-soft: var(--positive-soft);
     }
 
     * { box-sizing: border-box; }
@@ -35,8 +31,8 @@
       font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
       color: var(--ink);
       background:
-        radial-gradient(circle at top left, rgba(20, 99, 86, 0.08), transparent 34%),
-        linear-gradient(180deg, rgba(20, 99, 86, 0.05), rgba(20, 99, 86, 0) 180px),
+        radial-gradient(circle at top left, rgba(9, 105, 218, 0.08), transparent 34%),
+        linear-gradient(180deg, rgba(9, 105, 218, 0.05), rgba(9, 105, 218, 0) 180px),
         var(--bg);
     }
 
@@ -99,7 +95,7 @@
       border: 1px solid var(--line);
       border-radius: 22px;
       padding: 4px;
-      box-shadow: 0 2px 8px rgba(45, 36, 29, 0.06);
+      box-shadow: 0 2px 8px rgba(31, 41, 55, 0.06);
     }
 
     .mode-btn {
@@ -132,7 +128,7 @@
     .mode-btn.active {
       background: var(--mode-color, var(--accent));
       color: #fff;
-      box-shadow: 0 2px 10px rgba(45, 36, 29, 0.24);
+      box-shadow: 0 2px 10px rgba(31, 41, 55, 0.24);
     }
 
     .mode-btn.active .mode-icon {
@@ -161,7 +157,7 @@
 
     .mode-customize-btn:hover {
       color: var(--accent);
-      background: rgba(20, 99, 86, 0.08);
+      background: rgba(9, 105, 218, 0.08);
       border-color: var(--line);
       transform: none;
     }
@@ -190,7 +186,7 @@
 
     button:hover {
       transform: translateY(-1px);
-      border-color: #bfae9a;
+      border-color: #B7C4D6;
     }
 
     button.primary {
@@ -210,7 +206,7 @@
       padding: 6px 10px;
       border-radius: 999px;
       background: rgba(255, 255, 255, .64);
-      border: 1px solid rgba(216, 205, 191, .92);
+      border: 1px solid rgba(223, 229, 238, .92);
       color: var(--muted);
       font-size: 12px;
     }
@@ -227,7 +223,7 @@
     .empty-state,
     .status-item {
       background: var(--panel);
-      border: 1px solid rgba(216, 205, 191, .9);
+      border: 1px solid rgba(223, 229, 238, .9);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
     }
@@ -324,7 +320,7 @@
     }
 
     .link-to-matrix:hover {
-      color: #0d3b33;
+      color: #0757B5;
     }
 
     .source-actions {
@@ -462,7 +458,7 @@
       flex-wrap: wrap;
       gap: 8px;
       padding: 14px;
-      border-bottom: 1px solid rgba(216, 205, 191, .85);
+      border-bottom: 1px solid rgba(223, 229, 238, .85);
       background: rgba(255, 255, 255, .36);
     }
 
@@ -485,7 +481,7 @@
 
     .tab.active {
       background: var(--accent-soft);
-      border-color: rgba(20, 99, 86, .22);
+      border-color: rgba(9, 105, 218, .22);
       color: var(--accent);
       font-weight: 700;
     }
@@ -518,7 +514,7 @@
       max-height: 620px;
       overflow: auto;
       border-radius: 8px;
-      border: 1px solid rgba(216, 205, 191, .72);
+      border: 1px solid rgba(223, 229, 238, .72);
       background: rgba(255, 255, 255, .55);
     }
 
@@ -546,7 +542,7 @@
     .pager select {
       height: 32px;
       border-radius: 999px;
-      border: 1px solid rgba(216, 205, 191, .92);
+      border: 1px solid rgba(223, 229, 238, .92);
       background: #fff;
       color: var(--text);
       padding: 0 12px;
@@ -559,7 +555,7 @@
     }
 
     .pager button.sort-active {
-      border-color: rgba(20, 99, 86, .35);
+      border-color: rgba(9, 105, 218, .35);
       background: var(--accent-soft);
       color: var(--accent);
     }
@@ -576,7 +572,7 @@
     }
 
     th.sortable:hover {
-      background: rgba(20, 99, 86, .06);
+      background: rgba(9, 105, 218, .06);
     }
 
     .sort-arrow {
@@ -608,12 +604,12 @@
       width: 2px;
       height: 64%;
       border-radius: 999px;
-      background: rgba(20, 99, 86, .18);
+      background: rgba(9, 105, 218, .18);
     }
 
     .column-resizer:hover::after,
     .column-resizer.is-dragging::after {
-      background: rgba(20, 99, 86, .52);
+      background: rgba(9, 105, 218, .52);
     }
 
     .cell-clip {
@@ -655,7 +651,7 @@
 
     th,
     td {
-      border-bottom: 1px solid rgba(216, 205, 191, .72);
+      border-bottom: 1px solid rgba(223, 229, 238, .72);
       padding: 10px 12px;
       text-align: left;
       vertical-align: top;
@@ -688,8 +684,8 @@
     .badge.good { color: var(--good); background: var(--good-soft); }
     .badge.warn { color: var(--warn); background: var(--warn-soft); }
     .badge.danger { color: var(--danger); background: var(--danger-soft); }
-    .badge.neutral { color: #5b4d42; background: #ece4d7; }
-    .badge.busy { color: #0f5e57; background: #d7f0ec; }
+    .badge.neutral { color: #3D4757; background: #EAEFF6; }
+    .badge.busy { color: #0B4A94; background: #EAF2FC; }
 
     .empty-table {
       padding: 18px;
@@ -698,7 +694,7 @@
     }
 
     .soft-card {
-      border: 1px solid rgba(216, 205, 191, .72);
+      border: 1px solid rgba(223, 229, 238, .72);
       border-radius: 8px;
       padding: 12px 14px;
       background: rgba(255, 255, 255, .6);
@@ -714,10 +710,10 @@
       display: grid;
       gap: 16px;
       padding: 18px;
-      border: 1px solid rgba(20, 99, 86, .12);
+      border: 1px solid rgba(9, 105, 218, .12);
       background:
         linear-gradient(180deg, rgba(255, 255, 255, .82), rgba(255, 255, 255, .72)),
-        radial-gradient(circle at top right, rgba(20, 99, 86, .06), transparent 28%);
+        radial-gradient(circle at top right, rgba(9, 105, 218, .06), transparent 28%);
       width: 100%;
       max-width: 100%;
       box-sizing: border-box;
@@ -773,7 +769,7 @@
 
     .matrix-mini {
       padding: 14px;
-      border: 1px solid rgba(216, 205, 191, .8);
+      border: 1px solid rgba(223, 229, 238, .8);
       border-radius: 10px;
       background: rgba(255, 255, 255, .7);
       transition: all 0.2s ease;
@@ -781,7 +777,7 @@
     .matrix-mini:hover {
       background: rgba(255, 255, 255, .9);
       border-color: var(--accent);
-      box-shadow: 0 4px 12px rgba(20, 99, 86, 0.15);
+      box-shadow: 0 4px 12px rgba(9, 105, 218, 0.15);
     }
     .matrix-mini.active {
       background: var(--accent-soft);
@@ -814,7 +810,7 @@
       text-align: center;
       font-weight: 700;
       border-radius: 12px;
-      border: 1px solid rgba(216, 205, 191, .8);
+      border: 1px solid rgba(223, 229, 238, .8);
       background: rgba(255, 255, 255, .58);
       color: var(--ink);
       writing-mode: vertical-rl;
@@ -829,7 +825,7 @@
       place-items: center;
       min-height: 42px;
       border-radius: 12px;
-      border: 1px solid rgba(216, 205, 191, .8);
+      border: 1px solid rgba(223, 229, 238, .8);
       background: rgba(255, 255, 255, .8);
       font-weight: 700;
       color: var(--ink);
@@ -848,7 +844,7 @@
     }
 
     .matrix-cell {
-      border: 1px solid rgba(216, 205, 191, .86);
+      border: 1px solid rgba(223, 229, 238, .86);
       border-radius: 14px;
       background: rgba(255, 255, 255, .72);
       padding: 14px;
@@ -867,7 +863,7 @@
       inset: 0 auto auto 0;
       width: 100%;
       height: 4px;
-      background: linear-gradient(90deg, rgba(20, 99, 86, .7), rgba(20, 99, 86, .08));
+      background: linear-gradient(90deg, rgba(9, 105, 218, .7), rgba(9, 105, 218, .08));
     }
 
     .matrix-cell.good { background: linear-gradient(180deg, rgba(76, 122, 31, .08), rgba(255,255,255,.82)); }
@@ -879,14 +875,14 @@
       animation: cell-flash-anim 2s ease-out;
     }
     @keyframes cell-flash-anim {
-      0%   { box-shadow: 0 0 0 4px rgba(20, 99, 86, .9), 0 0 24px rgba(20, 99, 86, .6); }
+      0%   { box-shadow: 0 0 0 4px rgba(9, 105, 218, .9), 0 0 24px rgba(9, 105, 218, .6); }
       100% { box-shadow: var(--shadow); }
     }
     .sku-chip.chip-flash {
       animation: chip-flash-anim 2s ease-out;
     }
     @keyframes chip-flash-anim {
-      0%   { box-shadow: 0 0 0 3px rgba(20, 99, 86, .9); transform: scale(1.15); }
+      0%   { box-shadow: 0 0 0 3px rgba(9, 105, 218, .9); transform: scale(1.15); }
       100% { box-shadow: none; transform: scale(1); }
     }
 
@@ -923,14 +919,14 @@
       gap: 4px;
       padding: 6px;
       border-radius: 8px;
-      border: 1px solid rgba(216, 205, 191, .8);
+      border: 1px solid rgba(223, 229, 238, .8);
       background: rgba(255, 255, 255, .84);
       cursor: pointer;
       text-align: left;
     }
 
     .sku-chip:hover {
-      border-color: rgba(20, 99, 86, .35);
+      border-color: rgba(9, 105, 218, .35);
       transform: translateY(-1px);
     }
 
@@ -939,7 +935,7 @@
       aspect-ratio: 1 / 1; /* 正方形 */
       border-radius: 10px;
       overflow: hidden;
-      background: #f4efe8;
+      background: #EEF3FA;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -969,7 +965,7 @@
       height: auto;
       object-fit: contain;
       display: block;
-      background: #f4efe8;
+      background: #EEF3FA;
     }
 
 .sku-chip small {
@@ -1005,9 +1001,9 @@ pointer-events: none;
     .matrix-more {
       display: grid;
       place-items: center;
-      border: 1px dashed rgba(20, 99, 86, .24);
+      border: 1px dashed rgba(9, 105, 218, .24);
       border-radius: 12px;
-      background: rgba(20, 99, 86, .04);
+      background: rgba(9, 105, 218, .04);
       color: var(--accent);
       font-size: 12px;
       padding: 8px;
@@ -1015,14 +1011,14 @@ pointer-events: none;
     }
 
     .focus-row td {
-      background: rgba(20, 99, 86, .08);
+      background: rgba(9, 105, 218, .08);
     }
 
     /* 大宫格弹窗样式 */
     .big-cell-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(45, 36, 29, 0.6);
+      background: rgba(31, 41, 55, 0.6);
       backdrop-filter: blur(4px);
       z-index: 1000;
       display: flex;
@@ -1099,7 +1095,7 @@ pointer-events: none;
       height: 100px;
       width: 100px;
       overflow: hidden;
-      background: #f4efe8;
+      background: #EEF3FA;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1176,14 +1172,14 @@ pointer-events: none;
     .big-cell-cat-bar {
       height: 8px;
       border-radius: 4px;
-      background: rgba(216, 205, 191, .45);
+      background: rgba(223, 229, 238, .45);
       overflow: hidden;
     }
 
     .big-cell-cat-fill {
       height: 100%;
       border-radius: 4px;
-      background: linear-gradient(90deg, #146356, #1d8574);
+      background: #0969DA;
     }
 
     .big-cell-cat-qty {
@@ -1221,7 +1217,7 @@ pointer-events: none;
       height: 14px;
       border-radius: 3px;
       border: 3px solid;
-      background: #f4efe8;
+      background: #EEF3FA;
     }
 
     .legend-box.legend-red { border-color: #dc3545; }
@@ -1295,10 +1291,10 @@ pointer-events: none;
       display: grid;
       gap: 16px;
       padding: 18px;
-      border: 1px solid rgba(20, 99, 86, .12);
+      border: 1px solid rgba(9, 105, 218, .12);
       background:
         linear-gradient(180deg, rgba(255, 255, 255, .82), rgba(255, 255, 255, .72)),
-        radial-gradient(circle at top right, rgba(20, 99, 86, .06), transparent 28%);
+        radial-gradient(circle at top right, rgba(9, 105, 218, .06), transparent 28%);
     }
 
     .trend-toolbar {
@@ -1314,9 +1310,9 @@ pointer-events: none;
       align-items: center;
       gap: 12px;
       padding: 10px 12px;
-      border: 1px dashed rgba(20, 99, 86, .18);
+      border: 1px dashed rgba(9, 105, 218, .18);
       border-radius: 10px;
-      background: rgba(20, 99, 86, .04);
+      background: rgba(9, 105, 218, .04);
     }
 
     .trend-view-bar-hint {
@@ -1365,7 +1361,7 @@ pointer-events: none;
     .trend-product-list {
       max-height: 280px;
       overflow: auto;
-      border: 1px solid rgba(216, 205, 191, .72);
+      border: 1px solid rgba(223, 229, 238, .72);
       border-radius: 10px;
       background: rgba(255, 255, 255, .7);
       padding: 6px 8px;
@@ -1385,7 +1381,7 @@ pointer-events: none;
     }
 
     .trend-product-item:hover {
-      background: rgba(20, 99, 86, .06);
+      background: rgba(9, 105, 218, .06);
     }
 
     .trend-product-item input {
@@ -1413,7 +1409,7 @@ pointer-events: none;
     }
 
     .trend-chart-wrap {
-      border: 1px solid rgba(216, 205, 191, .72);
+      border: 1px solid rgba(223, 229, 238, .72);
       border-radius: 10px;
       background: #fff;
       padding: 12px;
@@ -1455,7 +1451,7 @@ pointer-events: none;
     }
 
     .trend-stat {
-      border: 1px solid rgba(216, 205, 191, .72);
+      border: 1px solid rgba(223, 229, 238, .72);
       border-radius: 10px;
       padding: 12px 14px;
       background: rgba(255, 255, 255, .7);
@@ -1520,7 +1516,7 @@ pointer-events: none;
     .trend-loading-spinner {
       width: 40px;
       height: 40px;
-      border: 3px solid rgba(20,99,86,.15);
+      border: 3px solid rgba(9,105,218,.15);
       border-top-color: var(--accent);
       border-radius: 50%;
       animation: trend-spin 1s linear infinite;
@@ -1574,7 +1570,7 @@ pointer-events: none;
       position: fixed;
       inset: 0;
       z-index: 60;
-      background: rgba(45, 36, 29, .34);
+      background: rgba(31, 41, 55, .34);
       opacity: 0;
       pointer-events: none;
       transition: opacity .2s ease;
@@ -1596,7 +1592,7 @@ pointer-events: none;
       height: 100%;
       background: var(--panel);
       border-left: 1px solid var(--line);
-      box-shadow: -16px 0 40px rgba(45, 36, 29, .18);
+      box-shadow: -16px 0 40px rgba(31, 41, 55, .18);
       transform: translateX(102%);
       transition: transform .24s ease;
     }
@@ -1665,7 +1661,7 @@ pointer-events: none;
 
     .ms-row.drag-over {
       border-color: var(--accent);
-      box-shadow: 0 0 0 2px rgba(20, 99, 86, .14);
+      box-shadow: 0 0 0 2px rgba(9, 105, 218, .14);
     }
 
     .ms-row-main {
@@ -1744,7 +1740,7 @@ pointer-events: none;
       position: absolute;
       inset: 0;
       border-radius: 999px;
-      background: #d8cdbf;
+      background: #DFE5EE;
       transition: background .2s ease;
     }
 
@@ -1769,7 +1765,7 @@ pointer-events: none;
     }
 
     .ms-toggle input:disabled + .ms-toggle-track {
-      background: #e4dbcf;
+      background: #E6EDF5;
       opacity: .65;
     }
 
@@ -1795,7 +1791,7 @@ pointer-events: none;
       width: 18px;
       height: 18px;
       padding: 0;
-      border: 1px solid rgba(45, 36, 29, .18);
+      border: 1px solid rgba(31, 41, 55, .18);
       border-radius: 50%;
       background: var(--swatch);
     }
@@ -4874,22 +4870,22 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
 
     // ===== 顶栏模式自定义（显示/隐藏、排序、图标颜色） =====
     const MODE_SETTINGS_KEY = "toolsGoods.cockpitModeSettings.v1";
-    const MODE_PALETTE = ["#146356", "#1d4ed8", "#7c3aed", "#0e7490", "#4d7c0f", "#b45309", "#c2410c", "#b91c1c", "#be185d", "#475569"];
+    const MODE_PALETTE = ["#0969DA", "#1d4ed8", "#7c3aed", "#0e7490", "#4d7c0f", "#b45309", "#c2410c", "#b91c1c", "#be185d", "#475569"];
 
     function modeIcon(inner) {
       return `<svg class="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
     }
 
     const MODE_CONFIG = [
-      { id: "cockpit", label: "驾驶舱", defaultColor: "#146356", icon: '<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/>' },
-      { id: "matrix", label: "九宫格", defaultColor: "#b45309", icon: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>' },
-      { id: "salesTrend", label: "销售趋势", defaultColor: "#1d4ed8", icon: '<path d="M3 17l6-6 4 4 7-8"/><path d="M14 7h6v6"/>' },
-      { id: "kttImport", label: "快团团导入", defaultColor: "#c2410c", icon: '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/>' },
-      { id: "skuRank", label: "门店SKU排名", defaultColor: "#7c3aed", icon: '<path d="M5 20V10M12 20V4M19 20v-7"/>' },
-      { id: "stockWaterline", label: "库存水位线", defaultColor: "#0e7490", icon: '<path d="M2 10c2.5-3 4.5-3 7 0s4.5 3 7 0 4.5-3 6 0"/><path d="M2 17c2.5-3 4.5-3 7 0s4.5 3 7 0 4.5-3 6 0"/>' },
-      { id: "sellOut", label: "售罄预估", defaultColor: "#b91c1c", icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' },
-      { id: "inventoryAnalysis", label: "库存分析", defaultColor: "#4d7c0f", icon: '<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/>' },
-      { id: "newStore", label: "新店时间表", defaultColor: "#a16207", icon: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/>' },
+      { id: "cockpit", label: "驾驶舱", defaultColor: "#0969DA", icon: '<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/>' },
+      { id: "matrix", label: "九宫格", defaultColor: "#0969DA", icon: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>' },
+      { id: "salesTrend", label: "销售趋势", defaultColor: "#0969DA", icon: '<path d="M3 17l6-6 4 4 7-8"/><path d="M14 7h6v6"/>' },
+      { id: "kttImport", label: "快团团导入", defaultColor: "#0969DA", icon: '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/>' },
+      { id: "skuRank", label: "门店SKU排名", defaultColor: "#0969DA", icon: '<path d="M5 20V10M12 20V4M19 20v-7"/>' },
+      { id: "stockWaterline", label: "库存水位线", defaultColor: "#0969DA", icon: '<path d="M2 10c2.5-3 4.5-3 7 0s4.5 3 7 0 4.5-3 6 0"/><path d="M2 17c2.5-3 4.5-3 7 0s4.5 3 7 0 4.5-3 6 0"/>' },
+      { id: "sellOut", label: "售罄预估", defaultColor: "#0969DA", icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' },
+      { id: "inventoryAnalysis", label: "库存分析", defaultColor: "#0969DA", icon: '<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/>' },
+      { id: "newStore", label: "新店时间表", defaultColor: "#0969DA", icon: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/>' },
     ];
 
     const GEAR_ICON = modeIcon('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/>');
@@ -4964,7 +4960,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
 
     function getModeColor(id) {
       const cfg = getModeConfig(id);
-      return modeSettings.colors[id] || (cfg ? cfg.defaultColor : "#146356");
+      return modeSettings.colors[id] || (cfg ? cfg.defaultColor : "#0969DA");
     }
 
     function ensureActiveModeVisible() {
@@ -6647,7 +6643,7 @@ const model = buildModel();
         const cells = model.matrixCells;
         const fontFamily = '"Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Noto Sans CJK SC", "WenQuanYi Micro Hei", sans-serif';
         const container = document.createElement("div");
-        container.style.cssText = `position:absolute;left:-99999px;top:0;width:900px;background:#fbf8f2;padding:20px;font-family:${fontFamily};box-sizing:border-box;`;
+        container.style.cssText = `position:absolute;left:-99999px;top:0;width:900px;background:#FFFFFF;padding:20px;font-family:${fontFamily};box-sizing:border-box;`;
         // 标题
         const header = document.createElement("div");
         header.style.cssText = "text-align:center;margin-bottom:16px;";
@@ -6656,11 +6652,11 @@ container.appendChild(header);
 
 // 图例说明
 const legend = document.createElement("div");
-legend.style.cssText = "display:flex;flex-wrap:wrap;gap:16px;padding:8px 0 12px;font-size:12px;color:#666;border-bottom:1px solid #d8cdbf;margin-bottom:16px;";
+legend.style.cssText = "display:flex;flex-wrap:wrap;gap:16px;padding:8px 0 12px;font-size:12px;color:#666;border-bottom:1px solid #DFE5EE;margin-bottom:16px;";
 legend.innerHTML = `
-<span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;border:3px solid #dc3545;background:#f4efe8;"></span>停产</span>
-<span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;border:3px solid #ffc107;background:#f4efe8;"></span>待定</span>
-<span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;border:3px solid #28a745;background:#f4efe8;"></span>继续生产</span>
+<span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;border:3px solid #dc3545;background:#EEF3FA;"></span>停产</span>
+<span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;border:3px solid #ffc107;background:#EEF3FA;"></span>待定</span>
+<span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;border:3px solid #28a745;background:#EEF3FA;"></span>继续生产</span>
 <span style="display:inline-flex;align-items:center;gap:4px;"><span style="color:#dc3545;font-weight:700;">红色加粗字体</span>保质期到期前消化不完</span>
 <span style="display:inline-flex;align-items:center;gap:4px;"><span style="color:#ffc107;font-size:16px;">⭐</span>补单在途</span>
 `;
@@ -6677,13 +6673,13 @@ container.appendChild(legend);
         for (let i = 0; i < cells.length; i++) {
           const cell = cells[i];
           const meta = cell.meta || {};
-          const themeColor = meta.theme === "danger" ? "#b92318" : (meta.theme === "warm" ? "#c4732e" : "#146356");
-          const bgColor = meta.theme === "danger" ? "rgba(185,35,24,.08)" : (meta.theme === "warm" ? "rgba(196,115,46,.08)" : "rgba(20,99,86,.08)");
+          const themeColor = meta.theme === "danger" ? "#b92318" : (meta.theme === "warm" ? "#c4732e" : "#0969DA");
+          const bgColor = meta.theme === "danger" ? "rgba(185,35,24,.08)" : (meta.theme === "warm" ? "rgba(196,115,46,.08)" : "rgba(9,105,218,.08)");
           const cellDiv = document.createElement("div");
-          cellDiv.style.cssText = `margin-bottom:16px;border:1px solid #d8cdbf;border-radius:12px;overflow:hidden;background:#fff;`;
+          cellDiv.style.cssText = `margin-bottom:16px;border:1px solid #DFE5EE;border-radius:12px;overflow:hidden;background:#fff;`;
           // 格子标题
           const cellHead = document.createElement("div");
-          cellHead.style.cssText = `padding:10px 14px;background:${bgColor};border-bottom:1px solid #d8cdbf;display:flex;justify-content:space-between;align-items:center;`;
+          cellHead.style.cssText = `padding:10px 14px;background:${bgColor};border-bottom:1px solid #DFE5EE;display:flex;justify-content:space-between;align-items:center;`;
 const posLabel = getMatrixPosition(cell.x, cell.y);
 const invQty = cell.rows.reduce((s, r) => s + (r.stockQty || 0), 0);
 const invAmt = cell.rows.reduce((s, r) => s + (r.inventoryAmount || 0), 0);
@@ -6700,8 +6696,8 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
             const starHtml = isReorderInTransit(row.reorderNote) ? '<span style="position:absolute;top:2px;right:4px;font-size:14px;color:#ffc107;">⭐</span>' : "";
             const borderColor = row.productionNote && row.productionNote.includes("正常") ? "#28a745" : (row.productionNote && row.productionNote.includes("停产") ? "#dc3545" : (row.productionNote ? "#ffc107" : "#333"));
             const imgHtml = row.imageUrl
-              ? `<img src="${escapeHtml(row.imageUrl)}" style="width:80px;height:80px;object-fit:contain;border-radius:8px;border:3px solid ${borderColor};box-sizing:border-box;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span style="display:none;width:80px;height:80px;border-radius:8px;border:3px solid ${borderColor};background:#f4efe8;align-items:center;justify-content:center;font-size:12px;color:#999;">无图</span>`
-              : `<div style="width:80px;height:80px;border-radius:8px;border:3px solid ${borderColor};background:#f4efe8;display:flex;align-items:center;justify-content:center;font-size:12px;color:#999;margin:0 auto;">无图</div>`;
+              ? `<img src="${escapeHtml(row.imageUrl)}" style="width:80px;height:80px;object-fit:contain;border-radius:8px;border:3px solid ${borderColor};box-sizing:border-box;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span style="display:none;width:80px;height:80px;border-radius:8px;border:3px solid ${borderColor};background:#EEF3FA;align-items:center;justify-content:center;font-size:12px;color:#999;">无图</span>`
+              : `<div style="width:80px;height:80px;border-radius:8px;border:3px solid ${borderColor};background:#EEF3FA;display:flex;align-items:center;justify-content:center;font-size:12px;color:#999;margin:0 auto;">无图</div>`;
             chip.innerHTML = `${starHtml}${imgHtml}<div style="margin-top:4px;font-size:11px;${row.canSellBeforeExpiry === false ? 'color:#dc3545;font-weight:700;' : 'color:#666;'}line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;max-height:2.6em;">${escapeHtml(row.productName || "-")}</div>`;
             strip.appendChild(chip);
           });
@@ -6718,7 +6714,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
           scale: 2,
           useCORS: true,
           allowTaint: true,
-          backgroundColor: "#fbf8f2",
+          backgroundColor: "#FFFFFF",
           logging: false,
           foreignObjectRendering: false,
         });
@@ -7241,7 +7237,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       // 右 y 轴刻度(橙色, 线下)
       let rightAxisHtml = "";
       if (dualAxis) {
-        rightAxisHtml += `<line x1="${W - padR}" y1="${padT}" x2="${W - padR}" y2="${padT + plotH}" stroke="#c9bdaa" stroke-width="1"/>`;
+        rightAxisHtml += `<line x1="${W - padR}" y1="${padT}" x2="${W - padR}" y2="${padT + plotH}" stroke="#C6D2E2" stroke-width="1"/>`;
         for (let t = 0; t <= yTicks; t++) {
           const val = (yMaxRight / yTicks) * t;
           const yy = y(val, "offline");
@@ -7256,12 +7252,12 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         const xx = x(i);
         // 季度显示 "YYYY-Qn"，月份显示 "YYYY-MM"，日维度显示 "MM-DD"
         const label = (granularity === "quarterly" || granularity === "monthly") ? dates[i] : dates[i].slice(5);
-        xLabelsHtml += `<text x="${xx}" y="${H - padB + 18}" text-anchor="middle" font-size="11" fill="#736454">${label}</text>`;
-        xLabelsHtml += `<line x1="${xx}" y1="${padT + plotH}" x2="${xx}" y2="${padT + plotH + 4}" stroke="#c9bdaa" stroke-width="1"/>`;
+        xLabelsHtml += `<text x="${xx}" y="${H - padB + 18}" text-anchor="middle" font-size="11" fill="#67717F">${label}</text>`;
+        xLabelsHtml += `<line x1="${xx}" y1="${padT + plotH}" x2="${xx}" y2="${padT + plotH + 4}" stroke="#C6D2E2" stroke-width="1"/>`;
       }
       // 起止完整标注
-      xLabelsHtml += `<text x="${padL}" y="${H - 8}" text-anchor="start" font-size="11" fill="#2d241d">${dates[0]}</text>`;
-      xLabelsHtml += `<text x="${W - padR}" y="${H - 8}" text-anchor="end" font-size="11" fill="#2d241d">${dates[n - 1]}</text>`;
+      xLabelsHtml += `<text x="${padL}" y="${H - 8}" text-anchor="start" font-size="11" fill="#1F2937">${dates[0]}</text>`;
+      xLabelsHtml += `<text x="${W - padR}" y="${H - 8}" text-anchor="end" font-size="11" fill="#1F2937">${dates[n - 1]}</text>`;
 
       // 折线
       let linesHtml = "";
@@ -7317,8 +7313,8 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
 
       // 坐标轴
       const axesHtml = `
-        <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="#c9bdaa" stroke-width="1"/>
-        <line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="#c9bdaa" stroke-width="1"/>
+        <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="#C6D2E2" stroke-width="1"/>
+        <line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="#C6D2E2" stroke-width="1"/>
         <text x="${padL - 44}" y="${padT + plotH / 2}" text-anchor="middle" font-size="11" fill="${TREND_ONLINE_COLOR}" transform="rotate(-90 ${padL - 44} ${padT + plotH / 2})">线上销量</text>
         ${dualAxis ? `<text x="${W - padR + 44}" y="${padT + plotH / 2}" text-anchor="middle" font-size="11" fill="${TREND_OFFLINE_COLOR}" transform="rotate(90 ${W - padR + 44} ${padT + plotH / 2})">线下销量</text>` : ""}
       `;
@@ -7357,7 +7353,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       }
       if (f && f.showTrendLine) {
         const tName = f.trendMethod === "ma" ? "移动平均" : "线性回归";
-        items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch trend-legend-swatch--dash" style="background:repeating-linear-gradient(90deg,#736454 0 6px,transparent 6px 10px);"></span>趋势线(${tName})</span>`);
+        items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch trend-legend-swatch--dash" style="background:repeating-linear-gradient(90deg,#67717F 0 6px,transparent 6px 10px);"></span>趋势线(${tName})</span>`);
       }
       return `<div class="trend-legend">${items.join("")}</div>`;
     }

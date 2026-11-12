@@ -1,0 +1,49 @@
+/* ============================================================
+   黑爪商品驾驶舱 · 统一主题（Business Blue）
+   所有工具页与驾驶舱外壳共用本文件的颜色令牌；
+   调整品牌蓝只需修改 :root 中的 --accent 系列。
+   语义色（成功/提醒/危险）刻意保留，不参与品牌色替换。
+   ============================================================ */
+:root {
+  /* 中性色 */
+  --bg: #F4F7FB;              /* 页面底色 */
+  --tint: #F4F7FB;            /* 页面底色别名（供工具页映射旧变量） */
+  --surface: #FFFFFF;         /* 卡片 / 面板 */
+  --surface-muted: #EAEFF6;   /* 次级面板 / 表头 */
+  --border: #DFE5EE;
+  --border-strong: #C6D2E2;
+  --text: #1F2937;
+  --text-secondary: #3D4757;
+  --text-muted: #67717F;
+  --text-disabled: #9AA4B2;
+
+  /* 品牌蓝 */
+  --accent: #0969DA;
+  --accent-hover: #0757B5;
+  --accent-active: #064B99;
+  --accent-soft: #EAF2FC;
+  --accent-soft-strong: #CFE2F8;
+  --accent-text: #0B4A94;
+
+  /* 语义色：成功 */
+  --positive: #52C41A;
+  --positive-soft: #F0FBEE;
+  --positive-border: #CBEABF;
+  --positive-text: #2F7A12;
+
+  /* 语义色：提醒 / 临期 */
+  --warning: #FAAD14;
+  --warning-soft: #FFFBEA;
+  --warning-border: #F0E4B8;
+  --warning-text: #9A6B00;
+
+  /* 语义色：危险 / 逾期 */
+  --danger: #FF4D4F;
+  --danger-soft: #FFF3F3;
+  --danger-border: #FFD1D1;
+  --danger-text: #C53030;
+
+  /* 形状与阴影 */
+  --shadow: 0 10px 30px rgba(31, 41, 55, 0.08);
+  --radius: 10px;
+}
