@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>新店时间表</title>
+
+  <style>
+    /* 与「库存分析看板 / 门店SKU排名」保持一致的 Business Blue 配色 */
+    :root {
+      --page-bg: #FFFFFF;
+      --page-surface: #F4F7FB;
+      --page-surface-muted: #EAEFF6;
+      --page-text: #1F2937;
+      --page-text-secondary: #3D4757;
+      --page-text-muted: #67717F;
+      --page-text-disabled: #9AA4B2;
+      --page-border: #DFE5EE;
+      --page-brand: #0969DA;
+      --page-brand-hover: #0757B5;
+      --page-brand-soft: #EAF2FC;
+      --page-brand-soft-strong: #CFE2F8;
+      --page-brand-text: #0B4A94;
+
+      --bg: #FFFFFF;
+      --bg2: #F4F7FB;
+      --rule: #E7ECF3;
+      --ink: #1F2937;
+      --muted: #67717F;
+
+      --positive: #52C41A;
+      --warning: #FAAD14;
+      --danger: #FF4D4F;
+      --info-soft: #EAF2FC;
+      --success-soft: #F0FBEE;
+      --warning-soft: #FFFBEA;
+      --danger-soft: #FFF3F3;
+
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
+      --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-pill: 999px;
+      --font-sans: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', sans-serif;
+      --font-mono: 'SF Mono', Consolas, 'Courier New', monospace;
+      --max: 1180px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--ink);
+      background: var(--bg2);
+      padding: 18px 0 32px;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, select { font-family: inherit; }
+    :focus-visible { outline: 2px solid var(--page-brand); outline-offset: 1px; }
+
+    .app { width: calc(100% - 2rem); max-width: var(--max); margin: 0 auto; display: grid; gap: var(--space-4); }
+
+    /* === 页头 === */
+    .hero {
+      background: var(--page-brand-soft);
+      border: 1px solid var(--page-brand-soft-strong);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4) var(--space-5);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-4);
+      flex-wrap: wrap;
+    }
+    .hero h1 { font-size: 22px; line-height: 1.3; color: var(--page-text); }
+    .hero-sub { margin-top: 4px; max-width: 72ch; font-size: 13px; color: var(--page-text-secondary); }
+    .stat-row { display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; }
+    .stat-pill {
+      display: inline-flex; align-items: baseline; gap: 4px;
+      background: #FFFFFF; border: 1px solid var(--page-border);
+      border-radius: var(--radius-pill); padding: 4px 11px;
+      font-size: 12px; color: var(--page-text-muted); white-space: nowrap;
+    }
+    .stat-pill b { font-size: 14px; color: var(--page-text); font-variant-numeric: tabular-nums; }
+    .stat-pill.is-risk { border-color: #FFD1D1; background: var(--danger-soft); color: #B42318; }
+    .stat-pill.is-risk b { color: #B42318; }
+
+    /* === 面板 === */
+    .panel {
+      background: var(--bg); border: 1px solid var(--page-border);
+      border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5);
+    }
+    .panel-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3);
+    }
+    .panel-head h2 { font-size: 15px; font-weight: 600; color: var(--page-text); }
+    .head-note { font-size: 12px; color: var(--page-text-muted); }
+    .head-note b { color: var(--page-text-secondary); font-weight: 600; }
+    .head-controls { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+
+    /* === 按钮 / 表单 === */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 6px 13px; border-radius: var(--radius-md);
+      border: 1px solid var(--page-border); background: #FFFFFF;
+      color: var(--page-text-secondary); font-size: 12.5px; cursor: pointer; white-space: nowrap;
+      transition: border-color .12s ease, color .12s ease, background .12s ease;
+    }
+    .btn:hover { border-color: var(--page-brand); color: var(--page-brand); }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-primary { background: var(--page-brand); border-color: var(--page-brand); color: #fff; font-weight: 600; }
+    .btn-primary:hover { background: var(--page-brand-hover); border-color: var(--page-brand-hover); color: #fff; }
+    .btn-danger:hover { border-color: var(--danger); color: var(--danger); }
+    .btn-sm { padding: 3px 9px; font-size: 12px; }
+
+    .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--page-text-muted); min-width: 0; }
+    .field .field-label { display: flex; align-items: center; gap: 4px; }
+    input[type="text"], input[type="date"], input[type="number"] {
+      width: 100%; padding: 7px 10px; border: 1px solid var(--page-border);
+      border-radius: var(--radius-md); font-size: 13px; background: #FFFFFF; color: var(--ink);
+    }
+    input[type="number"] { font-variant-numeric: tabular-nums; }
+    input.invalid { border-color: var(--danger); background: var(--danger-soft); }
+    .inline-unit { display: flex; align-items: center; gap: 6px; }
+    .inline-unit em { font-style: normal; font-size: 12px; color: var(--page-text-muted); flex: none; }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+      gap: var(--space-3);
+      align-items: end;
+    }
+    .add-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+      gap: var(--space-3);
+      align-items: end;
+    }
+    .form-msg { margin-top: var(--space-2); font-size: 12.5px; border-radius: var(--radius-md); padding: 6px 10px; }
+    .form-msg[hidden] { display: none; }
+    .form-msg.error { color: #B42318; background: var(--danger-soft); border: 1px solid #FFD1D1; }
+    .form-msg.ok { color: #2F7A12; background: var(--success-soft); border: 1px solid #CBEABF; }
+
+    /* === 日历 === */
+    .cal-toolbar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+    .cal-title { font-size: 16px; font-weight: 700; color: var(--page-text); font-variant-numeric: tabular-nums; min-width: 116px; text-align: center; }
+    .cal-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 11.5px; color: var(--page-text-muted); margin-bottom: var(--space-2); }
+    .legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+    .legend-dot.open { background: var(--page-brand); }
+    .legend-dot.node { background: var(--page-brand-soft); border: 1px solid var(--page-brand-soft-strong); }
+    .legend-dot.late { background: var(--danger-soft); border: 1px solid #FFB4B4; }
+
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--page-border);
+      border: 1px solid var(--page-border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .cal-weekday {
+      background: var(--page-surface);
+      padding: 7px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--page-text-secondary);
+      text-align: center;
+    }
+    .cal-weekday.is-weekend { color: #B42318; }
+    .day-cell {
+      background: #FFFFFF;
+      min-height: 100px;
+      padding: 5px 6px 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+    .day-cell.is-out { background: #FAFBFD; }
+    .day-cell.is-out .day-num { color: var(--page-text-disabled); }
+    .day-num {
+      font-size: 12px; font-weight: 600; color: var(--page-text-secondary);
+      font-variant-numeric: tabular-nums; line-height: 20px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .day-cell.is-today .day-num .num {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 20px; height: 20px; padding: 0 3px;
+      background: var(--page-brand); color: #fff; border-radius: var(--radius-pill); font-size: 11.5px;
+    }
+    .day-cell.is-weekend .day-num { color: #B42318; }
+    .day-cell.is-out.is-weekend .day-num { color: var(--page-text-disabled); }
+    .day-events { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; max-height: 82px; }
+    .chip {
+      display: block; font-size: 11px; line-height: 1.4; padding: 2px 5px;
+      border-radius: 4px; white-space: normal; overflow-wrap: anywhere;
+      border: 1px solid transparent;
+    }
+    .chip-node { background: var(--page-brand-soft); border-color: var(--page-brand-soft-strong); color: var(--page-brand-text); }
+    .chip-node.is-late { background: var(--danger-soft); border-color: #FFB4B4; color: #B42318; font-weight: 600; }
+    .chip-open { background: var(--page-brand); color: #fff; font-weight: 600; }
+    .chip-open::before { content: "★ "; font-size: 10px; }
+
+    /* === 待办矩阵 === */
+    .matrix-wrap {
+      border: 1px solid var(--page-border); border-radius: var(--radius-md);
+      overflow: auto; max-height: 560px;
+    }
+    table.todo { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 840px; }
+    table.todo th, table.todo td { padding: 7px 10px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: middle; }
+    table.todo thead th {
+      position: sticky; top: 0; z-index: 1; background: var(--page-surface);
+      color: var(--page-text-secondary); font-weight: 600; white-space: nowrap;
+    }
+    table.todo thead th .lead { display: block; font-size: 11px; font-weight: 400; color: var(--page-text-muted); }
+    table.todo tbody tr:hover { background: #FAFCFF; }
+    table.todo tbody tr:last-child td { border-bottom: none; }
+    .cell-store { font-weight: 600; color: var(--page-text); min-width: 158px; }
+    .cell-store .name { display: inline-block; max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+    .tag-done { margin-left: 6px; font-size: 10.5px; font-weight: 600; color: #2F7A12; background: var(--success-soft); border: 1px solid #CBEABF; border-radius: var(--radius-pill); padding: 0 7px; }
+    .cell-date { white-space: nowrap; color: var(--page-text-secondary); font-variant-numeric: tabular-nums; }
+    .cell-node { min-width: 128px; }
+    .node-box {
+      display: flex; align-items: center; gap: 7px; cursor: pointer;
+      padding: 3px 6px; border-radius: var(--radius-sm); border: 1px solid transparent;
+      user-select: none;
+    }
+    .node-box:hover { background: var(--page-surface); }
+    .node-box input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--page-brand); cursor: pointer; flex: none; }
+    .node-meta { display: flex; flex-direction: column; line-height: 1.35; min-width: 0; }
+    .node-date { font-size: 11.5px; color: var(--page-text-secondary); font-variant-numeric: tabular-nums; }
+    .node-tag { font-size: 10.5px; color: var(--page-text-muted); }
+    .cell-node.is-done .node-date, .cell-node.is-done .node-tag { color: var(--page-text-disabled); text-decoration: line-through; }
+    .cell-node.is-late .node-box { background: var(--danger-soft); border-color: #FFD1D1; }
+    .cell-node.is-late .node-tag { color: #B42318; font-weight: 600; }
+    .cell-ops { white-space: nowrap; }
+    .cell-ops .btn + .btn { margin-left: 4px; }
+    .row-done { background: #FCFDFC; }
+    .row-edit input[type="text"], .row-edit input[type="date"] { padding: 4px 7px; font-size: 12.5px; }
+    .row-edit .cell-store input { min-width: 140px; }
+    .collapse-tip { text-align: center; color: var(--page-text-muted); font-size: 12px; background: var(--page-surface); }
+    .collapse-tip button { margin-left: 6px; }
+    .empty-tip { padding: 26px 16px; text-align: center; color: var(--page-text-muted); font-size: 13px; }
+    .check-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--page-text-secondary); cursor: pointer; white-space: nowrap; }
+    .check-inline input { width: 14px; height: 14px; accent-color: var(--page-brand); }
+
+    .foot-note { font-size: 11.5px; color: var(--page-text-muted); line-height: 1.7; }
+    .foot-note code { font-family: var(--font-mono); font-size: 11px; background: var(--page-surface); border: 1px solid var(--page-border); border-radius: 4px; padding: 1px 5px; }
+
+    @media (max-width: 980px) {
+      .settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .settings-grid > .btn { grid-column: span 2; justify-self: start; }
+      .add-grid { grid-template-columns: 1fr 1fr; }
+      .add-grid > .btn { grid-column: span 2; justify-self: start; }
+      .day-cell { min-height: 84px; }
+    }
+    @media (max-width: 640px) {
+      .app { width: calc(100% - 1rem); }
+      .panel { padding: var(--space-3); }
+      .hero { padding: var(--space-3); }
+      .cal-title { min-width: 92px; font-size: 15px; }
+      .day-cell { min-height: 72px; padding: 4px; }
+      .day-events { max-height: 64px; }
+      .chip { font-size: 10px; }
+      .add-grid { grid-template-columns: 1fr; }
+      .add-grid > .btn { grid-column: span 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="hero">
+      <div>
+        <h1>新店时间表</h1>
+        <p class="hero-sub">录入门店与预计开业日期，系统按自然日自动倒推四个前置节点。勾选完成后该节点会从日历移除；数据保存在本浏览器，刷新不丢失。</p>
+      </div>
+      <div class="stat-row" id="statRow"></div>
+    </header>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>前置节点设置</h2>
+        <div class="head-note">单位：天，按开业日往前推，<b>不含开业当天</b>；修改后所有日期立即重算。</div>
+      </div>
+      <div class="settings-grid" id="settingsGrid">
+        <label class="field">
+          <span class="field-label">新店配货 提前</span>
+          <span class="inline-unit"><input type="number" id="lead-allocation" min="0" max="365" step="1" value="14"><em>天</em></span>
+        </label>
+        <label class="field">
+          <span class="field-label">有赞系统开通 提前</span>
+          <span class="inline-unit"><input type="number" id="lead-youzanOpen" min="0" max="365" step="1" value="7"><em>天</em></span>
+        </label>
+        <label class="field">
+          <span class="field-label">有赞系统认证 提前</span>
+          <span class="inline-unit"><input type="number" id="lead-youzanAuth" min="0" max="365" step="1" value="3"><em>天</em></span>
+        </label>
+        <label class="field">
+          <span class="field-label">配货发货 提前</span>
+          <span class="inline-unit"><input type="number" id="lead-shipment" min="0" max="365" step="1" value="7"><em>天</em></span>
+        </label>
+        <button type="button" class="btn" id="resetSettings">恢复默认</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>录入门店</h2>
+        <div class="head-note">同名门店会被拦截；录入后可在下方矩阵中修改名称与开业日期。</div>
+      </div>
+      <form id="addForm" class="add-grid" novalidate>
+        <label class="field">
+          <span class="field-label">门店名称</span>
+          <input type="text" id="storeName" maxlength="40" placeholder="例如：武汉光谷店" autocomplete="off">
+        </label>
+        <label class="field">
+          <span class="field-label">预计开业日期</span>
+          <input type="date" id="storeDate">
+        </label>
+        <button type="submit" class="btn btn-primary" id="addBtn">添加门店</button>
+      </form>
+      <div class="form-msg" id="formMsg" hidden></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>日历视图</h2>
+        <div class="cal-toolbar">
+          <button type="button" class="btn" id="prevMonth" title="上一月">‹ 上月</button>
+          <div class="cal-title" id="calTitle">—</div>
+          <button type="button" class="btn" id="nextMonth" title="下一月">下月 ›</button>
+          <button type="button" class="btn" id="todayBtn">回到今天</button>
+        </div>
+      </div>
+      <div class="cal-legend">
+        <span><i class="legend-dot open"></i>预计开业日</span>
+        <span><i class="legend-dot node"></i>前置节点（未完成）</span>
+        <span><i class="legend-dot late"></i>今日到期 / 已逾期</span>
+        <span>已完成节点不在日历显示</span>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>待办矩阵</h2>
+        <div class="head-controls">
+          <label class="check-inline"><input type="checkbox" id="collapseDone"> 折叠四项已完成门店</label>
+        </div>
+      </div>
+      <div class="matrix-wrap">
+        <table class="todo" id="todoTable"></table>
+      </div>
+      <div class="empty-tip" id="matrixEmpty" hidden>还没有门店。先在上方录入门店名称与预计开业日期。</div>
+    </section>
+
+    <div class="foot-note">
+      数据仅保存在本浏览器 <code>localStorage</code>（key：<code>toolsGoods.newStoreTimeline.v1</code>），不会上传服务器；清除浏览器数据、换浏览器或换设备都不会同步。
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      const STORAGE_KEY = "toolsGoods.newStoreTimeline.v1";
+      const DEFAULT_LEADS = { allocation: 14, youzanOpen: 7, youzanAuth: 3, shipment: 7 };
+      const NODES = [
+        { key: "allocation", name: "新店配货" },
+        { key: "youzanOpen", name: "有赞系统开通" },
+        { key: "youzanAuth", name: "有赞系统认证" },
+        { key: "shipment", name: "配货发货" },
+      ];
+      const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
+
+      const dateNow = new Date();
+      const state = {
+        settings: Object.assign({}, DEFAULT_LEADS),
+        stores: [],
+        viewYear: dateNow.getFullYear(),
+        viewMonth: dateNow.getMonth(),
+        editingId: "",
+        collapseDone: false,
+      };
+
+      const els = {
+        statRow: document.getElementById("statRow"),
+        addForm: document.getElementById("addForm"),
+        addBtn: document.getElementById("addBtn"),
+        storeName: document.getElementById("storeName"),
+        storeDate: document.getElementById("storeDate"),
+        formMsg: document.getElementById("formMsg"),
+        resetSettings: document.getElementById("resetSettings"),
+        calGrid: document.getElementById("calGrid"),
+        calTitle: document.getElementById("calTitle"),
+        todoTable: document.getElementById("todoTable"),
+        matrixEmpty: document.getElementById("matrixEmpty"),
+        collapseDone: document.getElementById("collapseDone"),
+        leadInputs: {},
+      };
+      NODES.forEach((node) => {
+        els.leadInputs[node.key] = document.getElementById("lead-" + node.key);
+      });
+
+      /* ---------- 工具函数 ---------- */
+      function pad2(n) { return String(n).padStart(2, "0"); }
+
+      function parseISO(value) {
+        if (typeof value !== "string") return null;
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+        if (!m) return null;
+        const y = Number(m[1]);
+        const mo = Number(m[2]) - 1;
+        const d = Number(m[3]);
+        const dt = new Date(y, mo, d);
+        if (dt.getFullYear() !== y || dt.getMonth() !== mo || dt.getDate() !== d) return null;
+        return dt;
+      }
+
+      function toISO(dt) {
+        return dt.getFullYear() + "-" + pad2(dt.getMonth() + 1) + "-" + pad2(dt.getDate());
+      }
+
+      function todayISO() {
+        const d = new Date();
+        return toISO(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+      }
+
+      function shiftDays(iso, days) {
+        const dt = parseISO(iso);
+        if (!dt) return "";
+        dt.setDate(dt.getDate() - days);
+        return toISO(dt);
+      }
+
+      function nodeISO(store, key) {
+        return shiftDays(store.openingDate, state.settings[key] || 0);
+      }
+
+      function shortDate(iso) {
+        const dt = parseISO(iso);
+        return dt ? pad2(dt.getMonth() + 1) + "-" + pad2(dt.getDate()) : "—";
+      }
+
+      function escapeHtml(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function normalizeName(value) {
+        return String(value == null ? "" : value).trim().replace(/\s+/g, " ");
+      }
+
+      function makeId() {
+        return "s_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
+      }
+
+      function isStoreDone(store) {
+        return NODES.every((node) => !!store.done[node.key]);
+      }
+
+      function isDuplicateName(name, excludeId) {
+        const key = name.toLowerCase();
+        return state.stores.some((store) => store.id !== excludeId && normalizeName(store.name).toLowerCase() === key);
+      }
+
+      /* ---------- 存储 ---------- */
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return;
+          const parsed = JSON.parse(raw);
+          if (!parsed || typeof parsed !== "object") return;
+          const settings = parsed.settings || {};
+          Object.keys(DEFAULT_LEADS).forEach((key) => {
+            const value = Number(settings[key]);
+            if (Number.isInteger(value) && value >= 0 && value <= 365) {
+              state.settings[key] = value;
+            }
+          });
+          if (Array.isArray(parsed.stores)) {
+            state.stores = parsed.stores
+              .filter((item) => item && typeof item.name === "string" && parseISO(item.openingDate))
+              .map((item) => {
+                const done = {};
+                NODES.forEach((node) => {
+                  done[node.key] = !!(item.done && item.done[node.key]);
+                });
+                return {
+                  id: item.id ? String(item.id) : makeId(),
+                  name: normalizeName(item.name).slice(0, 40),
+                  openingDate: item.openingDate,
+                  done: done,
+                  createdAt: Number(item.createdAt) || Date.now(),
+                };
+              })
+              .filter((item) => item.name);
+          }
+        } catch (err) {
+          // 本地缓存损坏时按空数据处理
+        }
+      }
+
+      function saveState() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            version: 1,
+            settings: state.settings,
+            stores: state.stores,
+          }));
+        } catch (err) {
+          // localStorage 不可用时静默失败，不影响当前会话
+        }
+      }
+
+      /* ---------- 设置 ---------- */
+      function syncSettingsInputs() {
+        NODES.forEach((node) => {
+          const input = els.leadInputs[node.key];
+          if (input) input.value = state.settings[node.key];
+        });
+      }
+
+      function onLeadChange(event) {
+        const key = event.target.dataset.nodeKey;
+        if (!key) return;
+        const raw = Number(event.target.value);
+        if (!Number.isInteger(raw) || raw < 0 || raw > 365) {
+          showFormMsg("提前天数需为 0–365 的整数。", "error");
+          event.target.value = state.settings[key];
+          return;
+        }
+        if (state.settings[key] === raw) return;
+        state.settings[key] = raw;
+        saveState();
+        renderAll();
+      }
+
+      /* ---------- 表单提示 ---------- */
+      function showFormMsg(text, type) {
+        els.formMsg.textContent = text;
+        els.formMsg.className = "form-msg " + (type || "ok");
+        els.formMsg.hidden = false;
+      }
+
+      function hideFormMsg() {
+        els.formMsg.hidden = true;
+        els.formMsg.textContent = "";
+      }
+
+      /* ---------- 统计 ---------- */
+      function renderStats() {
+        const today = todayISO();
+        let pending = 0;
+        let risk = 0;
+        let monthCount = 0;
+        state.stores.forEach((store) => {
+          NODES.forEach((node) => {
+            if (store.done[node.key]) return;
+            pending += 1;
+            const iso = nodeISO(store, node.key);
+            if (iso && iso <= today) risk += 1;
+            if (iso && iso.slice(0, 7) === state.viewYear + "-" + pad2(state.viewMonth + 1)) monthCount += 1;
+          });
+        });
+        const pills = [
+          '<span class="stat-pill">门店 <b>' + state.stores.length + '</b> 家</span>',
+          '<span class="stat-pill">未完成节点 <b>' + pending + '</b> 个</span>',
+          '<span class="stat-pill">本月节点 <b>' + monthCount + '</b> 个</span>',
+          '<span class="stat-pill' + (risk ? " is-risk" : "") + '">临期 / 逾期 <b>' + risk + '</b> 个</span>',
+        ];
+        els.statRow.innerHTML = pills.join("");
+      }
+
+      /* ---------- 日历 ---------- */
+      function buildEventMap() {
+        const map = new Map();
+        const add = (iso, event) => {
+          if (!iso) return;
+          if (!map.has(iso)) map.set(iso, []);
+          map.get(iso).push(event);
+        };
+        state.stores.forEach((store) => {
+          if (parseISO(store.openingDate)) {
+            add(store.openingDate, { kind: "opening", store: store, node: null });
+          }
+          NODES.forEach((node) => {
+            if (store.done[node.key]) return;
+            add(nodeISO(store, node.key), { kind: "node", store: store, node: node });
+          });
+        });
+        map.forEach((list) => {
+          list.sort((a, b) => {
+            if (a.kind !== b.kind) return a.kind === "opening" ? -1 : 1;
+            const ai = NODES.findIndex((n) => n.key === (a.node && a.node.key));
+            const bi = NODES.findIndex((n) => n.key === (b.node && b.node.key));
+            if (ai !== bi) return ai - bi;
+            return a.store.name.localeCompare(b.store.name, "zh-Hans-CN");
+          });
+        });
+        return map;
+      }
+
+      function chipHtml(event, today) {
+        const storeName = escapeHtml(event.store.name);
+        if (event.kind === "opening") {
+          return '<span class="chip chip-open" title="' + storeName + " · 预计开业 " + escapeHtml(event.store.openingDate) + '">' +
+            storeName + " · 开业</span>";
+        }
+        const iso = nodeISO(event.store, event.node.key);
+        const late = iso && iso <= today;
+        const status = iso === today ? "今日到期" : "已逾期";
+        const title = storeName + " · " + escapeHtml(event.node.name) + " · " + escapeHtml(iso) + (late ? " · " + status : "");
+        return '<span class="chip chip-node' + (late ? " is-late" : "") + '" title="' + title + '">' +
+          storeName + " · " + escapeHtml(event.node.name) + (late ? " · " + status : "") + "</span>";
+      }
+
+      function renderCalendar() {
+        const year = state.viewYear;
+        const month = state.viewMonth;
+        const today = todayISO();
+        els.calTitle.textContent = year + " 年 " + (month + 1) + " 月";
+
+        const eventMap = buildEventMap();
+        const first = new Date(year, month, 1);
+        const offset = (first.getDay() + 6) % 7; // 周一为一周第一天
+        const start = new Date(year, month, 1 - offset);
+
+        let html = WEEKDAYS.map((label, index) => {
+          return '<div class="cal-weekday' + (index >= 5 ? " is-weekend" : "") + '">周' + label + "</div>";
+        }).join("");
+
+        for (let i = 0; i < 42; i += 1) {
+          const cell = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+          const iso = toISO(cell);
+          const inMonth = cell.getMonth() === month && cell.getFullYear() === year;
+          const weekday = (cell.getDay() + 6) % 7;
+          const classes = ["day-cell"];
+          if (!inMonth) classes.push("is-out");
+          if (iso === today) classes.push("is-today");
+          if (weekday >= 5) classes.push("is-weekend");
+
+          let eventsHtml = "";
+          if (inMonth) {
+            const events = eventMap.get(iso) || [];
+            eventsHtml = events.map((event) => chipHtml(event, today)).join("");
+          }
+
+          html += '<div class="' + classes.join(" ") + '">' +
+            '<div class="day-num"><span class="num">' + cell.getDate() + "</span></div>" +
+            (eventsHtml ? '<div class="day-events">' + eventsHtml + "</div>" : "") +
+            "</div>";
+        }
+
+        els.calGrid.innerHTML = html;
+      }
+
+      /* ---------- 待办矩阵 ---------- */
+      function matrixRowHtml(store, today) {
+        const editing = state.editingId === store.id;
+        const allDone = isStoreDone(store);
+
+        if (editing) {
+          return '<tr class="row-edit" data-id="' + escapeHtml(store.id) + '">' +
+            '<td class="cell-store"><input type="text" data-edit-field="name" maxlength="40" value="' + escapeHtml(store.name) + '"></td>' +
+            '<td class="cell-date"><input type="date" data-edit-field="date" value="' + escapeHtml(store.openingDate) + '"></td>' +
+            NODES.map((node) => {
+              const done = !!store.done[node.key];
+              return '<td class="cell-node' + (done ? " is-done" : "") + '">' +
+                '<span class="node-date">' + escapeHtml(shortDate(nodeISO(store, node.key))) + "</span>" +
+                '<span class="node-tag">' + (done ? "已完成" : "待完成") + "</span></td>";
+            }).join("") +
+            '<td class="cell-ops">' +
+              '<button type="button" class="btn btn-primary btn-sm" data-action="save-edit" data-id="' + escapeHtml(store.id) + '">保存</button>' +
+              '<button type="button" class="btn btn-sm" data-action="cancel-edit">取消</button>' +
+            "</td></tr>";
+        }
+
+        const nodeCells = NODES.map((node) => {
+          const done = !!store.done[node.key];
+          const iso = nodeISO(store, node.key);
+          const late = !done && iso && iso <= today;
+          const tag = done ? "已完成" : late ? (iso === today ? "今日到期" : "已逾期") : "待完成";
+          return '<td class="cell-node' + (done ? " is-done" : "") + (late ? " is-late" : "") + '">' +
+            '<label class="node-box">' +
+              '<input type="checkbox" data-action="toggle" data-id="' + escapeHtml(store.id) + '" data-node="' + node.key + '"' + (done ? " checked" : "") +
+                ' aria-label="' + escapeHtml(store.name + " " + node.name + " " + tag) + '">' +
+              '<span class="node-meta">' +
+                '<span class="node-date">' + escapeHtml(shortDate(iso)) + "</span>" +
+                '<span class="node-tag">' + tag + "</span>" +
+              "</span>" +
+            "</label></td>";
+        }).join("");
+
+        return '<tr class="' + (allDone ? "row-done" : "") + '" data-id="' + escapeHtml(store.id) + '">' +
+          '<td class="cell-store"><span class="name" title="' + escapeHtml(store.name) + '">' + escapeHtml(store.name) + "</span>" +
+            (allDone ? '<span class="tag-done">已完成</span>' : "") + "</td>" +
+          '<td class="cell-date">' + escapeHtml(store.openingDate) + "</td>" +
+          nodeCells +
+          '<td class="cell-ops">' +
+            '<button type="button" class="btn btn-sm" data-action="edit" data-id="' + escapeHtml(store.id) + '">编辑</button>' +
+            '<button type="button" class="btn btn-sm btn-danger" data-action="delete" data-id="' + escapeHtml(store.id) + '">删除</button>' +
+          "</td></tr>";
+      }
+
+      function renderMatrix() {
+        const today = todayISO();
+        els.collapseDone.checked = state.collapseDone;
+
+        const head = "<thead><tr>" +
+          "<th>门店</th><th>开业日期</th>" +
+          NODES.map((node) => '<th>' + escapeHtml(node.name) + '<span class="lead">开业前 ' + state.settings[node.key] + " 天</span></th>").join("") +
+          "<th>操作</th></tr></thead>";
+
+        const sorted = state.stores.slice().sort((a, b) => {
+          if (a.openingDate !== b.openingDate) return a.openingDate < b.openingDate ? -1 : 1;
+          return a.name.localeCompare(b.name, "zh-Hans-CN");
+        });
+
+        const doneCount = sorted.filter(isStoreDone).length;
+        const visible = state.collapseDone ? sorted.filter((store) => !isStoreDone(store)) : sorted;
+
+        let body = visible.map((store) => matrixRowHtml(store, today)).join("");
+
+        if (!sorted.length) {
+          els.todoTable.innerHTML = head;
+          els.matrixEmpty.hidden = false;
+          return;
+        }
+        els.matrixEmpty.hidden = true;
+
+        if (state.collapseDone && doneCount > 0) {
+          body += '<tr class="collapse-tip"><td colspan="7">已完成门店 ' + doneCount +
+            ' 家已折叠 <button type="button" class="btn btn-sm" data-action="expand-done">展开</button></td></tr>';
+        }
+
+        els.todoTable.innerHTML = head + "<tbody>" + body + "</tbody>";
+      }
+
+      function renderAll() {
+        renderStats();
+        renderCalendar();
+        renderMatrix();
+      }
+
+      /* ---------- 交互 ---------- */
+      function handleAdd(event) {
+        event.preventDefault();
+        const name = normalizeName(els.storeName.value);
+        const dateISO = els.storeDate.value;
+        const date = parseISO(dateISO);
+
+        els.storeName.classList.toggle("invalid", !name);
+        els.storeDate.classList.toggle("invalid", !date);
+
+        if (!name) {
+          showFormMsg("请输入门店名称。", "error");
+          els.storeName.focus();
+          return;
+        }
+        if (isDuplicateName(name)) {
+          showFormMsg("门店「" + name + "」已存在，请勿重复录入。", "error");
+          els.storeName.focus();
+          return;
+        }
+        if (!date) {
+          showFormMsg("请选择有效的预计开业日期。", "error");
+          els.storeDate.focus();
+          return;
+        }
+
+        state.stores.push({
+          id: makeId(),
+          name: name,
+          openingDate: dateISO,
+          done: NODES.reduce((acc, node) => { acc[node.key] = false; return acc; }, {}),
+          createdAt: Date.now(),
+        });
+        saveState();
+        els.storeName.value = "";
+        els.storeDate.value = "";
+        els.storeName.classList.remove("invalid");
+        els.storeDate.classList.remove("invalid");
+        showFormMsg("已添加「" + name + "」，开业日 " + dateISO + "。", "ok");
+        renderAll();
+      }
+
+      function checkDraftName() {
+        const name = normalizeName(els.storeName.value);
+        if (!name) {
+          hideFormMsg();
+          els.storeName.classList.remove("invalid");
+          return;
+        }
+        if (isDuplicateName(name)) {
+          els.storeName.classList.add("invalid");
+          showFormMsg("门店「" + name + "」已存在，请勿重复录入。", "error");
+        } else {
+          els.storeName.classList.remove("invalid");
+          hideFormMsg();
+        }
+      }
+
+      function handleMatrixClick(event) {
+        const actionEl = event.target.closest("[data-action]");
+        if (!actionEl) return;
+        const action = actionEl.dataset.action;
+
+        if (action === "toggle") {
+          const store = state.stores.find((item) => item.id === actionEl.dataset.id);
+          if (!store) return;
+          const nodeKey = actionEl.dataset.node;
+          if (!nodeKey) return;
+          store.done[nodeKey] = !!actionEl.checked;
+          saveState();
+          renderAll();
+          return;
+        }
+        if (action === "edit") {
+          state.editingId = actionEl.dataset.id;
+          renderMatrix();
+          const row = els.todoTable.querySelector(".row-edit");
+          if (row) {
+            const input = row.querySelector('[data-edit-field="name"]');
+            if (input) input.focus();
+          }
+          return;
+        }
+        if (action === "cancel-edit") {
+          state.editingId = "";
+          renderMatrix();
+          return;
+        }
+        if (action === "save-edit") {
+          const row = actionEl.closest("tr");
+          const store = state.stores.find((item) => item.id === actionEl.dataset.id);
+          if (!row || !store) return;
+          const nameInput = row.querySelector('[data-edit-field="name"]');
+          const dateInput = row.querySelector('[data-edit-field="date"]');
+          const name = normalizeName(nameInput ? nameInput.value : "");
+          const dateISO = dateInput ? dateInput.value : "";
+          const date = parseISO(dateISO);
+
+          if (nameInput) nameInput.classList.toggle("invalid", !name || isDuplicateName(name, store.id));
+          if (dateInput) dateInput.classList.toggle("invalid", !date);
+
+          if (!name) {
+            showFormMsg("门店名称不能为空。", "error");
+            if (nameInput) nameInput.focus();
+            return;
+          }
+          if (isDuplicateName(name, store.id)) {
+            showFormMsg("门店「" + name + "」已存在，请换一个名称。", "error");
+            if (nameInput) nameInput.focus();
+            return;
+          }
+          if (!date) {
+            showFormMsg("请选择有效的预计开业日期。", "error");
+            if (dateInput) dateInput.focus();
+            return;
+          }
+          store.name = name;
+          store.openingDate = dateISO;
+          state.editingId = "";
+          saveState();
+          hideFormMsg();
+          renderAll();
+          return;
+        }
+        if (action === "delete") {
+          const store = state.stores.find((item) => item.id === actionEl.dataset.id);
+          if (!store) return;
+          if (!window.confirm("确定删除门店「" + store.name + "」及其完成记录吗？")) return;
+          state.stores = state.stores.filter((item) => item.id !== store.id);
+          if (state.editingId === store.id) state.editingId = "";
+          saveState();
+          renderAll();
+          return;
+        }
+        if (action === "expand-done") {
+          state.collapseDone = false;
+          renderMatrix();
+        }
+      }
+
+      function changeMonth(delta) {
+        const d = new Date(state.viewYear, state.viewMonth + delta, 1);
+        state.viewYear = d.getFullYear();
+        state.viewMonth = d.getMonth();
+        renderAll();
+      }
+
+      /* ---------- 绑定 ---------- */
+      els.addForm.addEventListener("submit", handleAdd);
+      els.storeName.addEventListener("input", checkDraftName);
+      els.storeDate.addEventListener("change", () => {
+        els.storeDate.classList.remove("invalid");
+      });
+
+      NODES.forEach((node) => {
+        const input = els.leadInputs[node.key];
+        input.dataset.nodeKey = node.key;
+        input.addEventListener("change", onLeadChange);
+      });
+
+      els.resetSettings.addEventListener("click", () => {
+        state.settings = Object.assign({}, DEFAULT_LEADS);
+        saveState();
+        syncSettingsInputs();
+        hideFormMsg();
+        renderAll();
+      });
+
+      document.getElementById("prevMonth").addEventListener("click", () => changeMonth(-1));
+      document.getElementById("nextMonth").addEventListener("click", () => changeMonth(1));
+      document.getElementById("todayBtn").addEventListener("click", () => {
+        const d = new Date();
+        state.viewYear = d.getFullYear();
+        state.viewMonth = d.getMonth();
+        renderAll();
+      });
+
+      els.collapseDone.addEventListener("change", () => {
+        state.collapseDone = els.collapseDone.checked;
+        renderMatrix();
+      });
+
+      els.todoTable.addEventListener("click", handleMatrixClick);
+
+      /* ---------- 启动 ---------- */
+      loadState();
+      syncSettingsInputs();
+      renderAll();
+    })();
+  </script>
+</body>
+</html>
