@@ -432,7 +432,7 @@
     if (s) {
       const n = s.notes || {};
       const hasPdfNotes = n.top || n.mid || n.base;
-      const norm = (v) => String(v || '').replace(/[\s\/／、，,]/g, '');
+      const norm = (v) => String(v || '').split(/[\s\/／、，,]+/).filter(Boolean).sort().join('|');
       const cmp = ['top', 'mid', 'base'].map((k) => ({ k: k, ex: toneValue(p.tones, k) }));
       const isImg = s.kind === 'image';
       const allEqual = isImg && p.tones && hasPdfNotes && cmp.every((c) => c.ex && norm(c.ex) === norm(n[c.k]));
