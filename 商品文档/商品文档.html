@@ -490,6 +490,7 @@
     if (s.smell) out.push(point('气味描述', s.smell, s.smellSrc || src));
     if (s.mood) out.push(point('意境描述', s.mood, s.moodSrc || src));
     if (s.detail) out.push(point('工艺 / 细节', s.detail, s.detailSrc || src));
+    if (s.usage) out.push(point('使用与注意', s.usage, s.usageSrc || src));
     if (s.award) out.push(point('获奖', s.award, '培训手册 P55'));
     if (s.caveat) out.push('<div class="missing"><div class="row">' + esc(s.caveat) + '</div></div>');
     return out.join('');
