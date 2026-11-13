@@ -148,6 +148,14 @@
   .kv dd { margin: 0; color: var(--ink); word-break: break-word; }
   .kv dd .muted { color: var(--ink-3); }
 
+  .doc-img { display: flex; gap: 16px; align-items: flex-start; }
+  .doc-img .pic {
+    width: 148px; height: 148px; flex: none; border-radius: 10px; background: #fff;
+    border: 1px solid var(--line); display: grid; place-items: center; overflow: hidden;
+  }
+  .doc-img .pic img { width: 100%; height: 100%; object-fit: contain; }
+  .doc-img .pic .none { font-size: 12.5px; color: var(--ink-3); padding: 0 10px; text-align: center; line-height: 1.6; }
+
   .point { display: grid; gap: 4px; padding-left: 12px; border-left: 2px solid var(--accent-soft-strong); }
   .point + .point { margin-top: 2px; }
   .point-label { font-size: 12px; font-weight: 700; color: var(--accent-text); letter-spacing: .3px; }
@@ -377,6 +385,8 @@
     const body = [];
     body.push('<div class="block"><div class="block-head"><h3>基本信息（Excel）</h3></div><div class="block-body">' + basicBlock(p) + '</div></div>');
 
+    body.push('<div class="block"><div class="block-head"><h3>商品图片</h3></div><div class="block-body">' + imageBlock(p) + '</div></div>');
+
     if (it.intro) {
       body.push('<div class="block"><div class="block-head"><h3>系列定位</h3></div><div class="block-body">' +
         point('系列理念', it.intro.text, ref(it.intro)) + '</div></div>');
@@ -407,6 +417,19 @@
     document.getElementById('mask').classList.remove('on');
     document.body.style.overflow = '';
     currentIdx = -1;
+  }
+
+  function imageBlock(p) {
+    if (!p.img) {
+      return '<div class="doc-img"><span class="pic"><span class="none">无可用图片</span></span>' +
+        '<div style="min-width:0;"><div class="missing"><div class="row"><b>无可用图片：</b>' +
+        esc(p.imgWhy || 'Excel 该行未嵌入图片，素材目录亦无可用白底图。') + '</div></div></div></div>';
+    }
+    const note = p.imgFallback
+      ? '<div class="note-line">Excel 该行未嵌入图片（或嵌入图未识别），此处用产品上架素材的白底图兜底。匹配依据：' + esc(p.imgWhy || '') + '</div>'
+      : '<div class="note-line">图片来源：Excel「产品图片」嵌入图，已统一按最长边 420px、WebP q76 压缩。</div>';
+    return '<div class="doc-img"><span class="pic"><img src="./' + p.img + '" alt="' + esc(p.name) + '" loading="lazy"></span>' +
+      '<div style="min-width:0;">' + note + (p.imgFrom ? chip(p.imgFrom) : '') + '</div></div>';
   }
 
   function basicBlock(p) {
@@ -518,7 +541,7 @@
       if (!s.notes || (!s.notes.top && !s.notes.mid && !s.notes.base)) miss.push(s.kind === 'image' ? '前 / 中 / 后调（详情图未标注）' : 'PDF 三调（仅有 Excel 香调表）');
       if (!s.award) miss.push(s.kind === 'image' ? '获奖记录（PDF 与详情图均未记载）' : '获奖记录（PDF 未记载）');
     }
-    if (!p.img) miss.push('商品图片（Excel 该行未嵌入图片）');
+    if (!p.img) miss.push('商品图片（Excel 未嵌入，素材目录亦无可用白底图）');
     if (!p.tones && !p.tonesEn) miss.push('香调表（Excel 为空）');
     return '<div class="note-line">以下字段在现有资料中没有可引用来源，未做补写：</div>' +
       '<div class="missing">' + miss.map((m) => '<div class="row">' + esc(m) + '</div>').join('') + '</div>';
