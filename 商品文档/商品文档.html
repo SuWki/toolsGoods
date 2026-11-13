@@ -425,9 +425,10 @@
         '<div style="min-width:0;"><div class="missing"><div class="row"><b>无可用图片：</b>' +
         esc(p.imgWhy || 'Excel 该行未嵌入图片，素材目录亦无可用白底图。') + '</div></div></div></div>';
     }
+    const specTip = p.imgSpec ? '（' + esc(p.imgSpec) + ' 规格）' : '';
     const note = p.imgFallback
-      ? '<div class="note-line">Excel 该行未嵌入图片（或嵌入图未识别），此处用产品上架素材的白底图兜底。匹配依据：' + esc(p.imgWhy || '') + '</div>'
-      : '<div class="note-line">图片来源：Excel「产品图片」嵌入图，已统一按最长边 420px、WebP q76 压缩。</div>';
+      ? '<div class="note-line">Excel 该行未嵌入图片（或嵌入图未识别），此处用产品上架素材的白底图兜底' + specTip + '。匹配依据：' + esc(p.imgWhy || '') + '</div>'
+      : '<div class="note-line">图片来源：Excel「产品图片」嵌入图' + specTip + '，已统一按最长边 420px、WebP q76 压缩。</div>';
     return '<div class="doc-img"><span class="pic"><img src="./' + p.img + '" alt="' + esc(p.name) + '" loading="lazy"></span>' +
       '<div style="min-width:0;">' + note + (p.imgFrom ? chip(p.imgFrom) : '') + '</div></div>';
   }
