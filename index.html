@@ -5352,7 +5352,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
           <div class="note">3. Excel 的 14 个字段全部保留；同品名不同规格（净含量 / 条码 / 外盒 / 瓶器 / 箱规 / 重量）在文档内以规格表逐行展示，不做合并去重。</div>
           <div class="note">4. 卖点只取 PDF 与详情图实际内容：PDF 标「培训手册 P43」，图片标切片相对路径；未覆盖的款只保留 Excel 字段与系列理念，并在「缺失字段清单」中显式列出，不用套话填充。</div>
           <div class="note">5. 产品手册、品牌手册、品牌书为纯图片版（无文本层），已按 160dpi 逐页目视核对；产品培训手册有完整文本层；详情图经本地 OCR 辅助读取，关键页已目视复核，图上价格 / 促销 / 销量 / 评价类文字不收录。</div>
-          <div class="note">6. 商品图片取自 Excel 内嵌图（WPS DISPIMG），已压缩为 webp 本地加载；未嵌入图片的商品以首字占位。</div>
+          <div class="note">6. 商品图片取自 Excel 内嵌图（WPS 嵌入图片），已压缩为 webp 本地加载；未嵌入图片的商品以首字占位。</div>
           <div class="note">7. 本页为内置资料库，无需上传文件，也不写入浏览器存储；资料更新需替换 商品文档/products-data.js 与 selling-points.js。</div>
         `;
       } else {

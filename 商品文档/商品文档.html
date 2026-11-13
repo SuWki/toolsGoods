@@ -186,6 +186,15 @@
   .var-table th { color: var(--ink-3); font-weight: 600; background: var(--paper-soft); position: sticky; top: 0; }
   .var-table td { color: var(--ink-2); }
   .var-table tr:last-child td { border-bottom: 0; }
+  .var-table .dim-cell { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .var-table .dim-thumb {
+    width: 46px; height: 46px; flex: none; object-fit: contain; background: #fff;
+    border: 1px solid var(--line); border-radius: 6px; cursor: zoom-in; display: block;
+  }
+  .var-table .dim-tag { font-size: 11px; color: var(--ink-3); }
+  .zoom { position: fixed; inset: 0; z-index: 200; display: none; place-items: center; padding: 24px; background: rgba(15,23,42,.72); }
+  .zoom.on { display: grid; }
+  .zoom img { max-width: min(92vw, 820px); max-height: 86vh; background: #fff; border-radius: 10px; box-shadow: 0 24px 60px rgba(0,0,0,.35); }
   details.backinfo summary { cursor: pointer; font-size: 12.5px; color: var(--accent-text); }
   details.backinfo pre {
     white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: 12px;
@@ -257,6 +266,8 @@
   </div>
   <div class="drawer-body" id="d-body"></div>
 </aside>
+
+<div class="zoom" id="zoom" role="dialog" aria-label="图片放大"><img id="zoom-img" alt=""></div>
 
 <script src="./products-data.js"></script>
 <script src="./selling-points.js"></script>
@@ -419,6 +430,17 @@
     currentIdx = -1;
   }
 
+  function openZoom(src, alt) {
+    const img = document.getElementById('zoom-img');
+    img.src = src;
+    img.alt = alt || '';
+    document.getElementById('zoom').classList.add('on');
+  }
+  function closeZoom() {
+    document.getElementById('zoom').classList.remove('on');
+    document.getElementById('zoom-img').removeAttribute('src');
+  }
+
   function imageBlock(p) {
     if (!p.img) {
       return '<div class="doc-img"><span class="pic"><span class="none">无可用图片</span></span>' +
@@ -522,12 +544,25 @@
 
   function variantBlock(p) {
     const head = '<tr><th>规格</th><th>条码</th><th>零售价</th><th>备案编号</th><th>外盒 / 瓶器</th><th>箱规 / 重量</th></tr>';
-    const rows = p.variants.map((v) => '<tr><td>' + esc(v.spec || '—') + '</td><td>' + esc(v.barcode || '—') +
-      '</td><td>' + esc(v.price ? '¥' + v.price : '—') + '</td><td>' + esc(v.fileNo || '—') +
-      '</td><td>' + esc([v.box, v.bottle].filter(Boolean).join(' / ') || '—') +
-      '</td><td>' + esc([v.carton, v.weight].filter(Boolean).join(' / ') || '—') + '</td></tr>').join('');
+    const rows = p.variants.map((v) => {
+      const dim = [];
+      if (v.box) dim.push('<span>' + esc(v.box) + '</span>');
+      if (v.boxImg) dim.push(dimThumb(v.boxImg, '外盒尺寸图', '外盒图'));
+      if (v.bottle) dim.push('<span>' + esc(v.bottle) + '</span>');
+      if (v.bottleImg) dim.push(dimThumb(v.bottleImg, '瓶器尺寸图', '瓶器图'));
+      const dimCell = dim.length ? '<span class="dim-cell">' + dim.join('') + '</span>' : '—';
+      return '<tr><td>' + esc(v.spec || '—') + '</td><td>' + esc(v.barcode || '—') +
+        '</td><td>' + esc(v.price ? '¥' + v.price : '—') + '</td><td>' + esc(v.fileNo || '—') +
+        '</td><td>' + dimCell +
+        '</td><td>' + esc([v.carton, v.weight].filter(Boolean).join(' / ') || '—') + '</td></tr>';
+    }).join('');
     return '<div style="max-height:320px;overflow:auto;"><table class="var-table">' + head + rows + '</table></div>' +
-      '<div class="note-line">条码存在重复（同款不同渠道共用条码）时为 Excel 原值，未做去重。</div>';
+      '<div class="note-line">外盒 / 瓶器列中的缩略图为 Excel 单元格内嵌的尺寸标注图，点击可放大；未嵌入图片的单元格显示「—」。条码存在重复（同款不同渠道共用条码）时为 Excel 原值，未做去重。</div>';
+  }
+
+  function dimThumb(src, alt, tag) {
+    return '<img class="dim-thumb" src="./' + src + '" alt="' + esc(alt) + '" title="点击放大" loading="lazy">' +
+      '<span class="dim-tag">' + esc(tag) + '</span>';
   }
 
   function missingBlock(p, s) {
@@ -563,7 +598,7 @@
   function kvRow(k, v) { return '<dt>' + esc(k) + '</dt><dd>' + v + '</dd>'; }
   function truncate(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; }
   function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    return String(s == null ? '' : s).replace(/=DISPIMG\([^)]*\)/g, '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
   /* ---------------- 资料来源 ---------------- */
@@ -577,7 +612,7 @@
         '<div class="sdesc">' + esc(s.quality || '') + '</div></div></div>';
     }).join('') +
       '<div class="src-row"><div class="sname">Excel</div><div><div>' + esc(DATA.meta.source || '') + '</div>' +
-      '<div class="sdesc">商品名称、成分、规格、备案编号、条码、香调表中英、天猫价、外盒 / 瓶器尺寸、箱规、重量、产品背面信息，逐行原样保留；产品图片取自表格内嵌图（WPS DISPIMG），已压缩为 webp。</div></div></div>' +
+      '<div class="sdesc">商品名称、成分、规格、备案编号、条码、香调表中英、天猫价、外盒 / 瓶器尺寸、箱规、重量、产品背面信息，逐行原样保留；产品图片取自表格内嵌图（WPS 嵌入图片），已压缩为 webp。</div></div></div>' +
       '<div class="legend"><span><i>PDF 卖点</i> = 找到该款专页</span><span><i>系列理念</i> = 仅系列级介绍</span><span><i>仅 Excel</i> = PDF 无对应内容</span></div>';
   }
 
@@ -604,8 +639,16 @@
   });
   document.getElementById('d-close').addEventListener('click', closeDoc);
   document.getElementById('mask').addEventListener('click', closeDoc);
+  document.getElementById('d-body').addEventListener('click', (e) => {
+    const thumb = e.target.closest('.dim-thumb');
+    if (thumb) openZoom(thumb.getAttribute('src'), thumb.getAttribute('alt'));
+  });
+  document.getElementById('zoom').addEventListener('click', closeZoom);
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeDoc();
+    if (e.key === 'Escape') {
+      if (document.getElementById('zoom').classList.contains('on')) { closeZoom(); return; }
+      closeDoc();
+    }
     if (currentIdx >= 0 && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       const next = currentIdx + (e.key === 'ArrowDown' ? 1 : -1);
       if (next >= 0 && next < items.length) { openDoc(next); }
