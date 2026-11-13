@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>商品文档 · BLACK PAW 黑爪</title>
+<link rel="icon" href="../icon.png">
+<link rel="stylesheet" href="../theme.css">
+<style>
+  :root {
+    --paper: var(--surface);
+    --paper-soft: #F8FAFD;
+    --ink: var(--text);
+    --ink-2: var(--text-secondary);
+    --ink-3: var(--text-muted);
+    --line: var(--border);
+    --accent-weak: var(--accent-soft);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 12% 0%, rgba(9, 105, 218, .07), transparent 32%),
+      var(--bg);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 1560px; margin: 0 auto; padding: 22px 24px 48px; }
+
+  /* ---------- 顶部 ---------- */
+  .hero {
+    display: flex; justify-content: space-between; gap: 24px; align-items: flex-start;
+    flex-wrap: wrap; padding: 22px 24px; border-radius: 14px;
+    background: linear-gradient(135deg, #FFFFFF 0%, #F2F7FE 60%, #EAF2FC 100%);
+    border: 1px solid var(--line); box-shadow: var(--shadow);
+  }
+  .hero h1 { margin: 0; font-size: 24px; letter-spacing: .3px; }
+  .hero .sub { margin: 6px 0 0; color: var(--ink-3); font-size: 13px; max-width: 760px; }
+  .hero-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .tag {
+    display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px;
+    background: rgba(255,255,255,.78); border: 1px solid var(--line); color: var(--ink-2); font-size: 12px;
+  }
+  .tag b { color: var(--accent-text); font-weight: 700; }
+  .tag.good { background: var(--positive-soft); border-color: var(--positive-border); color: var(--positive-text); }
+  .tag.warn { background: var(--warning-soft); border-color: var(--warning-border); color: var(--warning-text); }
+
+  /* ---------- 工具条 ---------- */
+  .toolbar {
+    margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: var(--paper);
+    border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(31,41,55,.05);
+    display: grid; gap: 12px; position: sticky; top: 0; z-index: 20;
+  }
+  .toolbar-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .search {
+    flex: 1 1 320px; min-width: 240px; display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; background: var(--paper-soft);
+  }
+  .search input { flex: 1; border: 0; outline: 0; background: transparent; font: inherit; color: var(--ink); }
+  .search svg { width: 16px; height: 16px; color: var(--ink-3); flex: none; }
+  .seg { display: inline-flex; background: var(--paper-soft); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; }
+  .seg button {
+    border: 0; background: transparent; color: var(--ink-3); font: inherit; font-size: 13px;
+    padding: 6px 12px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  }
+  .seg button.on { background: var(--accent); color: #fff; font-weight: 600; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    border: 1px solid var(--line); background: var(--paper); color: var(--ink-2); font: inherit;
+    font-size: 12.5px; padding: 5px 11px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  }
+  .chip.on { background: var(--accent-weak); border-color: var(--accent-soft-strong); color: var(--accent-text); font-weight: 600; }
+  .chip .n { color: var(--ink-3); font-weight: 400; margin-left: 4px; }
+  .count { margin-left: auto; color: var(--ink-3); font-size: 12.5px; }
+
+  /* ---------- 卡片 ---------- */
+  .grid { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(252px, 1fr)); gap: 14px; }
+  .card {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 14px;
+    display: grid; grid-template-rows: auto auto 1fr auto; gap: 10px; cursor: pointer;
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    text-align: left; font: inherit; color: inherit;
+  }
+  .card:hover { transform: translateY(-2px); border-color: var(--accent-soft-strong); box-shadow: 0 12px 26px rgba(9,105,218,.12); }
+  .card-top { display: flex; gap: 12px; align-items: flex-start; }
+  .thumb {
+    width: 64px; height: 64px; flex: none; border-radius: 10px; background: var(--paper-soft);
+    border: 1px solid var(--line); display: grid; place-items: center; overflow: hidden;
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: contain; }
+  .thumb .ph { font-size: 18px; font-weight: 700; color: var(--accent); opacity: .55; }
+  .card-name { font-size: 14.5px; font-weight: 700; line-height: 1.45; margin: 0; word-break: break-word; }
+  .card-series { color: var(--ink-3); font-size: 12px; margin-top: 4px; }
+  .specs { display: flex; flex-wrap: wrap; gap: 5px; }
+  .spec {
+    font-size: 11.5px; padding: 2px 8px; border-radius: 6px; background: var(--paper-soft);
+    border: 1px solid var(--line); color: var(--ink-2);
+  }
+  .card-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid; }
+  .badge.ok { background: var(--positive-soft); border-color: var(--positive-border); color: var(--positive-text); }
+  .badge.none { background: var(--paper-soft); border-color: var(--line); color: var(--ink-3); }
+  .badge.hot { background: var(--warning-soft); border-color: var(--warning-border); color: var(--warning-text); }
+  .badge.acc { background: var(--accent-weak); border-color: var(--accent-soft-strong); color: var(--accent-text); }
+
+  /* ---------- 空态 ---------- */
+  .empty {
+    margin-top: 18px; padding: 42px 24px; text-align: center; color: var(--ink-3);
+    background: var(--paper); border: 1px dashed var(--border-strong); border-radius: 12px;
+  }
+
+  /* ---------- 抽屉 ---------- */
+  .mask {
+    position: fixed; inset: 0; background: rgba(19, 32, 51, .38); opacity: 0; pointer-events: none;
+    transition: opacity .2s ease; z-index: 60;
+  }
+  .mask.on { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100%; width: min(760px, 94vw); background: var(--paper);
+    box-shadow: -18px 0 48px rgba(19,32,51,.18); transform: translateX(102%);
+    transition: transform .24s ease; z-index: 61; display: grid; grid-template-rows: auto 1fr;
+  }
+  .drawer.on { transform: translateX(0); }
+  .drawer-head {
+    padding: 18px 22px; border-bottom: 1px solid var(--line); display: flex; gap: 14px;
+    justify-content: space-between; align-items: flex-start; background: linear-gradient(180deg,#fff, #F7FAFE);
+  }
+  .drawer-head h2 { margin: 0; font-size: 18px; line-height: 1.4; }
+  .drawer-head .meta { color: var(--ink-3); font-size: 12.5px; margin-top: 6px; }
+  .close {
+    border: 1px solid var(--line); background: #fff; border-radius: 8px; width: 34px; height: 34px;
+    display: grid; place-items: center; cursor: pointer; color: var(--ink-3); font-size: 20px; flex: none;
+  }
+  .close:hover { color: var(--accent); border-color: var(--accent-soft-strong); }
+  .drawer-body { overflow-y: auto; padding: 18px 22px 40px; display: grid; grid-auto-rows: max-content; gap: 18px; align-content: start; align-items: start; }
+
+  .block { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--paper); }
+  .block-head {
+    padding: 10px 14px; background: var(--paper-soft); border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .block-head h3 { margin: 0; font-size: 13px; letter-spacing: .4px; color: var(--ink-2); }
+  .block-body { padding: 14px; display: grid; gap: 12px; }
+  .kv { display: grid; grid-template-columns: 96px 1fr; gap: 6px 12px; font-size: 13px; }
+  .kv dt { color: var(--ink-3); }
+  .kv dd { margin: 0; color: var(--ink); word-break: break-word; }
+  .kv dd .muted { color: var(--ink-3); }
+
+  .point { display: grid; gap: 4px; padding-left: 12px; border-left: 2px solid var(--accent-soft-strong); }
+  .point + .point { margin-top: 2px; }
+  .point-label { font-size: 12px; font-weight: 700; color: var(--accent-text); letter-spacing: .3px; }
+  .point-text { font-size: 13.5px; line-height: 1.75; color: var(--ink); }
+  .point-text.quote { font-style: normal; }
+  .src {
+    display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 1px 7px;
+    border-radius: 999px; background: var(--accent-weak); border: 1px solid var(--accent-soft-strong);
+    color: var(--accent-text); font-size: 11px; white-space: nowrap; vertical-align: 2px;
+  }
+  .missing { display: grid; gap: 6px; }
+  .missing .row {
+    font-size: 12.5px; color: var(--ink-2); background: var(--warning-soft); border: 1px solid var(--warning-border);
+    border-radius: 8px; padding: 7px 10px;
+  }
+  .missing .row b { color: var(--warning-text); }
+  .note-line { font-size: 12.5px; color: var(--ink-3); line-height: 1.7; }
+  .tone-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .tone-table th, .tone-table td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
+  .tone-table th { background: var(--paper-soft); color: var(--ink-2); font-weight: 600; width: 62px; }
+  .var-table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 12.5px; }
+  .var-table th, .var-table td { border-bottom: 1px solid var(--line); padding: 7px 8px; text-align: left; }
+  .var-table th { color: var(--ink-3); font-weight: 600; background: var(--paper-soft); position: sticky; top: 0; }
+  .var-table td { color: var(--ink-2); }
+  .var-table tr:last-child td { border-bottom: 0; }
+  details.backinfo summary { cursor: pointer; font-size: 12.5px; color: var(--accent-text); }
+  details.backinfo pre {
+    white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: 12px;
+    color: var(--ink-2); background: var(--paper-soft); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px; margin: 8px 0 0;
+  }
+
+  /* ---------- 资料说明 ---------- */
+  .sources { margin-top: 20px; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; }
+  .sources .block-head { background: linear-gradient(180deg,#fff,#F5F9FE); }
+  .sources .block-body { gap: 8px; }
+  .src-row { display: grid; grid-template-columns: 92px 1fr; gap: 4px 12px; font-size: 12.5px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+  .src-row:last-child { border-bottom: 0; }
+  .src-row .sname { font-weight: 700; color: var(--ink-2); }
+  .src-row .sdesc { color: var(--ink-3); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-3); }
+  .legend i { font-style: normal; color: var(--accent-text); }
+  @media (max-width: 720px) {
+    .wrap { padding: 14px; }
+    .hero { padding: 16px; }
+    .kv { grid-template-columns: 76px 1fr; }
+    .drawer { width: 100vw; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div>
+      <h1>商品文档 · BLACK PAW 黑爪</h1>
+      <p class="sub">以《BLACK PAW 黑爪 产品列表 2025.11.17》为字段底稿，逐款整理成商品文档；香调、气味与工艺卖点取自产品手册 / 品牌手册 / 品牌书 / 产品培训手册四份 PDF，每条标注出处；PDF 未覆盖的字段显式标为「无来源」，未做填充。</p>
+      <div class="hero-tags" id="hero-tags"></div>
+    </div>
+    <div class="tag">数据底稿：产品列表 Excel（320 个 SKU）</div>
+  </header>
+
+  <section class="toolbar">
+    <div class="toolbar-row">
+      <label class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+        <input id="q" type="search" placeholder="搜索商品名 / 系列 / 条码 / 规格…" autocomplete="off">
+      </label>
+      <div class="seg" id="coverage">
+        <button data-cov="all" class="on">全部</button>
+        <button data-cov="sourced">有 PDF 卖点</button>
+        <button data-cov="excel">仅 Excel 字段</button>
+      </div>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="chips" id="series-chips"></div>
+  </section>
+
+  <main class="grid" id="grid"></main>
+
+  <section class="sources">
+    <div class="block-head"><h3>资料来源与识别质量</h3></div>
+    <div class="block-body" id="source-list"></div>
+  </section>
+</div>
+
+<div class="mask" id="mask"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title">
+  <div class="drawer-head">
+    <div>
+      <h2 id="d-title">商品文档</h2>
+      <div class="meta" id="d-meta"></div>
+    </div>
+    <button class="close" id="d-close" title="关闭" aria-label="关闭">&times;</button>
+  </div>
+  <div class="drawer-body" id="d-body"></div>
+</aside>
+
+<script src="./products-data.js"></script>
+<script src="./selling-points.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const DATA = window.PAW_PRODUCT_DATA || { products: [], meta: {} };
+  const DOCS = window.PAW_DOCS || { scents: [], series: {}, sources: {}, brand: {} };
+  const SERIES_OVERRIDE = { '香薰香氛-雅宋五瓷': '雅宋五瓷', '自然系列-护手霜': '自然系列·护手霜' };
+
+  const seriesLabel = (s) => SERIES_OVERRIDE[s] || s;
+
+  /* 匹配单款香型资料：同系列 + 关键词，关键词越长越具体，prefer 命中优先 */
+  function findScent(product) {
+    let best = null;
+    for (const s of DOCS.scents) {
+      if (s.series !== product.series) continue;
+      if (s.exclude && s.exclude.some((k) => product.name.includes(k))) continue;
+      const hits = s.match.filter((k) => product.name.includes(k));
+      if (!hits.length) continue;
+      let score = Math.max.apply(null, hits.map((k) => k.length)) * 10;
+      if (s.prefer && s.prefer.some((k) => product.name.includes(k))) score += 5;
+      if (!best || score > best.score) best = { scent: s, score: score };
+    }
+    return best ? best.scent : null;
+  }
+
+  const items = DATA.products.map((p) => {
+    const scent = findScent(p);
+    const intro = DOCS.series[p.series] || null;
+    const hasScent = !!scent;
+    return { p: p, scent: scent, intro: intro, sourced: hasScent };
+  });
+
+  const countSourced = items.filter((it) => it.sourced).length;
+  const skuTotal = DATA.meta.skuRows || items.reduce((n, it) => n + it.p.variants.length, 0);
+  const seriesList = [];
+  items.forEach((it) => { if (seriesList.indexOf(it.p.series) < 0) seriesList.push(it.p.series); });
+
+  document.getElementById('hero-tags').innerHTML = [
+    '<span class="tag"><b>' + items.length + '</b> 款商品文档</span>',
+    '<span class="tag"><b>' + skuTotal + '</b> 个 SKU</span>',
+    '<span class="tag"><b>' + seriesList.length + '</b> 个系列</span>',
+    '<span class="tag good"><b>' + countSourced + '</b> 款有 PDF 卖点</span>',
+    '<span class="tag warn"><b>' + (items.length - countSourced) + '</b> 款仅有 Excel 字段</span>'
+  ].join('');
+
+  /* ---------------- 筛选 ---------------- */
+  const state = { q: '', cov: 'all', series: 'all' };
+
+  function renderSeriesChips() {
+    const host = document.getElementById('series-chips');
+    const base = '<button class="chip on" data-series="all">全部系列</button>';
+    host.innerHTML = base + seriesList.map((s) => {
+      const n = items.filter((it) => it.p.series === s).length;
+      return '<button class="chip" data-series="' + esc(s) + '">' + esc(seriesLabel(s)) + '<span class="n">' + n + '</span></button>';
+    }).join('');
+  }
+
+  function filterItems() {
+    const q = state.q.trim().toLowerCase();
+    return items.filter((it) => {
+      if (state.series !== 'all' && it.p.series !== state.series) return false;
+      if (state.cov === 'sourced' && !it.sourced) return false;
+      if (state.cov === 'excel' && it.sourced) return false;
+      if (!q) return true;
+      const hay = [it.p.name, it.p.series, seriesLabel(it.p.series), it.p.tones,
+        it.p.tonesEn, it.p.variants.map((v) => v.barcode + ' ' + v.spec).join(' ')].join(' ').toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+  }
+
+  function specChips(variants) {
+    const specs = [];
+    variants.forEach((v) => { if (v.spec && specs.indexOf(v.spec) < 0) specs.push(v.spec); });
+    return specs.slice(0, 6).map((s) => '<span class="spec">' + esc(s) + '</span>').join('') +
+      (specs.length > 6 ? '<span class="spec">+' + (specs.length - 6) + '</span>' : '');
+  }
+
+  function render() {
+    const list = filterItems();
+    const grid = document.getElementById('grid');
+    document.getElementById('count').textContent = '命中 ' + list.length + ' / ' + items.length + ' 款';
+
+    if (!list.length) {
+      grid.innerHTML = '<div class="empty">没有符合条件的商品。可清空搜索词或切换系列筛选。</div>';
+      return;
+    }
+
+    grid.innerHTML = list.map((it, idx) => {
+      const p = it.p;
+      const initial = (p.name || '?').replace(/[（(].*$/, '').slice(0, 1);
+      const thumb = p.img
+        ? '<img src="./' + p.img + '" alt="' + esc(p.name) + '" loading="lazy">'
+        : '<span class="ph">' + esc(initial) + '</span>';
+      const badges = [
+        it.sourced ? '<span class="badge ok">PDF 卖点</span>' : '<span class="badge none">仅 Excel</span>',
+        it.intro ? '<span class="badge acc">系列理念</span>' : '',
+        it.scent && it.scent.hot ? '<span class="badge hot">爆款</span>' : '',
+        it.scent && it.scent.award ? '<span class="badge hot">获奖</span>' : ''
+      ].join('');
+      return '<button class="card" data-idx="' + items.indexOf(it) + '">' +
+        '<div class="card-top"><span class="thumb">' + thumb + '</span>' +
+        '<span><span class="card-name">' + esc(p.name) + '</span>' +
+        '<div class="card-series">' + esc(seriesLabel(p.series)) + ' · ' + p.variants.length + ' 个规格</div></span></div>' +
+        '<div class="specs">' + specChips(p.variants) + '</div>' +
+        '<div class="note-line">' + (it.scent ? esc(truncate(it.scent.smell, 46)) : (it.intro ? '仅有系列理念，缺少逐款香调' : 'PDF 无对应内容')) + '</div>' +
+        '<div class="card-foot">' + badges + '</div>' +
+        '</button>';
+    }).join('');
+  }
+
+  /* ---------------- 详情 ---------------- */
+  let currentIdx = -1;
+
+  function openDoc(idx) {
+    const it = items[idx];
+    if (!it) return;
+    currentIdx = idx;
+    const p = it.p;
+    const s = it.scent;
+    document.getElementById('d-title').textContent = p.name;
+    document.getElementById('d-meta').textContent = seriesLabel(p.series) + ' · ' + p.variants.length + ' 个规格 · 数据源：Excel 产品列表' + (s ? ' + 培训手册 ' + s.page : '');
+
+    const body = [];
+    body.push('<div class="block"><div class="block-head"><h3>基本信息（Excel）</h3></div><div class="block-body">' + basicBlock(p) + '</div></div>');
+
+    if (it.intro) {
+      body.push('<div class="block"><div class="block-head"><h3>系列定位</h3></div><div class="block-body">' +
+        point('系列理念', it.intro.text, '培训手册 ' + it.intro.page) + '</div></div>');
+    }
+
+    body.push('<div class="block"><div class="block-head"><h3>香调三调</h3></div><div class="block-body">' + toneBlock(p, s) + '</div></div>');
+
+    body.push('<div class="block"><div class="block-head"><h3>卖点（PDF 原文摘要）</h3></div><div class="block-body">' + sellingBlock(s) + '</div></div>');
+
+    body.push('<div class="block"><div class="block-head"><h3>规格与条码</h3></div><div class="block-body">' + variantBlock(p) + '</div></div>');
+
+    body.push('<div class="block"><div class="block-head"><h3>缺失字段清单</h3></div><div class="block-body">' + missingBlock(p, s) + '</div></div>');
+
+    if (p.backInfo) {
+      body.push('<div class="block"><div class="block-head"><h3>产品背面信息（Excel 原文）</h3></div><div class="block-body">' +
+        '<details class="backinfo"><summary>展开查看使用说明 / 贮存条件 / 备案人与生产企业</summary><pre>' + esc(p.backInfo) + '</pre></details></div></div>');
+    }
+
+    document.getElementById('d-body').innerHTML = body.join('');
+    document.getElementById('d-body').scrollTop = 0;
+    document.getElementById('drawer').classList.add('on');
+    document.getElementById('mask').classList.add('on');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeDoc() {
+    document.getElementById('drawer').classList.remove('on');
+    document.getElementById('mask').classList.remove('on');
+    document.body.style.overflow = '';
+    currentIdx = -1;
+  }
+
+  function basicBlock(p) {
+    const first = p.variants[0] || {};
+    const rows = [];
+    rows.push(kvRow('商品名称', esc(p.name)));
+    rows.push(kvRow('系列', esc(seriesLabel(p.series))));
+    rows.push(kvRow('规格', esc(p.variants.map((v) => v.spec).filter(Boolean).join(' / ') || '—')));
+    rows.push(kvRow('备案编号', first.fileNo ? esc(p.variants.map((v) => v.fileNo).filter((v, i, a) => v && a.indexOf(v) === i).join(' / ')) : '<span class="muted">Excel 未填写</span>'));
+    rows.push(kvRow('成分', p.ingredient ? esc(p.ingredient.replace(/^成分：/, '')) : '<span class="muted">Excel 未填写</span>'));
+    return '<dl class="kv">' + rows.join('') + '</dl>';
+  }
+
+  function toneBlock(p, s) {
+    const out = [];
+    if (p.tones) {
+      out.push('<table class="tone-table"><tbody>' + toneRows(p.tones) + '</tbody></table>' +
+        '<div class="note-line">中文三调出处：Excel「香调表（中文）」原文。</div>');
+    }
+    if (p.tonesEn) {
+      out.push('<details class="backinfo"><summary>展开英文三调（Excel 原文）</summary><pre>' + esc(p.tonesEn) + '</pre></details>');
+    }
+    if (s) {
+      const n = s.notes || {};
+      const hasPdfNotes = n.top || n.mid || n.base;
+      if (hasPdfNotes) {
+        out.push('<div class="point-label" style="margin-top:2px;">PDF 记录的三调与规格</div>' +
+          '<table class="tone-table"><tbody>' +
+          (n.top ? '<tr><th>前调</th><td>' + esc(n.top) + '</td></tr>' : '') +
+          (n.mid ? '<tr><th>中调</th><td>' + esc(n.mid) + '</td></tr>' : '') +
+          (n.base ? '<tr><th>后调</th><td>' + esc(n.base) + '</td></tr>' : '') +
+          '</tbody></table>');
+      }
+      const meta = [];
+      if (s.tone) meta.push('香调类型：' + s.tone);
+      if (s.type) meta.push('类型：' + s.type);
+      if (s.last) meta.push('留香 / 扩香：' + s.last);
+      if (meta.length) {
+        out.push('<div class="note-line">' + esc(meta.join('；')) + ' <span class="src">培训手册 ' + s.page + '</span></div>');
+      }
+    }
+    if (!p.tones && !p.tonesEn && !s) {
+      out.push('<div class="missing"><div class="row"><b>PDF 无来源：</b>本草稿未在四份 PDF 中找到该款的香调描述，Excel 香调表亦为空。</div></div>');
+    }
+    return out.join('');
+  }
+
+  function toneRows(text) {
+    return String(text).split(/\n|；|;/).map((line) => line.trim()).filter(Boolean).map((line) => {
+      const m = line.match(/^(前调|中调|后调|尾调|Top Notes|Middle Notes|Base Notes)[：:\s\t]+(.*)$/);
+      if (m) return '<tr><th>' + esc(m[1]) + '</th><td>' + esc(m[2].replace(/[\t]+/g, ' / ')) + '</td></tr>';
+      return '<tr><th>香调</th><td>' + esc(line.replace(/[\t]+/g, ' / ')) + '</td></tr>';
+    }).join('');
+  }
+
+  function sellingBlock(s) {
+    if (!s) {
+      return '<div class="missing"><div class="row"><b>PDF 无来源：</b>四份 PDF 均未收录该款的逐款气味描述、意境描述、工艺细节与获奖信息。此处不以通用话术填充，仅保留 Excel 字段与（若有）系列理念。</div></div>';
+    }
+    const src = '培训手册 ' + s.page;
+    const out = [];
+    if (s.smell) out.push(point('气味描述', s.smell, src));
+    if (s.mood) out.push(point('意境描述', s.mood, src));
+    if (s.detail) out.push(point('工艺 / 细节', s.detail, src));
+    if (s.award) out.push(point('获奖', s.award, '培训手册 P55'));
+    if (s.caveat) out.push('<div class="missing"><div class="row">' + esc(s.caveat) + '</div></div>');
+    return out.join('');
+  }
+
+  function variantBlock(p) {
+    const head = '<tr><th>规格</th><th>条码</th><th>零售价</th><th>备案编号</th><th>外盒 / 瓶器</th><th>箱规 / 重量</th></tr>';
+    const rows = p.variants.map((v) => '<tr><td>' + esc(v.spec || '—') + '</td><td>' + esc(v.barcode || '—') +
+      '</td><td>' + esc(v.price ? '¥' + v.price : '—') + '</td><td>' + esc(v.fileNo || '—') +
+      '</td><td>' + esc([v.box, v.bottle].filter(Boolean).join(' / ') || '—') +
+      '</td><td>' + esc([v.carton, v.weight].filter(Boolean).join(' / ') || '—') + '</td></tr>').join('');
+    return '<div style="max-height:320px;overflow:auto;"><table class="var-table">' + head + rows + '</table></div>' +
+      '<div class="note-line">条码存在重复（同款不同渠道共用条码）时为 Excel 原值，未做去重。</div>';
+  }
+
+  function missingBlock(p, s) {
+    const miss = [];
+    if (!s) {
+      miss.push('逐款香调（PDF 三调）');
+      miss.push('气味描述 / 意境描述');
+      miss.push('香调类型、香精类型、留香时长');
+      miss.push('工艺 / 包装细节');
+      miss.push('获奖记录');
+    } else {
+      if (!s.notes || (!s.notes.top && !s.notes.mid && !s.notes.base)) miss.push('PDF 三调（仅有 Excel 香调表）');
+      if (!s.award) miss.push('获奖记录（PDF 未记载）');
+    }
+    if (!p.img) miss.push('商品图片（Excel 该行未嵌入图片）');
+    if (!p.tones && !p.tonesEn) miss.push('香调表（Excel 为空）');
+    return '<div class="note-line">以下字段在现有资料中没有可引用来源，未做补写：</div>' +
+      '<div class="missing">' + miss.map((m) => '<div class="row">' + esc(m) + '</div>').join('') + '</div>';
+  }
+
+  function point(label, text, src) {
+    return '<div class="point"><div class="point-label">' + esc(label) + '</div>' +
+      '<div class="point-text quote">' + esc(text) + '<span class="src">' + esc(src) + '</span></div></div>';
+  }
+  function kvRow(k, v) { return '<dt>' + esc(k) + '</dt><dd>' + v + '</dd>'; }
+  function truncate(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  /* ---------------- 资料来源 ---------------- */
+  function renderSources() {
+    const host = document.getElementById('source-list');
+    const order = ['train', 'product', 'brand', 'brandbook'];
+    host.innerHTML = order.map((key) => {
+      const s = DOCS.sources[key] || {};
+      return '<div class="src-row"><div class="sname">' + esc(s.short || key) + '</div><div>' +
+        '<div>' + esc(s.name || '') + '（' + (s.pages || '?') + ' 页）</div>' +
+        '<div class="sdesc">' + esc(s.quality || '') + '</div></div></div>';
+    }).join('') +
+      '<div class="src-row"><div class="sname">Excel</div><div><div>' + esc(DATA.meta.source || '') + '</div>' +
+      '<div class="sdesc">商品名称、成分、规格、备案编号、条码、香调表中英、天猫价、外盒 / 瓶器尺寸、箱规、重量、产品背面信息，逐行原样保留；产品图片取自表格内嵌图（WPS DISPIMG），已压缩为 webp。</div></div></div>' +
+      '<div class="legend"><span><i>PDF 卖点</i> = 找到该款专页</span><span><i>系列理念</i> = 仅系列级介绍</span><span><i>仅 Excel</i> = PDF 无对应内容</span></div>';
+  }
+
+  /* ---------------- 事件 ---------------- */
+  document.getElementById('q').addEventListener('input', (e) => { state.q = e.target.value; render(); });
+  document.getElementById('coverage').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    state.cov = btn.dataset.cov;
+    Array.prototype.forEach.call(e.currentTarget.children, (b) => b.classList.toggle('on', b === btn));
+    render();
+  });
+  document.getElementById('series-chips').addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    state.series = btn.dataset.series;
+    Array.prototype.forEach.call(e.currentTarget.children, (b) => b.classList.toggle('on', b === btn));
+    render();
+  });
+  document.getElementById('grid').addEventListener('click', (e) => {
+    const card = e.target.closest('.card');
+    if (!card) return;
+    openDoc(Number(card.dataset.idx));
+  });
+  document.getElementById('d-close').addEventListener('click', closeDoc);
+  document.getElementById('mask').addEventListener('click', closeDoc);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeDoc();
+    if (currentIdx >= 0 && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      const next = currentIdx + (e.key === 'ArrowDown' ? 1 : -1);
+      if (next >= 0 && next < items.length) { openDoc(next); }
+    }
+  });
+
+  renderSeriesChips();
+  renderSources();
+  render();
+})();
+</script>
+</body>
+</html>

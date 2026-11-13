@@ -90,7 +90,7 @@
       flex-wrap: wrap;
       align-items: center;
       gap: 2px;
-      max-width: min(100vw - 48px, 1100px);
+      max-width: min(100vw - 48px, 1220px);
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 22px;
@@ -102,11 +102,11 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 9px 16px;
+      padding: 9px 13px;
       border: none;
       background: transparent;
       color: var(--muted);
-      font-size: 14px;
+      font-size: 13.5px;
       font-weight: 600;
       border-radius: 999px;
       cursor: pointer;
@@ -1916,6 +1916,9 @@ pointer-events: none;
       </section>
       <section id="new-store-panel" class="panel sku-rank-panel" style="display:none;">
         <iframe id="new-store-frame" title="新店时间表" data-src="./新店时间表/新店时间表.html"></iframe>
+      </section>
+      <section id="product-docs-panel" class="panel sku-rank-panel" style="display:none;">
+        <iframe id="product-docs-frame" title="商品文档" data-src="./商品文档/商品文档.html"></iframe>
       </section>
       </main>
     </div>
@@ -4663,6 +4666,9 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       } else if (state.activeTab === "newStore") {
         // 新店时间表：状态由看板自身展示，顶部不叠加胶囊
         pills = [];
+      } else if (state.activeTab === "productDocs") {
+        // 商品文档：资料规模由看板自身展示，顶部不叠加胶囊
+        pills = [];
       } else {
         pills = [
           `<span class="pill">已上传 ${formatInteger(model.uploadedCount)} 个文件</span>`,
@@ -4704,6 +4710,10 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       }
       if (state.activeTab === "newStore") {
         // 新店时间表为纯前端录入，无需上传文件
+        return [];
+      }
+      if (state.activeTab === "productDocs") {
+        // 商品文档为内置资料库，无需上传文件
         return [];
       }
       // 驾驶舱Tab显示除九宫格与销售趋势外的所有文件
@@ -4804,6 +4814,11 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
         host.innerHTML = "";
         return;
       }
+      if (state.activeTab === "productDocs") {
+        // 商品文档自带资料来源与识别质量说明
+        host.innerHTML = "";
+        return;
+      }
       if (state.activeTab === "matrix") {
         // 九宫格Tab只显示九宫格文件状态
         items = [
@@ -4886,6 +4901,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       { id: "sellOut", label: "售罄预估", defaultColor: "#0969DA", icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' },
       { id: "inventoryAnalysis", label: "库存分析", defaultColor: "#0969DA", icon: '<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/>' },
       { id: "newStore", label: "新店时间表", defaultColor: "#0969DA", icon: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/>' },
+      { id: "productDocs", label: "商品文档", defaultColor: "#0969DA", icon: '<path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H15l5 5v12.5A1.5 1.5 0 0 1 18.5 22h-13A1.5 1.5 0 0 1 4 20.5z"/><path d="M15 3v5h5"/><path d="M8 13h8M8 17h5"/>' },
     ];
 
     const GEAR_ICON = modeIcon('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/>');
@@ -5326,6 +5342,18 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
           <div class="note">5. 待办矩阵按「门店 × 四个节点」排列，勾选即完成；已完成节点会从日历移除，且未完成且日期已到/已过的节点会标红提醒。</div>
           <div class="note">6. 四项全部完成的门店会标注「已完成」，可勾选「折叠四项已完成门店」收起，避免长期占屏。</div>
           <div class="note">7. 数据保存在本浏览器 localStorage（key：toolsGoods.newStoreTimeline.v1），刷新不丢失；清理浏览器数据或换设备不会同步。</div>
+        `;
+      } else if (state.activeTab === "productDocs") {
+        titleEl.textContent = "商品文档";
+        subtitleEl.textContent = "商品文档模式：以《BLACK PAW 黑爪 产品列表 2025.11.17》为字段底稿，按品名归并为逐款商品文档（同款多规格合并展示），并从产品手册、品牌手册、品牌书、产品培训手册四份 PDF 中抽取香调三调、气味与意境描述、工艺细节与获奖信息作为卖点，每条卖点均标注文件与页码。";
+        notesEl.innerHTML = `
+          <div class="note">1. 左侧为商品文档卡片，支持按商品名 / 系列 / 条码 / 规格搜索，按系列筛选，并可按「有 PDF 卖点」「仅 Excel 字段」过滤。</div>
+          <div class="note">2. 点击卡片打开右侧文档抽屉：基本信息、系列定位、香调三调、卖点（PDF 原文摘要）、规格与条码、缺失字段清单、产品背面信息。</div>
+          <div class="note">3. Excel 的 14 个字段全部保留；同品名不同规格（净含量 / 条码 / 外盒 / 瓶器 / 箱规 / 重量）在文档内以规格表逐行展示，不做合并去重。</div>
+          <div class="note">4. 卖点只取 PDF 实际内容，标注「培训手册 P43」这类出处；PDF 未覆盖的款只保留 Excel 字段与系列理念，并在「缺失字段清单」中显式列出，不用套话填充。</div>
+          <div class="note">5. 产品手册、品牌手册、品牌书为纯图片版（无文本层），已按 160dpi 逐页目视核对，属清晰排版稿；产品培训手册有完整文本层，识别质量最高，个别错字已在文中括注。</div>
+          <div class="note">6. 商品图片取自 Excel 内嵌图（WPS DISPIMG），已压缩为 webp 本地加载；未嵌入图片的商品以首字占位。</div>
+          <div class="note">7. 本页为内置资料库，无需上传文件，也不写入浏览器存储；资料更新需替换 商品文档/products-data.js 与 selling-points.js。</div>
         `;
       } else {
         titleEl.textContent = "驾驶舱文件";
@@ -8172,8 +8200,10 @@ bindTrendTooltip(chartEl);
       const sellOutPanel = document.getElementById("sell-out-panel");
       const inventoryPanel = document.getElementById("inventory-analysis-panel");
       const newStorePanel = document.getElementById("new-store-panel");
+      const productDocsPanel = document.getElementById("product-docs-panel");
       if (inventoryPanel) inventoryPanel.style.display = "none";
       if (newStorePanel) newStorePanel.style.display = "none";
+      if (productDocsPanel) productDocsPanel.style.display = "none";
       if (state.activeTab === "skuRank") {
         kpiGrid.style.display = "none";
         tabsBar.style.display = "none";
@@ -8255,6 +8285,22 @@ bindTrendTooltip(chartEl);
         return;
       }
       if (newStorePanel) newStorePanel.style.display = "none";
+
+      // 商品文档：内置资料库，无需上传文件（首次进入懒加载，切换 Tab 状态保留）
+      if (state.activeTab === "productDocs") {
+        kpiGrid.style.display = "none";
+        tabsBar.style.display = "none";
+        tabsPanel.style.display = "none";
+        if (productDocsPanel) {
+          productDocsPanel.style.display = "block";
+          const pdFrame = document.getElementById("product-docs-frame");
+          if (pdFrame && !pdFrame.getAttribute("src")) {
+            pdFrame.src = pdFrame.dataset.src;
+          }
+        }
+        return;
+      }
+      if (productDocsPanel) productDocsPanel.style.display = "none";
 
       if (state.activeTab === "cockpit") {
         // 驾驶舱模式：显示子标签栏
