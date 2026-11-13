@@ -28,10 +28,23 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      # 只发布 商品文档 目录，并把目录外的共享资源（theme.css / favicon）补进站点根
+      - name: Build site (only 商品文档)
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp -R "商品文档/." _site/
+          cp theme.css icon.png _site/
+          sed -i 's|\.\./theme\.css|theme.css|g; s|\.\./icon\.png|icon.png|g' "_site/商品文档.html"
+          cp "_site/商品文档.html" _site/index.html
+          echo "files: $(find _site -type f | wc -l)"
+          du -sh _site
+          find _site -maxdepth 1 -type f | sort
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
 
       - name: Deploy to GitHub Pages
         id: deployment
