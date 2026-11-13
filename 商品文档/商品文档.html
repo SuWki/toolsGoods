@@ -158,6 +158,11 @@
     border-radius: 999px; background: var(--accent-weak); border: 1px solid var(--accent-soft-strong);
     color: var(--accent-text); font-size: 11px; white-space: nowrap; vertical-align: 2px;
   }
+  .src.path {
+    display: block; width: fit-content; max-width: 100%; margin: 5px 0 0; padding: 3px 8px;
+    white-space: normal; word-break: break-all; line-height: 1.55; border-radius: 6px;
+    color: var(--ink-3); background: var(--paper-soft); border-color: var(--line);
+  }
   .missing { display: grid; gap: 6px; }
   .missing .row {
     font-size: 12.5px; color: var(--ink-2); background: var(--warning-soft); border: 1px solid var(--warning-border);
@@ -203,7 +208,7 @@
   <header class="hero">
     <div>
       <h1>商品文档 · BLACK PAW 黑爪</h1>
-      <p class="sub">以《BLACK PAW 黑爪 产品列表 2025.11.17》为字段底稿，逐款整理成商品文档；香调、气味与工艺卖点取自产品手册 / 品牌手册 / 品牌书 / 产品培训手册四份 PDF，每条标注出处；PDF 未覆盖的字段显式标为「无来源」，未做填充。</p>
+      <p class="sub">以《BLACK PAW 黑爪 产品列表 2025.11.17》为字段底稿，逐款整理成商品文档；香调、气味与工艺卖点取自产品手册 / 品牌手册 / 品牌书 / 产品培训手册四份 PDF，以及产品上架素材的详情图切片，每条标注出处（页码或图片相对路径）；无来源的字段显式标注，未做填充。</p>
       <div class="hero-tags" id="hero-tags"></div>
     </div>
     <div class="tag">数据底稿：产品列表 Excel（320 个 SKU）</div>
@@ -217,7 +222,7 @@
       </label>
       <div class="seg" id="coverage">
         <button data-cov="all" class="on">全部</button>
-        <button data-cov="sourced">有 PDF 卖点</button>
+        <button data-cov="sourced">有卖点依据</button>
         <button data-cov="excel">仅 Excel 字段</button>
       </div>
       <span class="count" id="count"></span>
@@ -288,7 +293,7 @@
     '<span class="tag"><b>' + items.length + '</b> 款商品文档</span>',
     '<span class="tag"><b>' + skuTotal + '</b> 个 SKU</span>',
     '<span class="tag"><b>' + seriesList.length + '</b> 个系列</span>',
-    '<span class="tag good"><b>' + countSourced + '</b> 款有 PDF 卖点</span>',
+    '<span class="tag good"><b>' + countSourced + '</b> 款有卖点依据</span>',
     '<span class="tag warn"><b>' + (items.length - countSourced) + '</b> 款仅有 Excel 字段</span>'
   ].join('');
 
@@ -341,7 +346,7 @@
         ? '<img src="./' + p.img + '" alt="' + esc(p.name) + '" loading="lazy">'
         : '<span class="ph">' + esc(initial) + '</span>';
       const badges = [
-        it.sourced ? '<span class="badge ok">PDF 卖点</span>' : '<span class="badge none">仅 Excel</span>',
+        it.sourced ? '<span class="badge ok">' + (it.scent.kind === 'image' ? '详情图卖点' : 'PDF 卖点') + '</span>' : '<span class="badge none">仅 Excel</span>',
         it.intro ? '<span class="badge acc">系列理念</span>' : '',
         it.scent && it.scent.hot ? '<span class="badge hot">爆款</span>' : '',
         it.scent && it.scent.award ? '<span class="badge hot">获奖</span>' : ''
@@ -367,19 +372,19 @@
     const p = it.p;
     const s = it.scent;
     document.getElementById('d-title').textContent = p.name;
-    document.getElementById('d-meta').textContent = seriesLabel(p.series) + ' · ' + p.variants.length + ' 个规格 · 数据源：Excel 产品列表' + (s ? ' + 培训手册 ' + s.page : '');
+    document.getElementById('d-meta').textContent = seriesLabel(p.series) + ' · ' + p.variants.length + ' 个规格 · 数据源：Excel 产品列表' + (s ? (s.kind === 'image' ? ' + 产品详情图' : ' + 培训手册 ' + s.page) : '');
 
     const body = [];
     body.push('<div class="block"><div class="block-head"><h3>基本信息（Excel）</h3></div><div class="block-body">' + basicBlock(p) + '</div></div>');
 
     if (it.intro) {
       body.push('<div class="block"><div class="block-head"><h3>系列定位</h3></div><div class="block-body">' +
-        point('系列理念', it.intro.text, '培训手册 ' + it.intro.page) + '</div></div>');
+        point('系列理念', it.intro.text, ref(it.intro)) + '</div></div>');
     }
 
     body.push('<div class="block"><div class="block-head"><h3>香调三调</h3></div><div class="block-body">' + toneBlock(p, s) + '</div></div>');
 
-    body.push('<div class="block"><div class="block-head"><h3>卖点（PDF 原文摘要）</h3></div><div class="block-body">' + sellingBlock(s) + '</div></div>');
+    body.push('<div class="block"><div class="block-head"><h3>' + (s && s.kind === 'image' ? '卖点（产品详情图原文摘要）' : '卖点（PDF 原文摘要）') + '</h3></div><div class="block-body">' + sellingBlock(s) + '</div></div>');
 
     body.push('<div class="block"><div class="block-head"><h3>规格与条码</h3></div><div class="block-body">' + variantBlock(p) + '</div></div>');
 
@@ -427,8 +432,16 @@
     if (s) {
       const n = s.notes || {};
       const hasPdfNotes = n.top || n.mid || n.base;
-      if (hasPdfNotes) {
-        out.push('<div class="point-label" style="margin-top:2px;">PDF 记录的三调与规格</div>' +
+      const norm = (v) => String(v || '').replace(/[\s\/／、，,]/g, '');
+      const cmp = ['top', 'mid', 'base'].map((k) => ({ k: k, ex: toneValue(p.tones, k) }));
+      const isImg = s.kind === 'image';
+      const allEqual = isImg && p.tones && hasPdfNotes && cmp.every((c) => c.ex && norm(c.ex) === norm(n[c.k]));
+      const differ = isImg && p.tones && hasPdfNotes && cmp.some((c) => c.ex && norm(c.ex) !== norm(n[c.k]));
+      if (hasPdfNotes && allEqual) {
+        out.push('<div class="note-line">详情图三列香材与 Excel 香调表逐项一致，未发现冲突，不重复列出。</div>');
+      } else if (hasPdfNotes) {
+        out.push('<div class="point-label" style="margin-top:2px;">' + (isImg ? '详情图记录的三调与规格' : 'PDF 记录的三调与规格') + '</div>' +
+          (differ ? '<div class="missing"><div class="row"><b>与 Excel 香调表存在差异：</b>两份均原样保留，未做取舍。</div></div>' : '') +
           '<table class="tone-table"><tbody>' +
           (n.top ? '<tr><th>前调</th><td>' + esc(n.top) + '</td></tr>' : '') +
           (n.mid ? '<tr><th>中调</th><td>' + esc(n.mid) + '</td></tr>' : '') +
@@ -440,13 +453,24 @@
       if (s.type) meta.push('类型：' + s.type);
       if (s.last) meta.push('留香 / 扩香：' + s.last);
       if (meta.length) {
-        out.push('<div class="note-line">' + esc(meta.join('；')) + ' <span class="src">培训手册 ' + s.page + '</span></div>');
+        out.push('<div class="note-line">' + esc(meta.join('；')) + ' ' + chip(ref(s)) + '</div>');
       }
     }
     if (!p.tones && !p.tonesEn && !s) {
-      out.push('<div class="missing"><div class="row"><b>PDF 无来源：</b>本草稿未在四份 PDF 中找到该款的香调描述，Excel 香调表亦为空。</div></div>');
+      out.push('<div class="missing"><div class="row"><b>无来源：</b>四份 PDF 与产品详情图均未找到该款的香调描述，Excel 香调表亦为空。</div></div>');
     }
     return out.join('');
+  }
+
+  function toneValue(text, key) {
+    const label = { top: '前调', mid: '中调', base: '后调' }[key];
+    const lines = String(text || '').split(/\n|；|;/);
+    for (const line of lines) {
+      const m = line.trim().match(/^(前调|中调|后调|尾调)[：:\s\t]+(.*)$/);
+      if (!m) continue;
+      if (m[1] === label || (key === 'base' && m[1] === '尾调')) return m[2].trim();
+    }
+    return '';
   }
 
   function toneRows(text) {
@@ -459,13 +483,13 @@
 
   function sellingBlock(s) {
     if (!s) {
-      return '<div class="missing"><div class="row"><b>PDF 无来源：</b>四份 PDF 均未收录该款的逐款气味描述、意境描述、工艺细节与获奖信息。此处不以通用话术填充，仅保留 Excel 字段与（若有）系列理念。</div></div>';
+      return '<div class="missing"><div class="row"><b>无来源：</b>四份 PDF 与产品详情图均未收录该款的逐款气味描述、意境描述、工艺细节与获奖信息。此处不以通用话术填充，仅保留 Excel 字段与（若有）系列理念。</div></div>';
     }
-    const src = '培训手册 ' + s.page;
+    const src = ref(s);
     const out = [];
-    if (s.smell) out.push(point('气味描述', s.smell, src));
-    if (s.mood) out.push(point('意境描述', s.mood, src));
-    if (s.detail) out.push(point('工艺 / 细节', s.detail, src));
+    if (s.smell) out.push(point('气味描述', s.smell, s.smellSrc || src));
+    if (s.mood) out.push(point('意境描述', s.mood, s.moodSrc || src));
+    if (s.detail) out.push(point('工艺 / 细节', s.detail, s.detailSrc || src));
     if (s.award) out.push(point('获奖', s.award, '培训手册 P55'));
     if (s.caveat) out.push('<div class="missing"><div class="row">' + esc(s.caveat) + '</div></div>');
     return out.join('');
@@ -484,14 +508,14 @@
   function missingBlock(p, s) {
     const miss = [];
     if (!s) {
-      miss.push('逐款香调（PDF 三调）');
+      miss.push('逐款香调（PDF / 详情图）');
       miss.push('气味描述 / 意境描述');
       miss.push('香调类型、香精类型、留香时长');
       miss.push('工艺 / 包装细节');
       miss.push('获奖记录');
     } else {
-      if (!s.notes || (!s.notes.top && !s.notes.mid && !s.notes.base)) miss.push('PDF 三调（仅有 Excel 香调表）');
-      if (!s.award) miss.push('获奖记录（PDF 未记载）');
+      if (!s.notes || (!s.notes.top && !s.notes.mid && !s.notes.base)) miss.push(s.kind === 'image' ? '前 / 中 / 后调（详情图未标注）' : 'PDF 三调（仅有 Excel 香调表）');
+      if (!s.award) miss.push(s.kind === 'image' ? '获奖记录（PDF 与详情图均未记载）' : '获奖记录（PDF 未记载）');
     }
     if (!p.img) miss.push('商品图片（Excel 该行未嵌入图片）');
     if (!p.tones && !p.tonesEn) miss.push('香调表（Excel 为空）');
@@ -501,7 +525,15 @@
 
   function point(label, text, src) {
     return '<div class="point"><div class="point-label">' + esc(label) + '</div>' +
-      '<div class="point-text quote">' + esc(text) + '<span class="src">' + esc(src) + '</span></div></div>';
+      '<div class="point-text quote">' + esc(text) + [].concat(src || []).filter(Boolean).map(chip).join('') + '</div></div>';
+  }
+  function chip(src) {
+    const isPath = /[\\/]/.test(String(src));
+    return '<span class="src' + (isPath ? ' path' : '') + '">' + esc(src) + '</span>';
+  }
+  function ref(s) {
+    if (!s) return '';
+    return s.kind === 'image' ? (s.page || '') : '培训手册 ' + (s.page || '');
   }
   function kvRow(k, v) { return '<dt>' + esc(k) + '</dt><dd>' + v + '</dd>'; }
   function truncate(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; }
@@ -512,11 +544,11 @@
   /* ---------------- 资料来源 ---------------- */
   function renderSources() {
     const host = document.getElementById('source-list');
-    const order = ['train', 'product', 'brand', 'brandbook'];
+    const order = ['train', 'product', 'brand', 'brandbook', 'image'];
     host.innerHTML = order.map((key) => {
       const s = DOCS.sources[key] || {};
       return '<div class="src-row"><div class="sname">' + esc(s.short || key) + '</div><div>' +
-        '<div>' + esc(s.name || '') + '（' + (s.pages || '?') + ' 页）</div>' +
+        '<div>' + esc(s.name || '') + (s.pages && s.pages !== '—' ? '（' + esc(s.pages) + ' 页）' : '') + '</div>' +
         '<div class="sdesc">' + esc(s.quality || '') + '</div></div></div>';
     }).join('') +
       '<div class="src-row"><div class="sname">Excel</div><div><div>' + esc(DATA.meta.source || '') + '</div>' +
