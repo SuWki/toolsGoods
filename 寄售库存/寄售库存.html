@@ -258,7 +258,10 @@
       display: grid; place-items: center; padding: 0;
     }
     .icon-btn:hover { color: var(--page-brand); border-color: var(--page-brand-soft-strong); }
-    .drawer-body { overflow-y: auto; padding: 16px 20px 32px; display: grid; gap: 14px; align-content: start; }
+    /* 用 flex 竖排：grid 的 auto 行会被容器高度压扁（.block 有 overflow:hidden，最小高度为 0），
+       导致条目多时区块被裁剪；flex 下子项不收缩，由 .drawer-body 自身滚动 */
+    .drawer-body { overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 16px 20px 32px; display: flex; flex-direction: column; gap: 14px; }
+    .drawer-body > * { flex: 0 0 auto; }
 
     .block { border: 1px solid var(--page-border); border-radius: var(--radius-md); overflow: hidden; }
     .block-head {
@@ -266,7 +269,7 @@
       padding: 9px 12px; background: var(--page-surface); border-bottom: 1px solid var(--page-border);
     }
     .block-head h3 { font-size: 13px; font-weight: 600; color: var(--page-text-secondary); }
-    .block-body { padding: 12px; display: grid; gap: 8px; }
+    .block-body { padding: 12px; display: grid; gap: 8px; min-height: 0; }
     .entry-head {
       display: grid; grid-template-columns: 138px 128px minmax(0, 1fr) 52px; gap: 8px;
       font-size: 11px; color: var(--page-text-muted); padding: 0 1px;
@@ -281,6 +284,15 @@
     .entry-row input[type="number"] { text-align: right; font-variant-numeric: tabular-nums; }
     .entry-row input:focus { border-color: var(--page-brand); outline: none; box-shadow: 0 0 0 2px var(--page-brand-soft); }
     .entry-empty { font-size: 12px; color: var(--page-text-muted); padding: 6px 2px; }
+    /* 条目变多时列表内部滚动，避免把下方内容挤出可视区 */
+    .entry-list {
+      max-height: 210px; overflow-y: auto; overscroll-behavior: contain;
+      padding-right: 4px; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent;
+    }
+    .entry-list::-webkit-scrollbar { width: 8px; }
+    .entry-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+    .entry-list::-webkit-scrollbar-track { background: transparent; }
+    @media (max-height: 720px) { .entry-list { max-height: 132px; } }
     .entry-foot { display: flex; justify-content: flex-end; gap: 6px; font-size: 12px; color: var(--page-text-muted); padding-top: 2px; }
     .entry-foot b { color: var(--page-text); font-variant-numeric: tabular-nums; }
 
@@ -415,7 +427,7 @@
         </div>
         <div class="block-body">
           <div class="entry-head"><span>退货日期</span><span>金额</span><span>备注</span><span></span></div>
-          <div id="returnList"></div>
+          <div class="entry-list" id="returnList"></div>
           <div class="entry-foot">退货合计 <b id="returnTotal">0.00</b></div>
         </div>
       </div>
@@ -427,7 +439,7 @@
         </div>
         <div class="block-body">
           <div class="entry-head is-settle"><span>金额</span><span>备注</span><span></span></div>
-          <div id="settleList"></div>
+          <div class="entry-list" id="settleList"></div>
           <div class="entry-foot">结算合计 <b id="settleTotal">0.00</b></div>
         </div>
       </div>
@@ -1169,8 +1181,9 @@
       $('drawer').addEventListener('click', function (e) {
         var add = e.target.closest('[data-add]');
         if (add && drawerCustomer) {
+          var isReturn = add.getAttribute('data-add') === 'return';
           var m = manualOf(drawerCustomer);
-          if (add.getAttribute('data-add') === 'return') {
+          if (isReturn) {
             m.returns.push({ id: uid(), date: todayStr(), amount: 0, note: '' });
           } else {
             m.settlements.push({ id: uid(), amount: 0, note: '' });
@@ -1180,6 +1193,14 @@
           renderTable();
           renderKpis();
           renderHeroStats();
+          // 新增后滚到最新一条并聚焦金额，条目不丢失
+          var listEl = $(isReturn ? 'returnList' : 'settleList');
+          if (listEl) {
+            listEl.scrollTop = listEl.scrollHeight;
+            var lastRow = listEl.querySelector('.entry-row:last-child');
+            var amountInput = lastRow ? lastRow.querySelector('[data-f="amount"]') : null;
+            if (amountInput) amountInput.focus();
+          }
           return;
         }
         var del = e.target.closest('[data-del]');
