@@ -1920,6 +1920,9 @@ pointer-events: none;
       <section id="product-docs-panel" class="panel sku-rank-panel" style="display:none;">
         <iframe id="product-docs-frame" title="商品文档" data-src="./商品文档/商品文档.html"></iframe>
       </section>
+      <section id="consignment-panel" class="panel sku-rank-panel" style="display:none;">
+        <iframe id="consignment-frame" title="寄售库存" data-src="./寄售库存/寄售库存.html"></iframe>
+      </section>
       </main>
     </div>
   </div>
@@ -4669,6 +4672,9 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       } else if (state.activeTab === "productDocs") {
         // 商品文档：资料规模由看板自身展示，顶部不叠加胶囊
         pills = [];
+      } else if (state.activeTab === "consignment") {
+        // 寄售库存：数据规模由看板自身展示，顶部不叠加胶囊
+        pills = [];
       } else {
         pills = [
           `<span class="pill">已上传 ${formatInteger(model.uploadedCount)} 个文件</span>`,
@@ -4714,6 +4720,10 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       }
       if (state.activeTab === "productDocs") {
         // 商品文档为内置资料库，无需上传文件
+        return [];
+      }
+      if (state.activeTab === "consignment") {
+        // 寄售库存看板自带数据导入入口，无需侧边栏文件位
         return [];
       }
       // 驾驶舱Tab显示除九宫格与销售趋势外的所有文件
@@ -4819,6 +4829,11 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
         host.innerHTML = "";
         return;
       }
+      if (state.activeTab === "consignment") {
+        // 寄售库存看板自带数据源与口径说明
+        host.innerHTML = "";
+        return;
+      }
       if (state.activeTab === "matrix") {
         // 九宫格Tab只显示九宫格文件状态
         items = [
@@ -4902,6 +4917,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       { id: "inventoryAnalysis", label: "库存分析", defaultColor: "#0969DA", icon: '<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/>' },
       { id: "newStore", label: "新店时间表", defaultColor: "#0969DA", icon: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/>' },
       { id: "productDocs", label: "商品文档", defaultColor: "#0969DA", icon: '<path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H15l5 5v12.5A1.5 1.5 0 0 1 18.5 22h-13A1.5 1.5 0 0 1 4 20.5z"/><path d="M15 3v5h5"/><path d="M8 13h8M8 17h5"/>' },
+      { id: "consignment", label: "寄售库存", defaultColor: "#0969DA", icon: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/>' },
     ];
 
     const GEAR_ICON = modeIcon('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/>');
@@ -5354,6 +5370,16 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
           <div class="note">5. 产品手册、品牌手册、品牌书为纯图片版（无文本层），已按 160dpi 逐页目视核对；产品培训手册有完整文本层；详情图经本地 OCR 辅助读取，关键页已目视复核，图上价格 / 促销 / 销量 / 评价类文字不收录。</div>
           <div class="note">6. 商品图片取自 Excel 内嵌图（WPS 嵌入图片），已压缩为 webp 本地加载；未嵌入图片的商品以首字占位。</div>
           <div class="note">7. 本页为内置资料库，无需上传文件，也不写入浏览器存储；资料更新需替换 商品文档/products-data.js 与 selling-points.js。</div>
+        `;
+      } else if (state.activeTab === "consignment") {
+        titleEl.textContent = "寄售库存";
+        subtitleEl.textContent = "寄售库存模式：导入《寄售发货明细》后按 AC 列「归属」汇总各寄售客户发货金额，归属为空或 N/A 的行不纳入统计；退货、结算与实际库存金额手工录入，自动计算预计货值与差异，产出一张寄售库存金额一览。";
+        notesEl.innerHTML = `
+          <div class="note">1. 在右侧看板点击「导入寄售发货明细」选择 Excel，自动识别工作表、表头行与「归属」列（当前文件为「销售单合并货品」表头第 1 行、AC 列第 29 列）。</div>
+          <div class="note">2. 发货金额取明细「金额」列按归属求和；归属为空或 #N/A 的行不纳入统计，看板底部会列出未纳入的客户账号与金额。</div>
+          <div class="note">3. 退货（退货日期 / 金额 / 备注）与结算（金额 / 备注）按客户手工录入；实际库存金额可直接在表格中填写，失焦即保存。</div>
+          <div class="note">4. 预计货值 = 发货金额 − 退货金额 − 结算金额；差异 = 实际库存金额 − 预计货值。</div>
+          <div class="note">5. 手工录入数据保存在本浏览器 localStorage（key：toolsGoods.consignmentInventory.v1），刷新不丢失；重新导入只覆盖发货汇总。</div>
         `;
       } else {
         titleEl.textContent = "驾驶舱文件";
@@ -8201,9 +8227,11 @@ bindTrendTooltip(chartEl);
       const inventoryPanel = document.getElementById("inventory-analysis-panel");
       const newStorePanel = document.getElementById("new-store-panel");
       const productDocsPanel = document.getElementById("product-docs-panel");
+      const consignmentPanel = document.getElementById("consignment-panel");
       if (inventoryPanel) inventoryPanel.style.display = "none";
       if (newStorePanel) newStorePanel.style.display = "none";
       if (productDocsPanel) productDocsPanel.style.display = "none";
+      if (consignmentPanel) consignmentPanel.style.display = "none";
       if (state.activeTab === "skuRank") {
         kpiGrid.style.display = "none";
         tabsBar.style.display = "none";
@@ -8301,6 +8329,22 @@ bindTrendTooltip(chartEl);
         return;
       }
       if (productDocsPanel) productDocsPanel.style.display = "none";
+
+      // 寄售库存：内置导入 + 手工录入（首次进入懒加载，切换 Tab 状态保留）
+      if (state.activeTab === "consignment") {
+        kpiGrid.style.display = "none";
+        tabsBar.style.display = "none";
+        tabsPanel.style.display = "none";
+        if (consignmentPanel) {
+          consignmentPanel.style.display = "block";
+          const csFrame = document.getElementById("consignment-frame");
+          if (csFrame && !csFrame.getAttribute("src")) {
+            csFrame.src = csFrame.dataset.src;
+          }
+        }
+        return;
+      }
+      if (consignmentPanel) consignmentPanel.style.display = "none";
 
       if (state.activeTab === "cockpit") {
         // 驾驶舱模式：显示子标签栏

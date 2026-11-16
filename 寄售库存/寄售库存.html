@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>寄售库存 · 金额一览</title>
+  <link rel="icon" href="../icon.png">
+  <link rel="stylesheet" href="../theme.css">
+
+  <style>
+    /* 与「库存分析看板 / 新店时间表」保持一致的 Business Blue 配色 */
+    :root {
+      --page-surface: var(--tint);
+      --page-surface-muted: var(--surface-muted);
+      --page-text: var(--text);
+      --page-text-secondary: var(--text-secondary);
+      --page-text-muted: var(--text-muted);
+      --page-text-disabled: var(--text-disabled);
+      --page-border: var(--border);
+      --page-brand: var(--accent);
+      --page-brand-hover: var(--accent-hover);
+      --page-brand-soft: var(--accent-soft);
+      --page-brand-soft-strong: var(--accent-soft-strong);
+      --page-brand-text: var(--accent-text);
+
+      --bg: var(--surface);
+      --bg2: var(--tint);
+      --rule: var(--border);
+      --ink: var(--text);
+      --muted: var(--text-muted);
+
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
+      --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-pill: 999px;
+      --font-sans: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', sans-serif;
+      --font-mono: 'SF Mono', Consolas, 'Courier New', monospace;
+      --max: 1440px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--ink);
+      background: var(--bg2);
+      padding: 20px 0 40px;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, select { font-family: inherit; }
+    :focus-visible { outline: 2px solid var(--page-brand); outline-offset: 1px; }
+
+    .app { width: calc(100% - 2rem); max-width: var(--max); margin: 0 auto; display: grid; gap: var(--space-4); }
+
+    /* === 页头 === */
+    .hero {
+      background: linear-gradient(135deg, #FFFFFF 0%, #F2F7FE 62%, var(--page-brand-soft) 100%);
+      border: 1px solid var(--page-brand-soft-strong);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4) var(--space-5);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-4);
+      flex-wrap: wrap;
+    }
+    .hero h1 { font-size: 22px; line-height: 1.3; color: var(--page-text); }
+    .hero-sub { margin-top: 5px; max-width: 82ch; font-size: 13px; color: var(--page-text-secondary); }
+    .hero-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+    .stat-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--space-3); }
+    .stat-pill {
+      display: inline-flex; align-items: baseline; gap: 5px;
+      background: #FFFFFF; border: 1px solid var(--page-border);
+      border-radius: var(--radius-pill); padding: 4px 11px;
+      font-size: 12px; color: var(--page-text-muted); white-space: nowrap;
+    }
+    .stat-pill b { font-size: 13.5px; color: var(--page-text); font-variant-numeric: tabular-nums; }
+    .stat-pill.is-accent { background: var(--page-brand-soft); border-color: var(--page-brand-soft-strong); color: var(--page-brand-text); }
+    .stat-pill.is-accent b { color: var(--page-brand-text); }
+
+    /* === 按钮 === */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 7px 14px; border-radius: var(--radius-md);
+      border: 1px solid var(--page-border); background: #FFFFFF;
+      color: var(--page-text-secondary); font-size: 13px; cursor: pointer; white-space: nowrap;
+      transition: border-color .12s ease, color .12s ease, background .12s ease;
+    }
+    .btn:hover { border-color: var(--page-brand); color: var(--page-brand); }
+    .btn-primary { background: var(--page-brand); border-color: var(--page-brand); color: #fff; font-weight: 600; }
+    .btn-primary:hover { background: var(--page-brand-hover); border-color: var(--page-brand-hover); color: #fff; }
+    .btn-sm { padding: 3px 10px; font-size: 12px; }
+    .btn-danger:hover { border-color: var(--danger); color: var(--danger); }
+
+    /* === 提示条 === */
+    .banner {
+      display: flex; align-items: flex-start; gap: 8px;
+      background: var(--page-brand-soft); border: 1px solid var(--page-brand-soft-strong);
+      border-radius: var(--radius-lg); padding: 10px 15px;
+      font-size: 12.5px; color: var(--page-brand-text);
+      word-break: break-word;
+    }
+    .banner[hidden] { display: none; }
+    .banner.is-ok { background: var(--positive-soft); border-color: var(--positive-border); color: var(--positive-text); }
+    .banner.is-error { background: var(--danger-soft); border-color: var(--danger-border); color: var(--danger-text); }
+
+    /* === 面板 === */
+    .panel {
+      background: var(--bg); border: 1px solid var(--page-border);
+      border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5);
+    }
+    .panel[hidden] { display: none; }
+    .panel-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3);
+    }
+    .panel-head h2 { font-size: 15px; font-weight: 600; color: var(--page-text); }
+    .head-note { font-size: 12px; color: var(--page-text-muted); }
+    .head-note b { color: var(--page-text-secondary); font-weight: 600; }
+
+    /* === 数据源卡片 === */
+    .dropzone {
+      display: flex; align-items: center; gap: 14px;
+      border: 1px dashed var(--border-strong); border-radius: var(--radius-md);
+      background: #FBFCFE; padding: 14px 16px; cursor: pointer;
+      transition: border-color .12s ease, background .12s ease;
+    }
+    .dropzone:hover, .dropzone.is-over { border-color: var(--page-brand); background: var(--page-brand-soft); }
+    .dropzone.is-loading { opacity: .6; pointer-events: none; }
+    .dz-icon {
+      width: 34px; height: 34px; flex: none; border-radius: 50%;
+      border: 1px solid var(--page-brand-soft-strong); background: #fff;
+      display: grid; place-items: center; color: var(--page-brand); font-size: 18px; line-height: 1;
+    }
+    .dz-text { display: grid; gap: 3px; min-width: 0; }
+    .dz-text b { font-size: 13px; color: var(--page-text); font-weight: 600; }
+    .dz-text span { font-size: 12px; color: var(--page-text-muted); }
+
+    .summary-grid { margin-top: var(--space-3); display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 8px; }
+    .summary-grid[hidden] { display: none; }
+    .sum-item {
+      border: 1px solid var(--page-border); border-radius: var(--radius-md);
+      background: #FFFFFF; padding: 8px 12px; min-width: 0;
+    }
+    .sum-item span { display: block; font-size: 11.5px; color: var(--page-text-muted); }
+    .sum-item b {
+      display: block; margin-top: 2px; font-size: 12.5px; font-weight: 600; color: var(--page-text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums;
+    }
+    .sum-item b.is-good { color: var(--positive-text); }
+    .sum-item b.is-warn { color: var(--warning-text); }
+
+    /* === KPI === */
+    .kpis { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; }
+    @media (max-width: 1320px) { .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    @media (max-width: 860px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .kpi {
+      background: #FFFFFF; border: 1px solid var(--page-border);
+      border-radius: var(--radius-lg); padding: 13px 15px; min-width: 0;
+    }
+    .kpi small { display: block; font-size: 11.5px; color: var(--page-text-muted); margin-bottom: 6px; }
+    .kpi strong { display: block; font-size: 21px; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--page-text); }
+    .kpi p { margin-top: 4px; font-size: 11.5px; color: var(--page-text-muted); line-height: 1.5; }
+    .kpi.is-accent { background: linear-gradient(180deg, var(--page-brand-soft), #FFFFFF); border-color: var(--page-brand-soft-strong); }
+    .kpi.is-accent strong { color: var(--page-brand-text); }
+    .kpi.is-danger strong { color: var(--danger-text); }
+    .kpi.is-good strong { color: var(--positive-text); }
+
+    /* === 表格 === */
+    .table-wrap { border: 1px solid var(--page-border); border-radius: var(--radius-md); overflow: auto; }
+    table.data-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; min-width: 1020px; }
+    table.data-table thead th {
+      position: sticky; top: 0; z-index: 3;
+      background: var(--page-surface); border-bottom: 1px solid var(--page-border);
+      font-weight: 600; font-size: 12px; color: var(--page-text-secondary);
+      padding: 8px 10px; white-space: nowrap; text-align: right;
+    }
+    table.data-table thead th.td-name { text-align: left; }
+    table.data-table thead th.td-act { text-align: center; }
+    table.data-table thead th.sortable { cursor: pointer; user-select: none; }
+    table.data-table thead th.sortable:hover { color: var(--page-brand); }
+    table.data-table thead th .arrow { font-size: 10px; color: var(--page-text-disabled); margin-left: 2px; }
+    table.data-table thead th.is-sorted .arrow { color: var(--page-brand); }
+    table.data-table td {
+      padding: 8px 10px; border-bottom: 1px solid var(--rule);
+      white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; color: var(--page-text);
+      vertical-align: middle;
+    }
+    table.data-table tbody tr:last-child td { border-bottom: none; }
+    table.data-table tbody tr:hover td { background: #FAFCFF; }
+    table.data-table td.td-name { text-align: left; min-width: 160px; }
+    table.data-table td.td-act { text-align: center; }
+    .c-name { font-weight: 600; }
+    .c-sub { font-size: 11px; color: var(--page-text-muted); margin-top: 1px; }
+    .tag-mini {
+      display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: var(--radius-pill);
+      background: var(--warning-soft); border: 1px solid var(--warning-border);
+      color: var(--warning-text); font-size: 10.5px; vertical-align: 1px;
+    }
+    .cnt { display: inline-block; margin-left: 5px; font-size: 10.5px; color: var(--page-text-muted); }
+    td.is-strong { font-weight: 600; }
+    .diff { font-weight: 600; }
+    .diff.is-neg { color: var(--danger-text); }
+    .diff.is-pos { color: var(--warning-text); }
+    .diff.is-zero { color: var(--positive-text); }
+    .diff-rate { font-size: 10.5px; color: var(--page-text-muted); }
+    .actual-input {
+      width: 122px; padding: 5px 8px; text-align: right;
+      border: 1px solid var(--page-border); border-radius: var(--radius-sm);
+      background: #fff; color: var(--ink); font-size: 12.5px; font-variant-numeric: tabular-nums;
+    }
+    .actual-input:hover { border-color: var(--border-strong); }
+    .actual-input:focus { border-color: var(--page-brand); outline: none; box-shadow: 0 0 0 2px var(--page-brand-soft); }
+    .actual-input.is-filled { border-color: var(--page-brand-soft-strong); background: #FBFDFF; }
+    table.data-table tfoot td {
+      background: var(--page-surface); border-top: 1px solid var(--page-border);
+      font-weight: 600; padding: 8px 10px; text-align: right; font-variant-numeric: tabular-nums;
+    }
+    table.data-table tfoot td.td-name { text-align: left; }
+    table.data-table tfoot td.td-act { text-align: center; color: var(--page-text-muted); font-weight: 400; }
+    .table-hint { margin-top: var(--space-2); font-size: 11.5px; color: var(--page-text-muted); line-height: 1.7; }
+    .empty-cell { text-align: center !important; color: var(--page-text-muted); padding: 28px 12px !important; white-space: normal !important; }
+
+    /* === 口径说明 === */
+    .notes { display: grid; gap: 5px; font-size: 12px; color: var(--page-text-muted); line-height: 1.75; }
+    .notes b { color: var(--page-text-secondary); font-weight: 600; }
+    .notes code {
+      background: var(--page-surface); border: 1px solid var(--page-border);
+      border-radius: var(--radius-sm); padding: 0 5px; font-family: var(--font-mono); font-size: 11.5px;
+    }
+
+    .foot { text-align: center; font-size: 11.5px; color: var(--page-text-muted); line-height: 1.8; }
+
+    /* === 录入抽屉 === */
+    .mask {
+      position: fixed; inset: 0; background: rgba(19, 32, 51, .38);
+      opacity: 0; pointer-events: none; transition: opacity .2s ease; z-index: 50;
+    }
+    .mask.on { opacity: 1; pointer-events: auto; }
+    .drawer {
+      position: fixed; top: 0; right: 0; height: 100%; width: min(600px, 94vw);
+      background: #fff; box-shadow: -18px 0 48px rgba(19, 32, 51, .18);
+      transform: translateX(102%); transition: transform .24s ease; z-index: 51;
+      display: grid; grid-template-rows: auto 1fr;
+    }
+    .drawer.on { transform: translateX(0); }
+    .drawer-head {
+      padding: 15px 20px; border-bottom: 1px solid var(--page-border);
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+      background: linear-gradient(180deg, #fff, #F7FAFE);
+    }
+    .drawer-head h2 { font-size: 17px; line-height: 1.35; }
+    .drawer-sub { margin-top: 4px; font-size: 12px; color: var(--page-text-muted); font-variant-numeric: tabular-nums; }
+    .icon-btn {
+      width: 32px; height: 32px; flex: none; border: 1px solid var(--page-border); border-radius: var(--radius-md);
+      background: #fff; color: var(--page-text-muted); font-size: 19px; line-height: 1; cursor: pointer;
+      display: grid; place-items: center; padding: 0;
+    }
+    .icon-btn:hover { color: var(--page-brand); border-color: var(--page-brand-soft-strong); }
+    .drawer-body { overflow-y: auto; padding: 16px 20px 32px; display: grid; gap: 14px; align-content: start; }
+
+    .block { border: 1px solid var(--page-border); border-radius: var(--radius-md); overflow: hidden; }
+    .block-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 9px 12px; background: var(--page-surface); border-bottom: 1px solid var(--page-border);
+    }
+    .block-head h3 { font-size: 13px; font-weight: 600; color: var(--page-text-secondary); }
+    .block-body { padding: 12px; display: grid; gap: 8px; }
+    .entry-head {
+      display: grid; grid-template-columns: 138px 128px minmax(0, 1fr) 52px; gap: 8px;
+      font-size: 11px; color: var(--page-text-muted); padding: 0 1px;
+    }
+    .entry-head.is-settle { grid-template-columns: 138px minmax(0, 1fr) 52px; }
+    .entry-row { display: grid; grid-template-columns: 138px 128px minmax(0, 1fr) 52px; gap: 8px; align-items: center; }
+    .entry-row.is-settle { grid-template-columns: 138px minmax(0, 1fr) 52px; }
+    .entry-row input {
+      width: 100%; padding: 6px 9px; border: 1px solid var(--page-border); border-radius: var(--radius-sm);
+      font-size: 12.5px; color: var(--ink); background: #fff;
+    }
+    .entry-row input[type="number"] { text-align: right; font-variant-numeric: tabular-nums; }
+    .entry-row input:focus { border-color: var(--page-brand); outline: none; box-shadow: 0 0 0 2px var(--page-brand-soft); }
+    .entry-empty { font-size: 12px; color: var(--page-text-muted); padding: 6px 2px; }
+    .entry-foot { display: flex; justify-content: flex-end; gap: 6px; font-size: 12px; color: var(--page-text-muted); padding-top: 2px; }
+    .entry-foot b { color: var(--page-text); font-variant-numeric: tabular-nums; }
+
+    .actual-box { display: grid; gap: 6px; }
+    .actual-box input {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--page-border); border-radius: var(--radius-sm);
+      font-size: 13.5px; text-align: right; font-variant-numeric: tabular-nums;
+    }
+    .actual-box input:focus { border-color: var(--page-brand); outline: none; box-shadow: 0 0 0 2px var(--page-brand-soft); }
+    .actual-box .hint { font-size: 11.5px; color: var(--page-text-muted); }
+
+    .sum-box { border: 1px solid var(--page-border); border-radius: var(--radius-md); background: var(--page-surface); padding: 12px; display: grid; gap: 6px; }
+    .sum-line { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--page-text-secondary); }
+    .sum-line b { font-variant-numeric: tabular-nums; color: var(--page-text); }
+    .sum-line.is-hl { border-top: 1px dashed var(--page-border); padding-top: 6px; margin-top: 2px; font-weight: 600; }
+    .sum-line.is-hl b { font-size: 14px; color: var(--page-brand-text); }
+    .sum-line b.is-neg { color: var(--danger-text); }
+    .sum-line b.is-pos { color: var(--warning-text); }
+    .sum-line b.is-zero { color: var(--positive-text); }
+
+    @media (max-width: 720px) {
+      .app { width: calc(100% - 1.2rem); }
+      .hero { padding: var(--space-4); }
+      .panel { padding: var(--space-4); }
+      .entry-head, .entry-row { grid-template-columns: 1fr 1fr; }
+      .entry-head.is-settle, .entry-row.is-settle { grid-template-columns: 1fr 1fr; }
+      .entry-head span:nth-child(3) { display: none; }
+      .entry-row .note-input { grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+<body>
+  <article class="app">
+    <header class="hero">
+      <div>
+        <h1>寄售库存金额一览</h1>
+        <p class="hero-sub">导入《寄售发货明细》后按 AC 列「归属」汇总各寄售客户发货金额；退货、结算与实际库存手工录入并保存在本浏览器；预计货值 = 发货金额 − 退货金额 − 结算金额。</p>
+        <div class="stat-row" id="heroStats"></div>
+      </div>
+      <div class="hero-actions">
+        <button class="btn btn-primary" type="button" id="btnImport">导入寄售发货明细</button>
+        <button class="btn" type="button" id="btnClear">清空数据</button>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" hidden>
+      </div>
+    </header>
+
+    <div class="banner" id="banner" hidden></div>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>数据源</h2>
+        <span class="head-note" id="srcHeadNote">尚未导入</span>
+      </div>
+      <div class="dropzone" id="dropZone">
+        <div class="dz-icon">+</div>
+        <div class="dz-text">
+          <b>拖拽寄售发货明细 Excel 到这里，或点击选择文件</b>
+          <span>支持 .xlsx / .xls，自动识别工作表与表头行；文件仅在本浏览器解析，不会上传服务器。重新导入会覆盖上次发货数据，手工录入的退货 / 结算 / 实际库存按客户名保留。</span>
+        </div>
+      </div>
+      <div class="summary-grid" id="srcSummary" hidden></div>
+    </section>
+
+    <section class="kpis" id="kpis"></section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>寄售库存金额一览</h2>
+        <span class="head-note" id="tableNote"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead id="tableHead"></thead>
+          <tbody id="tableBody"></tbody>
+          <tfoot id="tableFoot"></tfoot>
+        </table>
+      </div>
+      <div class="table-hint">
+        点击表头可排序；「录入」维护该客户的退货 / 结算明细，实际库存金额可直接在表格中填写（失焦即保存）。
+        预计货值 = 发货金额 − 退货金额 − 结算金额；差异 = 实际库存金额 − 预计货值，负数表示实际短于预计。
+      </div>
+    </section>
+
+    <section class="panel" id="excludedPanel" hidden>
+      <div class="panel-head">
+        <h2>未纳入统计（归属为空或 N/A）</h2>
+        <span class="head-note" id="excludedNote"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" style="min-width:520px;">
+          <thead>
+            <tr><th class="td-name">客户账号</th><th>行数</th><th>金额合计</th></tr>
+          </thead>
+          <tbody id="excludedBody"></tbody>
+        </table>
+      </div>
+      <div class="table-hint">以上行在源表 AC 列「归属」为空、#N/A 或公式无匹配（XLOOKUP 未命中），按规则不纳入寄售库存统计。</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>口径说明</h2>
+      </div>
+      <div class="notes">
+        <div>· 数据源：<b>寄售发货明细</b>（工作表「销售单合并货品」，表头第 1 行，共 29 列）；<b>AC 列（第 29 列）</b>为「归属」，取值为公式 <code>XLOOKUP(客户账号, Sheet1)</code> 的匹配结果。</div>
+        <div>· 统计范围：<b>归属为空或为 N/A 的行不纳入统计</b>；其余按「归属」聚合成寄售客户，发货金额取明细「金额」列（已扣优惠后的行金额）求和。</div>
+        <div>· 订单状态不做额外过滤：源表中「已取消 / 已取消-被合并」的行只要归属有效仍计入发货金额，看板会在数据源卡片标注行数与金额，便于复核。</div>
+        <div>· 退货金额（退货日期 + 金额 + 备注）与结算金额（金额 + 备注）为手工录入，按客户归集；实际库存金额按客户手工填写。三者均保存在本浏览器 <code>localStorage</code>（key：<code>toolsGoods.consignmentInventory.v1</code>），刷新不丢失；清理浏览器数据或换设备不会同步。</div>
+        <div>· 本阶段只做金额口径，不做数量与 SKU 维度。</div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      寄售库存 · 金额口径 · 数据仅在本地浏览器解析（SheetJS），不会上传服务器 · 建议使用电脑浏览器（Chrome / Edge）打开
+    </footer>
+  </article>
+
+  <div class="mask" id="mask"></div>
+  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" aria-hidden="true">
+    <div class="drawer-head">
+      <div>
+        <h2 id="drawerTitle">客户</h2>
+        <div class="drawer-sub" id="drawerSub"></div>
+      </div>
+      <button class="icon-btn" type="button" id="drawerClose" title="关闭" aria-label="关闭">&times;</button>
+    </div>
+    <div class="drawer-body">
+      <div class="block">
+        <div class="block-head">
+          <h3>退货金额</h3>
+          <button class="btn btn-sm" type="button" data-add="return">新增退货</button>
+        </div>
+        <div class="block-body">
+          <div class="entry-head"><span>退货日期</span><span>金额</span><span>备注</span><span></span></div>
+          <div id="returnList"></div>
+          <div class="entry-foot">退货合计 <b id="returnTotal">0.00</b></div>
+        </div>
+      </div>
+
+      <div class="block">
+        <div class="block-head">
+          <h3>结算金额</h3>
+          <button class="btn btn-sm" type="button" data-add="settle">新增结算</button>
+        </div>
+        <div class="block-body">
+          <div class="entry-head is-settle"><span>金额</span><span>备注</span><span></span></div>
+          <div id="settleList"></div>
+          <div class="entry-foot">结算合计 <b id="settleTotal">0.00</b></div>
+        </div>
+      </div>
+
+      <div class="block">
+        <div class="block-head"><h3>实际库存金额</h3></div>
+        <div class="block-body">
+          <div class="actual-box">
+            <input type="number" id="drawerActual" step="0.01" min="0" placeholder="盘点后填写的实际库存金额">
+            <div class="hint">留空表示尚未盘点；差异 = 实际库存金额 − 预计货值。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sum-box" id="drawerSummary"></div>
+    </div>
+  </aside>
+
+  <script src="./assets/xlsx.full.min.js"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    var STORAGE_KEY = 'toolsGoods.consignmentInventory.v1';
+    var $ = function (id) { return document.getElementById(id); };
+
+    var state = {
+      ship: null,
+      manual: {},
+      sort: { key: 'shipAmount', dir: 'desc' }
+    };
+
+    var drawerCustomer = null;
+
+    /* ---------------- 基础工具 ---------------- */
+    function escapeHtml(v) {
+      return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    function num(v) {
+      if (typeof v === 'number') return isFinite(v) ? v : 0;
+      if (v === null || v === undefined) return 0;
+      var s = String(v).replace(/[,，\s¥￥]/g, '');
+      if (!s) return 0;
+      var n = Number(s);
+      return isFinite(n) ? n : 0;
+    }
+    function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+    function fmt(n) {
+      if (n === null || n === undefined || !isFinite(n)) return '—';
+      return Number(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function fmtInt(n) { return Number(n || 0).toLocaleString('zh-CN'); }
+    function fmtMoney(n) { return '¥' + fmt(n); }
+    function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+    function todayStr() {
+      var d = new Date();
+      var p = function (x) { return String(x).padStart(2, '0'); };
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    }
+    function timeStr(iso) {
+      if (!iso) return '—';
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return '—';
+      var p = function (x) { return String(x).padStart(2, '0'); };
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+    function colLetter(i) {
+      var s = '';
+      var n = i + 1;
+      while (n > 0) {
+        var m = (n - 1) % 26;
+        s = String.fromCharCode(65 + m) + s;
+        n = Math.floor((n - 1) / 26);
+      }
+      return s;
+    }
+    function showBanner(msg, type) {
+      var el = $('banner');
+      el.hidden = false;
+      el.className = 'banner' + (type === 'error' ? ' is-error' : type === 'ok' ? ' is-ok' : '');
+      el.textContent = msg;
+    }
+
+    /* ---------------- 本地存储 ---------------- */
+    function normalizeManual(m) {
+      var src = m || {};
+      function rows(list, withDate) {
+        if (!Array.isArray(list)) return [];
+        return list.map(function (e) {
+          var item = { id: String((e && e.id) || uid()), amount: num(e && e.amount), note: String((e && e.note) || '') };
+          if (withDate) item.date = String((e && e.date) || '');
+          return item;
+        });
+      }
+      var actual = (src.actual === null || src.actual === undefined || src.actual === '') ? null : num(src.actual);
+      return { returns: rows(src.returns, true), settlements: rows(src.settlements, false), actual: actual };
+    }
+
+    function loadStore() {
+      try {
+        var raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        var data = JSON.parse(raw);
+        if (data && data.ship && Array.isArray(data.ship.customers)) state.ship = data.ship;
+        if (data && data.manual && typeof data.manual === 'object') {
+          Object.keys(data.manual).forEach(function (name) {
+            state.manual[name] = normalizeManual(data.manual[name]);
+          });
+        }
+      } catch (err) {
+        console.warn('读取本浏览器缓存失败', err);
+      }
+    }
+
+    function saveStore() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, ship: state.ship, manual: state.manual }));
+        return true;
+      } catch (err) {
+        showBanner('本地保存失败：' + (err && err.message ? err.message : err) + '（可能是浏览器存储空间不足）', 'error');
+        return false;
+      }
+    }
+
+    /* ---------------- Excel 解析 ---------------- */
+    var COL_ALIASES = {
+      orderNo: ['订单编号', '订单号', '单号'],
+      account: ['客户账号', '客户名称', '客户'],
+      status: ['订单状态', '状态'],
+      amount: ['金额', '货品金额'],
+      owner: ['归属']
+    };
+
+    function normHeader(v) {
+      return String(v === null || v === undefined ? '' : v).replace(/\s+/g, '').replace(/[（(][^)）]*[)）]/g, '');
+    }
+
+    function mapColumns(row) {
+      var names = (row || []).map(normHeader);
+      var map = {};
+      Object.keys(COL_ALIASES).forEach(function (key) {
+        var aliases = COL_ALIASES[key];
+        var found = -1;
+        var i;
+        for (i = 0; i < names.length; i++) {
+          if (aliases.indexOf(names[i]) >= 0) { found = i; break; }
+        }
+        if (found < 0) {
+          for (i = 0; i < names.length; i++) {
+            var hit = aliases.some(function (a) { return names[i] && names[i].indexOf(a) >= 0; });
+            if (hit) { found = i; break; }
+          }
+        }
+        if (found >= 0) map[key] = found;
+      });
+      return map;
+    }
+
+    function findHeader(rows) {
+      var limit = Math.min(rows.length, 20);
+      for (var i = 0; i < limit; i++) {
+        var map = mapColumns(rows[i]);
+        if (map.owner !== undefined && map.amount !== undefined) return { index: i, map: map };
+      }
+      return null;
+    }
+
+    function cleanOwner(v) {
+      var s = String(v === null || v === undefined ? '' : v).trim();
+      if (!s) return '';
+      if (/^#?N\/?A$/i.test(s)) return '';
+      if (/^#(REF|VALUE|DIV\/0|NAME\?|NUM|NULL)!?$/i.test(s)) return '';
+      if (s === '-' || s === '—' || s === '/') return '';
+      return s;
+    }
+
+    function isBlankCell(v) { return v === null || v === undefined || String(v).trim() === ''; }
+
+    function readSheets(file) {
+      if (typeof XLSX === 'undefined') {
+        return Promise.reject(new Error('Excel 解析库未加载（寄售库存/assets/xlsx.full.min.js）'));
+      }
+      return file.arrayBuffer().then(function (buf) {
+        var wb = XLSX.read(buf, { type: 'array', cellDates: false });
+        var sheets = [];
+        wb.SheetNames.forEach(function (name) {
+          var rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '', blankrows: false });
+          if (rows.length) sheets.push({ name: name, rows: rows });
+        });
+        if (!sheets.length) throw new Error('文件里没有可读取的工作表');
+        return sheets;
+      });
+    }
+
+    function handleFile(file) {
+      if (!file) return;
+      if (!/\.(xlsx|xls)$/i.test(file.name)) {
+        showBanner('只支持 .xlsx / .xls 文件', 'error');
+        return;
+      }
+      var zone = $('dropZone');
+      zone.classList.add('is-loading');
+      readSheets(file).then(function (sheets) {
+        var ordered = sheets.slice().sort(function (a, b) {
+          return (/销售单/.test(b.name) ? 1 : 0) - (/销售单/.test(a.name) ? 1 : 0);
+        });
+        var target = null;
+        var header = null;
+        for (var i = 0; i < ordered.length; i++) {
+          var h = findHeader(ordered[i].rows);
+          if (h) { target = ordered[i]; header = h; break; }
+        }
+        if (!target) {
+          throw new Error('没有找到同时包含「归属」与「金额」表头的工作表，请确认上传的是寄售发货明细');
+        }
+        var ok = buildShip(target, header, file);
+        zone.classList.remove('is-loading');
+        if (!ok) return;
+        renderAll();
+        showBanner('已导入《' + file.name + '》：纳入 ' + fmtInt(state.ship.includedRows) + ' 行 / ' + fmtMoney(state.ship.includedAmount) +
+          '，归属为空或 N/A 的 ' + fmtInt(state.ship.excludedRows) + ' 行未纳入统计。', 'ok');
+      }).catch(function (err) {
+        zone.classList.remove('is-loading');
+        showBanner('导入失败：' + (err && err.message ? err.message : err), 'error');
+        console.warn('寄售发货明细导入失败', err);
+      });
+    }
+
+    function buildShip(sheet, header, file) {
+      var rows = sheet.rows;
+      var map = header.map;
+      var agg = {};
+      var exAccounts = {};
+      var totalRows = 0;
+      var includedRows = 0;
+      var includedAmount = 0;
+      var excludedRows = 0;
+      var excludedAmount = 0;
+      var canceledRows = 0;
+      var canceledAmount = 0;
+
+      for (var i = header.index + 1; i < rows.length; i++) {
+        var r = rows[i] || [];
+        var blank = true;
+        for (var k = 0; k < r.length; k++) { if (!isBlankCell(r[k])) { blank = false; break; } }
+        if (blank) continue;
+
+        totalRows++;
+        var amount = num(r[map.amount]);
+        var owner = cleanOwner(r[map.owner]);
+        var status = map.status !== undefined ? String(r[map.status] === null || r[map.status] === undefined ? '' : r[map.status]) : '';
+        var orderNo = map.orderNo !== undefined ? String(r[map.orderNo] === null || r[map.orderNo] === undefined ? '' : r[map.orderNo]).trim() : '';
+
+        if (!owner) {
+          excludedRows++;
+          excludedAmount += amount;
+          var acct = map.account !== undefined ? (String(r[map.account] === null || r[map.account] === undefined ? '' : r[map.account]).trim() || '（客户账号为空）') : '（无客户账号列）';
+          var ex = exAccounts[acct] || (exAccounts[acct] = { account: acct, rows: 0, amount: 0 });
+          ex.rows++;
+          ex.amount += amount;
+          continue;
+        }
+
+        includedRows++;
+        includedAmount += amount;
+        var c = agg[owner] || (agg[owner] = { name: owner, amount: 0, rows: 0, orders: {}, canceledRows: 0 });
+        c.amount += amount;
+        c.rows++;
+        if (orderNo) c.orders[orderNo] = 1;
+        if (/已取消/.test(status)) { c.canceledRows++; canceledRows++; canceledAmount += amount; }
+      }
+
+      if (!includedRows) {
+        showBanner('已读到 ' + fmtInt(excludedRows) + ' 行数据，但 AC 列「归属」没有任何有效值。若该列是公式，请在 Excel 中把 AC 列「选择性粘贴为值」后重新导入。', 'error');
+        return false;
+      }
+
+      var customers = Object.keys(agg).map(function (name) {
+        var item = agg[name];
+        return { name: name, amount: round2(item.amount), rows: item.rows, orders: Object.keys(item.orders).length, canceledRows: item.canceledRows };
+      }).sort(function (a, b) { return b.amount - a.amount; });
+
+      var excludedAccounts = Object.keys(exAccounts).map(function (key) {
+        var item = exAccounts[key];
+        return { account: item.account, rows: item.rows, amount: round2(item.amount) };
+      }).sort(function (a, b) { return b.amount - a.amount; });
+
+      state.ship = {
+        fileName: file.name,
+        fileSize: file.size,
+        sheetName: sheet.name,
+        headerRow: header.index + 1,
+        ownerCol: colLetter(map.owner),
+        ownerIdx: map.owner + 1,
+        amountCol: colLetter(map.amount),
+        importedAt: new Date().toISOString(),
+        totalRows: totalRows,
+        includedRows: includedRows,
+        includedAmount: round2(includedAmount),
+        excludedRows: excludedRows,
+        excludedAmount: round2(excludedAmount),
+        canceledRows: canceledRows,
+        canceledAmount: round2(canceledAmount),
+        customers: customers,
+        excludedAccounts: excludedAccounts
+      };
+      saveStore();
+      return true;
+    }
+
+    /* ---------------- 汇总 ---------------- */
+    function manualOf(name) {
+      if (!state.manual[name]) state.manual[name] = { returns: [], settlements: [], actual: null };
+      return state.manual[name];
+    }
+
+    function shipMap() {
+      var map = {};
+      (state.ship ? state.ship.customers : []).forEach(function (c) { map[c.name] = c; });
+      return map;
+    }
+
+    function sumsOf(name) {
+      var m = state.manual[name];
+      var ret = 0;
+      var settle = 0;
+      if (m) {
+        (m.returns || []).forEach(function (e) { ret += num(e.amount); });
+        (m.settlements || []).forEach(function (e) { settle += num(e.amount); });
+      }
+      return { returns: round2(ret), settlements: round2(settle) };
+    }
+
+    function customerRows() {
+      var sm = shipMap();
+      var names = Object.keys(sm);
+      Object.keys(state.manual).forEach(function (name) {
+        if (names.indexOf(name) < 0) names.push(name);
+      });
+      return names.map(function (name) {
+        var ship = sm[name] || { amount: 0, rows: 0, orders: 0, canceledRows: 0 };
+        var m = state.manual[name] || { returns: [], settlements: [], actual: null };
+        var sum = sumsOf(name);
+        var expected = round2(ship.amount - sum.returns - sum.settlements);
+        var actual = (m.actual === null || m.actual === undefined) ? null : num(m.actual);
+        return {
+          name: name,
+          shipAmount: ship.amount,
+          shipRows: ship.rows,
+          orders: ship.orders,
+          canceledRows: ship.canceledRows,
+          inFile: Boolean(sm[name]),
+          returns: sum.returns,
+          returnCount: (m.returns || []).length,
+          settlements: sum.settlements,
+          settlementCount: (m.settlements || []).length,
+          expected: expected,
+          actual: actual,
+          diff: actual === null ? null : round2(actual - expected)
+        };
+      });
+    }
+
+    function sortedRows() {
+      var rows = customerRows();
+      var key = state.sort.key;
+      var dir = state.sort.dir === 'asc' ? 1 : -1;
+      rows.sort(function (a, b) {
+        var va = a[key];
+        var vb = b[key];
+        if (typeof va === 'string' || typeof vb === 'string') {
+          return String(va).localeCompare(String(vb), 'zh-CN') * dir;
+        }
+        va = (va === null || va === undefined) ? -Infinity : va;
+        vb = (vb === null || vb === undefined) ? -Infinity : vb;
+        return (va - vb) * dir;
+      });
+      return rows;
+    }
+
+    /* ---------------- 渲染：页头 / 数据源 / KPI ---------------- */
+    function renderHeroStats() {
+      var rows = customerRows();
+      var shipTotal = 0;
+      var expectedTotal = 0;
+      rows.forEach(function (r) { shipTotal += r.shipAmount; expectedTotal += r.expected; });
+      var pills = [
+        '<span class="stat-pill">寄售客户 <b>' + fmtInt(rows.length) + '</b> 户</span>',
+        '<span class="stat-pill">发货金额 <b>' + fmtMoney(round2(shipTotal)) + '</b></span>',
+        '<span class="stat-pill is-accent">预计货值 <b>' + fmtMoney(round2(expectedTotal)) + '</b></span>'
+      ];
+      if (state.ship) {
+        pills.push('<span class="stat-pill">导入 <b>' + escapeHtml(timeStr(state.ship.importedAt)) + '</b></span>');
+      }
+      $('heroStats').innerHTML = pills.join('');
+    }
+
+    function renderSource() {
+      var s = state.ship;
+      var summary = $('srcSummary');
+      var headNote = $('srcHeadNote');
+      if (!s) {
+        summary.hidden = true;
+        summary.innerHTML = '';
+        headNote.textContent = '尚未导入';
+        return;
+      }
+      summary.hidden = false;
+      headNote.innerHTML = '已导入 · <b>' + escapeHtml(s.sheetName) + '</b> · 表头第 ' + s.headerRow + ' 行';
+      var items = [
+        { label: '文件名', value: s.fileName, title: s.fileName },
+        { label: '工作表 / 表头行', value: s.sheetName + ' · 第 ' + s.headerRow + ' 行' },
+        { label: '归属列 / 金额列', value: s.ownerCol + ' 列（第 ' + s.ownerIdx + ' 列）/ ' + s.amountCol + ' 列' },
+        { label: '数据行', value: fmtInt(s.totalRows) + ' 行' },
+        { label: '纳入统计', value: fmtInt(s.includedRows) + ' 行 · ' + fmtMoney(s.includedAmount), cls: 'is-good' },
+        { label: '未纳入（归属空 / N/A）', value: fmtInt(s.excludedRows) + ' 行 · ' + fmtMoney(s.excludedAmount), cls: 'is-warn' },
+        { label: '其中已取消订单', value: fmtInt(s.canceledRows) + ' 行 · ' + fmtMoney(s.canceledAmount) },
+        { label: '导入时间', value: timeStr(s.importedAt) }
+      ];
+      summary.innerHTML = items.map(function (item) {
+        return '<div class="sum-item"><span>' + escapeHtml(item.label) + '</span><b class="' + (item.cls || '') + '" title="' + escapeHtml(item.title || item.value) + '">' + escapeHtml(item.value) + '</b></div>';
+      }).join('');
+    }
+
+    function renderKpis() {
+      var rows = customerRows();
+      var shipTotal = 0;
+      var returnTotal = 0;
+      var settleTotal = 0;
+      var expectedTotal = 0;
+      var actualTotal = 0;
+      var diffTotal = 0;
+      var actualCount = 0;
+      var fileCount = 0;
+
+      rows.forEach(function (r) {
+        shipTotal += r.shipAmount;
+        returnTotal += r.returns;
+        settleTotal += r.settlements;
+        expectedTotal += r.expected;
+        if (r.actual !== null) { actualTotal += r.actual; diffTotal += r.diff; actualCount++; }
+        if (r.inFile) fileCount++;
+      });
+      diffTotal = round2(diffTotal);
+
+      var diffCls = actualCount === 0 ? '' : (Math.abs(diffTotal) < 0.005 ? 'is-good' : 'is-danger');
+      var diffText = actualCount === 0 ? '待录入' : (diffTotal > 0 ? '+' : '') + fmtMoney(diffTotal);
+
+      var cards = [
+        { label: '寄售客户', value: fmtInt(rows.length) + ' 户', note: '源表纳入 ' + fmtInt(fileCount) + ' 户' + (rows.length > fileCount ? '，手工补录 ' + fmtInt(rows.length - fileCount) + ' 户' : '') },
+        { label: '发货金额合计', value: fmtMoney(round2(shipTotal)), note: '按归属汇总 AC 列有效行' },
+        { label: '退货金额合计', value: fmtMoney(round2(returnTotal)), note: '手工录入 · 退货日期 + 备注' },
+        { label: '结算金额合计', value: fmtMoney(round2(settleTotal)), note: '手工录入 · 备注' },
+        { label: '预计货值合计', value: fmtMoney(round2(expectedTotal)), note: '发货 − 退货 − 结算', cls: 'is-accent' },
+        { label: '实际库存合计', value: fmtMoney(round2(actualTotal)), note: '已录入 ' + actualCount + ' / ' + rows.length + ' 户' },
+        { label: '差异合计', value: diffText, note: actualCount ? '实际 − 预计（正数偏多、负数偏少）' : '填写实际库存后显示', cls: diffCls }
+      ];
+
+      $('kpis').innerHTML = cards.map(function (c) {
+        return '<div class="kpi ' + (c.cls || '') + '"><small>' + escapeHtml(c.label) + '</small><strong>' + escapeHtml(c.value) + '</strong><p>' + escapeHtml(c.note) + '</p></div>';
+      }).join('');
+    }
+
+    /* ---------------- 渲染：主表 ---------------- */
+    var HEAD_COLS = [
+      { key: 'name', label: '寄售客户', cls: 'td-name' },
+      { key: 'shipAmount', label: '发货金额' },
+      { key: 'returns', label: '退货金额' },
+      { key: 'settlements', label: '结算金额' },
+      { key: 'expected', label: '预计货值' },
+      { key: 'actual', label: '实际库存金额' },
+      { key: 'diff', label: '差异' }
+    ];
+
+    function renderTable() {
+      var rows = sortedRows();
+      var totalRows = customerRows();
+      var head = HEAD_COLS.map(function (col) {
+        var sorted = state.sort.key === col.key;
+        var arrow = sorted ? (state.sort.dir === 'asc' ? '↑' : '↓') : '↕';
+        return '<th class="sortable ' + (col.cls || '') + (sorted ? ' is-sorted' : '') + '" data-sort="' + col.key + '">' +
+          escapeHtml(col.label) + '<span class="arrow">' + arrow + '</span></th>';
+      }).join('') + '<th class="td-act">操作</th>';
+      $('tableHead').innerHTML = '<tr>' + head + '</tr>';
+
+      var note = '';
+      if (state.ship) {
+        note = '源表纳入 <b>' + fmtInt(state.ship.includedRows) + '</b> 行 / <b>' + fmtMoney(state.ship.includedAmount) + '</b>，未纳入 <b>' + fmtInt(state.ship.excludedRows) + '</b> 行';
+      } else {
+        note = '尚未导入寄售发货明细';
+      }
+      $('tableNote').innerHTML = note;
+
+      if (!rows.length) {
+        $('tableBody').innerHTML = '<tr><td colspan="8" class="empty-cell">暂无数据：请先导入《寄售发货明细》Excel，导入后即可按「归属」生成寄售库存金额一览。</td></tr>';
+        $('tableFoot').innerHTML = '';
+        return;
+      }
+
+      $('tableBody').innerHTML = rows.map(function (r) {
+        var diffHtml = '—';
+        if (r.diff !== null) {
+          var cls = Math.abs(r.diff) < 0.005 ? 'is-zero' : (r.diff < 0 ? 'is-neg' : 'is-pos');
+          var rate = r.expected ? (r.diff / r.expected * 100) : null;
+          diffHtml = '<div class="diff ' + cls + '">' + (r.diff > 0 ? '+' : '') + fmt(r.diff) + '</div>' +
+            (rate === null ? '<div class="diff-rate">预计为 0，不计算差异率</div>' : '<div class="diff-rate">' + (rate > 0 ? '+' : '') + rate.toFixed(2) + '%</div>');
+        }
+        return '<tr>' +
+          '<td class="td-name"><span class="c-name">' + escapeHtml(r.name) + '</span>' +
+            (r.inFile ? '' : '<span class="tag-mini">仅手工</span>') +
+            '<div class="c-sub">' + (r.inFile ? (fmtInt(r.orders) + ' 单 · ' + fmtInt(r.shipRows) + ' 行') + (r.canceledRows ? ' · 含取消 ' + r.canceledRows + ' 行' : '') : '发货明细中无该客户') + '</div></td>' +
+          '<td>' + fmt(r.shipAmount) + '</td>' +
+          '<td>' + fmt(r.returns) + (r.returnCount ? '<span class="cnt">' + r.returnCount + ' 笔</span>' : '') + '</td>' +
+          '<td>' + fmt(r.settlements) + (r.settlementCount ? '<span class="cnt">' + r.settlementCount + ' 笔</span>' : '') + '</td>' +
+          '<td class="is-strong">' + fmt(r.expected) + '</td>' +
+          '<td><input class="actual-input' + (r.actual === null ? '' : ' is-filled') + '" type="number" step="0.01" min="0" placeholder="待录入" data-customer="' + escapeHtml(r.name) + '" value="' + (r.actual === null ? '' : r.actual) + '"></td>' +
+          '<td class="td-diff">' + diffHtml + '</td>' +
+          '<td class="td-act"><button class="btn btn-sm" type="button" data-edit="' + escapeHtml(r.name) + '">录入</button></td>' +
+          '</tr>';
+      }).join('');
+
+      var shipTotal = 0;
+      var returnTotal = 0;
+      var settleTotal = 0;
+      var expectedTotal = 0;
+      var actualTotal = 0;
+      var diffTotal = 0;
+      var actualCount = 0;
+      totalRows.forEach(function (r) {
+        shipTotal += r.shipAmount;
+        returnTotal += r.returns;
+        settleTotal += r.settlements;
+        expectedTotal += r.expected;
+        if (r.actual !== null) { actualTotal += r.actual; diffTotal += r.diff; actualCount++; }
+      });
+      diffTotal = round2(diffTotal);
+      var diffCls = actualCount === 0 ? '' : (Math.abs(diffTotal) < 0.005 ? 'is-zero' : (diffTotal < 0 ? 'is-neg' : 'is-pos'));
+
+      $('tableFoot').innerHTML = '<tr>' +
+        '<td class="td-name">合计（' + totalRows.length + ' 户）</td>' +
+        '<td>' + fmt(round2(shipTotal)) + '</td>' +
+        '<td>' + fmt(round2(returnTotal)) + '</td>' +
+        '<td>' + fmt(round2(settleTotal)) + '</td>' +
+        '<td>' + fmt(round2(expectedTotal)) + '</td>' +
+        '<td>' + (actualCount ? fmt(round2(actualTotal)) + '<div class="diff-rate">已录 ' + actualCount + ' / ' + totalRows.length + ' 户</div>' : '待录入') + '</td>' +
+        '<td>' + (actualCount ? '<span class="diff ' + diffCls + '">' + (diffTotal > 0 ? '+' : '') + fmt(diffTotal) + '</span>' : '—') + '</td>' +
+        '<td class="td-act"></td>' +
+        '</tr>';
+    }
+
+    /* ---------------- 渲染：未纳入统计 ---------------- */
+    function renderExcluded() {
+      var panel = $('excludedPanel');
+      var s = state.ship;
+      if (!s || !s.excludedRows) {
+        panel.hidden = true;
+        return;
+      }
+      panel.hidden = false;
+      $('excludedNote').innerHTML = '共 <b>' + fmtInt(s.excludedRows) + '</b> 行 / <b>' + fmtMoney(s.excludedAmount) + '</b>';
+      var list = s.excludedAccounts || [];
+      if (!list.length) {
+        $('excludedBody').innerHTML = '<tr><td colspan="3" class="empty-cell">无客户账号明细</td></tr>';
+        return;
+      }
+      $('excludedBody').innerHTML = list.map(function (item) {
+        return '<tr><td class="td-name">' + escapeHtml(item.account) + '</td><td>' + fmtInt(item.rows) + '</td><td>' + fmt(item.amount) + '</td></tr>';
+      }).join('');
+    }
+
+    /* ---------------- 渲染：录入抽屉 ---------------- */
+    function drawerRowData(name) {
+      var sm = shipMap();
+      var ship = sm[name] || { amount: 0, rows: 0, orders: 0, canceledRows: 0 };
+      var m = state.manual[name] || { returns: [], settlements: [], actual: null };
+      var sum = sumsOf(name);
+      var expected = round2(ship.amount - sum.returns - sum.settlements);
+      var actual = (m.actual === null || m.actual === undefined) ? null : num(m.actual);
+      return {
+        name: name,
+        shipAmount: ship.amount,
+        orders: ship.orders,
+        shipRows: ship.rows,
+        inFile: Boolean(sm[name]),
+        returns: sum.returns,
+        settlements: sum.settlements,
+        expected: expected,
+        actual: actual,
+        diff: actual === null ? null : round2(actual - expected)
+      };
+    }
+
+    function renderDrawer() {
+      if (!drawerCustomer) return;
+      var m = manualOf(drawerCustomer);
+      var r = drawerRowData(drawerCustomer);
+
+      $('drawerTitle').textContent = drawerCustomer;
+      $('drawerSub').innerHTML = (r.inFile ? '发货 ' + fmtMoney(r.shipAmount) + ' · ' + fmtInt(r.orders) + ' 单 / ' + fmtInt(r.shipRows) + ' 行' : '发货明细中无该客户（仅手工录入）');
+
+      $('returnList').innerHTML = (m.returns || []).length ? m.returns.map(function (e, idx) {
+        return '<div class="entry-row" data-kind="return" data-idx="' + idx + '">' +
+          '<input type="date" data-f="date" value="' + escapeHtml(e.date || '') + '">' +
+          '<input type="number" data-f="amount" step="0.01" min="0" placeholder="0.00" value="' + (e.amount || '') + '">' +
+          '<input class="note-input" type="text" data-f="note" placeholder="备注（退货单号 / 原因）" value="' + escapeHtml(e.note || '') + '">' +
+          '<button class="btn btn-sm btn-danger" type="button" data-del="return" data-idx="' + idx + '">删除</button>' +
+          '</div>';
+      }).join('') : '<div class="entry-empty">暂无退货记录，点击右上角「新增退货」。</div>';
+
+      $('settleList').innerHTML = (m.settlements || []).length ? m.settlements.map(function (e, idx) {
+        return '<div class="entry-row is-settle" data-kind="settle" data-idx="' + idx + '">' +
+          '<input type="number" data-f="amount" step="0.01" min="0" placeholder="0.00" value="' + (e.amount || '') + '">' +
+          '<input class="note-input" type="text" data-f="note" placeholder="备注（结算批次 / 单号）" value="' + escapeHtml(e.note || '') + '">' +
+          '<button class="btn btn-sm btn-danger" type="button" data-del="settle" data-idx="' + idx + '">删除</button>' +
+          '</div>';
+      }).join('') : '<div class="entry-empty">暂无结算记录，点击右上角「新增结算」。</div>';
+
+      $('drawerActual').value = m.actual === null || m.actual === undefined ? '' : m.actual;
+      renderDrawerSummary();
+    }
+
+    function renderDrawerSummary() {
+      if (!drawerCustomer) return;
+      var r = drawerRowData(drawerCustomer);
+      $('returnTotal').textContent = fmt(r.returns);
+      $('settleTotal').textContent = fmt(r.settlements);
+
+      var diffLine = '<div class="sum-line"><span>实际库存</span><b>' + (r.actual === null ? '待录入' : fmtMoney(r.actual)) + '</b></div>';
+      var diffCls = r.diff === null ? '' : (Math.abs(r.diff) < 0.005 ? 'is-zero' : (r.diff < 0 ? 'is-neg' : 'is-pos'));
+      var diffText = r.diff === null ? '待录入' : (r.diff > 0 ? '+' : '') + fmtMoney(r.diff);
+      $('drawerSummary').innerHTML =
+        '<div class="sum-line"><span>发货金额</span><b>' + fmtMoney(r.shipAmount) + '</b></div>' +
+        '<div class="sum-line"><span>退货金额</span><b>- ' + fmtMoney(r.returns) + '</b></div>' +
+        '<div class="sum-line"><span>结算金额</span><b>- ' + fmtMoney(r.settlements) + '</b></div>' +
+        '<div class="sum-line is-hl"><span>预计货值</span><b>' + fmtMoney(r.expected) + '</b></div>' +
+        diffLine +
+        '<div class="sum-line is-hl"><span>差异（实际 − 预计）</span><b class="' + diffCls + '">' + diffText + '</b></div>';
+    }
+
+    function openDrawer(name) {
+      drawerCustomer = name;
+      renderDrawer();
+      $('drawer').classList.add('on');
+      $('drawer').setAttribute('aria-hidden', 'false');
+      $('mask').classList.add('on');
+    }
+
+    function closeDrawer() {
+      drawerCustomer = null;
+      $('drawer').classList.remove('on');
+      $('drawer').setAttribute('aria-hidden', 'true');
+      $('mask').classList.remove('on');
+    }
+
+    /* ---------------- 全量渲染 ---------------- */
+    function renderAll() {
+      renderHeroStats();
+      renderSource();
+      renderKpis();
+      renderTable();
+      renderExcluded();
+    }
+
+    /* ---------------- 事件绑定 ---------------- */
+    function bindEvents() {
+      $('btnImport').addEventListener('click', function () { $('fileInput').click(); });
+      $('dropZone').addEventListener('click', function () { $('fileInput').click(); });
+      $('fileInput').addEventListener('change', function (e) {
+        var file = e.target.files && e.target.files[0];
+        handleFile(file);
+        e.target.value = '';
+      });
+
+      ['dragenter', 'dragover'].forEach(function (type) {
+        $('dropZone').addEventListener(type, function (e) {
+          e.preventDefault();
+          $('dropZone').classList.add('is-over');
+        });
+      });
+      ['dragleave', 'drop'].forEach(function (type) {
+        $('dropZone').addEventListener(type, function (e) {
+          e.preventDefault();
+          $('dropZone').classList.remove('is-over');
+        });
+      });
+      $('dropZone').addEventListener('drop', function (e) {
+        var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        handleFile(file);
+      });
+
+      $('btnClear').addEventListener('click', function () {
+        if (!window.confirm('确定清空寄售库存看板的全部数据吗？发货汇总与手工录入（退货 / 结算 / 实际库存）都会被删除，且无法恢复。')) return;
+        state.ship = null;
+        state.manual = {};
+        try { localStorage.removeItem(STORAGE_KEY); } catch (err) { console.warn(err); }
+        closeDrawer();
+        renderAll();
+        showBanner('已清空本看板数据。', 'ok');
+      });
+
+      $('tableHead').addEventListener('click', function (e) {
+        var th = e.target.closest('th[data-sort]');
+        if (!th) return;
+        var key = th.getAttribute('data-sort');
+        if (state.sort.key === key) {
+          state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.sort = { key: key, dir: key === 'name' ? 'asc' : 'desc' };
+        }
+        renderTable();
+      });
+
+      $('tableBody').addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-edit]');
+        if (btn) openDrawer(btn.getAttribute('data-edit'));
+      });
+
+      $('tableBody').addEventListener('change', function (e) {
+        var input = e.target.closest('.actual-input');
+        if (!input) return;
+        var name = input.getAttribute('data-customer');
+        var raw = input.value.trim();
+        var m = manualOf(name);
+        m.actual = raw === '' ? null : num(raw);
+        saveStore();
+        renderHeroStats();
+        renderKpis();
+        renderTable();
+      });
+
+      $('mask').addEventListener('click', closeDrawer);
+      $('drawerClose').addEventListener('click', closeDrawer);
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && drawerCustomer) closeDrawer();
+      });
+
+      $('drawer').addEventListener('click', function (e) {
+        var add = e.target.closest('[data-add]');
+        if (add && drawerCustomer) {
+          var m = manualOf(drawerCustomer);
+          if (add.getAttribute('data-add') === 'return') {
+            m.returns.push({ id: uid(), date: todayStr(), amount: 0, note: '' });
+          } else {
+            m.settlements.push({ id: uid(), amount: 0, note: '' });
+          }
+          saveStore();
+          renderDrawer();
+          renderTable();
+          renderKpis();
+          renderHeroStats();
+          return;
+        }
+        var del = e.target.closest('[data-del]');
+        if (del && drawerCustomer) {
+          var kind = del.getAttribute('data-del');
+          var idx = Number(del.getAttribute('data-idx'));
+          var mm = manualOf(drawerCustomer);
+          var list = kind === 'return' ? mm.returns : mm.settlements;
+          if (idx >= 0 && idx < list.length) list.splice(idx, 1);
+          saveStore();
+          renderDrawer();
+          renderTable();
+          renderKpis();
+          renderHeroStats();
+        }
+      });
+
+      $('drawer').addEventListener('input', function (e) {
+        if (!drawerCustomer) return;
+        var actual = e.target.closest('#drawerActual');
+        if (actual) {
+          var mm = manualOf(drawerCustomer);
+          var raw = actual.value.trim();
+          mm.actual = raw === '' ? null : num(raw);
+          saveStore();
+          renderDrawerSummary();
+          renderTable();
+          renderKpis();
+          renderHeroStats();
+          return;
+        }
+        var field = e.target.closest('[data-f]');
+        if (!field) return;
+        var row = field.closest('.entry-row');
+        if (!row) return;
+        var kind = row.getAttribute('data-kind');
+        var idx = Number(row.getAttribute('data-idx'));
+        var entryList = kind === 'return' ? manualOf(drawerCustomer).returns : manualOf(drawerCustomer).settlements;
+        var entry = entryList[idx];
+        if (!entry) return;
+        var f = field.getAttribute('data-f');
+        if (f === 'amount') entry.amount = num(field.value);
+        else entry[f] = field.value;
+        saveStore();
+        renderDrawerSummary();
+        renderTable();
+        renderKpis();
+        renderHeroStats();
+      });
+    }
+
+    /* ---------------- 启动 ---------------- */
+    loadStore();
+    bindEvents();
+    renderAll();
+  })();
+  </script>
+</body>
+</html>
