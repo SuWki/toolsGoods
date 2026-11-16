@@ -334,8 +334,12 @@
       </div>
       <div class="hero-actions">
         <button class="btn btn-primary" type="button" id="btnImport">导入寄售发货明细</button>
+        <button class="btn" type="button" id="btnExportTable" title="导出当前《寄售库存金额一览》为 Excel">导出表格</button>
+        <button class="btn" type="button" id="btnExportManual" title="导出手工录入的退货 / 结算 / 实际库存，用于换设备还原">导出录入数据</button>
+        <button class="btn" type="button" id="btnImportManual" title="读取之前导出的录入数据文件，按客户名合并">导入录入数据</button>
         <button class="btn" type="button" id="btnClear">清空数据</button>
         <input type="file" id="fileInput" accept=".xlsx,.xls" hidden>
+        <input type="file" id="manualInput" accept=".json,application/json" hidden>
       </div>
     </header>
 
@@ -400,7 +404,7 @@
         <div>· 数据源：<b>寄售发货明细</b>（工作表「销售单合并货品」，表头第 1 行，共 29 列）；<b>AC 列（第 29 列）</b>为「归属」，取值为公式 <code>XLOOKUP(客户账号, Sheet1)</code> 的匹配结果。</div>
         <div>· 统计范围：<b>归属为空或为 N/A 的行不纳入统计</b>；其余按「归属」聚合成寄售客户，发货金额取明细「金额」列（已扣优惠后的行金额）求和。</div>
         <div>· 订单状态不做额外过滤：源表中「已取消 / 已取消-被合并」的行只要归属有效仍计入发货金额，看板会在数据源卡片标注行数与金额，便于复核。</div>
-        <div>· 退货金额（退货日期 + 金额 + 备注）与结算金额（金额 + 备注）为手工录入，按客户归集；实际库存金额按客户手工填写。三者均保存在本浏览器 <code>localStorage</code>（key：<code>toolsGoods.consignmentInventory.v1</code>），刷新不丢失；清理浏览器数据或换设备不会同步。</div>
+        <div>· 退货金额（退货日期 + 金额 + 备注）与结算金额（金额 + 备注）为手工录入，按客户归集；实际库存金额按客户手工填写。三者均保存在本浏览器 <code>localStorage</code>（key：<code>toolsGoods.consignmentInventory.v1</code>），刷新不丢失；清理浏览器数据或换设备不会同步。换设备前请点页头「导出录入数据」保存为 .json，在新设备用「导入录入数据」按客户名合并还原；「导出表格」可导出当前金额一览（含合计行）用于会议。</div>
         <div>· 本阶段只做金额口径，不做数量与 SKU 维度。</div>
       </div>
     </section>
@@ -464,6 +468,8 @@
     'use strict';
 
     var STORAGE_KEY = 'toolsGoods.consignmentInventory.v1';
+    var APP_ID = 'toolsGoods.consignmentInventory';
+    var STORE_VERSION = 1;
     var $ = function (id) { return document.getElementById(id); };
 
     var state = {
@@ -558,12 +564,189 @@
 
     function saveStore() {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, ship: state.ship, manual: state.manual }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: STORE_VERSION, ship: state.ship, manual: state.manual }));
         return true;
       } catch (err) {
         showBanner('本地保存失败：' + (err && err.message ? err.message : err) + '（可能是浏览器存储空间不足）', 'error');
         return false;
       }
+    }
+
+    /* ---------------- 录入数据导出 / 导入（换设备还原） ---------------- */
+    function downloadBlob(text, mime, filename) {
+      var blob = new Blob([text], { type: mime });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
+
+    function exportManualData() {
+      var names = Object.keys(state.manual).filter(function (name) {
+        var m = normalizeManual(state.manual[name]);
+        return m.returns.length || m.settlements.length || m.actual !== null;
+      }).sort(function (a, b) { return a.localeCompare(b, 'zh-CN'); });
+
+      if (!names.length) {
+        showBanner('当前没有手工录入的退货 / 结算 / 实际库存数据，无需导出。', 'error');
+        return;
+      }
+
+      var customers = names.map(function (name) {
+        var m = normalizeManual(state.manual[name]);
+        return {
+          name: name,
+          actual: m.actual,
+          returns: m.returns.map(function (e) { return { date: e.date, amount: e.amount, note: e.note }; }),
+          settlements: m.settlements.map(function (e) { return { amount: e.amount, note: e.note }; })
+        };
+      });
+
+      var payload = {
+        app: APP_ID,
+        version: STORE_VERSION,
+        exportedAt: new Date().toISOString(),
+        customerCount: customers.length,
+        customers: customers
+      };
+
+      downloadBlob(JSON.stringify(payload, null, 2), 'application/json;charset=utf-8', '寄售库存录入数据_' + todayStr() + '.json');
+      showBanner('已导出 ' + customers.length + ' 个客户的录入数据。换设备后打开本看板，用「导入录入数据」选择该文件即可还原。', 'ok');
+    }
+
+    function importManualFile(file) {
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onerror = function () { showBanner('导入失败：读取文件出错，请重试。', 'error'); };
+      reader.onload = function () {
+        var data;
+        try {
+          data = JSON.parse(String(reader.result || ''));
+        } catch (err) {
+          showBanner('导入失败：文件不是有效的 JSON，请确认选择的是由「导出录入数据」生成的 .json 文件。', 'error');
+          return;
+        }
+        if (!data || !Array.isArray(data.customers)) {
+          showBanner('导入失败：文件缺少录入数据（customers），可能不是本看板导出的文件。', 'error');
+          return;
+        }
+        if (data.app && data.app !== APP_ID) {
+          showBanner('导入失败：该文件不属于寄售库存看板（app 标识不符），请选择正确的录入数据文件。', 'error');
+          return;
+        }
+
+        var version = Number(data.version);
+        var legacy = !isFinite(version) || version < 1;
+        if (!legacy && version > STORE_VERSION) {
+          showBanner('导入失败：文件版本 v' + version + ' 高于当前页面支持的 v' + STORE_VERSION + '，请刷新页面或使用新版看板后再导入。', 'error');
+          return;
+        }
+
+        var list = data.customers.filter(function (c) {
+          return c && typeof c === 'object' && String(c.name || '').trim();
+        });
+        var skipped = data.customers.length - list.length;
+        if (!list.length) {
+          showBanner('导入失败：文件中没有可用的客户录入数据。', 'error');
+          return;
+        }
+
+        var localCount = Object.keys(state.manual).length;
+        var msg = '即将导入 ' + list.length + ' 个客户的录入数据' +
+          (data.exportedAt ? '（导出于 ' + timeStr(data.exportedAt) + '）' : '') + '。\n\n' +
+          '导入方式：按客户名合并 —— 与文件中同名的客户，其退货 / 结算 / 实际库存会被文件内容覆盖；' +
+          '本机其他客户（当前共 ' + localCount + ' 个）保持不变。\n\n' +
+          (legacy ? '注意：该文件不含版本信息，将按旧版本（v1）兼容导入。\n\n' : '') +
+          (skipped ? '另有 ' + skipped + ' 条记录缺少客户名，将被跳过。\n\n' : '') +
+          '是否继续？';
+        if (!window.confirm(msg)) return;
+
+        var added = 0;
+        var updated = 0;
+        list.forEach(function (c) {
+          var name = String(c.name).trim();
+          if (Object.prototype.hasOwnProperty.call(state.manual, name)) updated++;
+          else added++;
+          state.manual[name] = normalizeManual(c);
+        });
+
+        saveStore();
+        if (drawerCustomer) closeDrawer();
+        renderAll();
+        showBanner('已导入 ' + list.length + ' 个客户的录入数据（覆盖同名客户 ' + updated + ' 个，新增 ' + added + ' 个）' +
+          (legacy ? '；源文件为旧版本，已按兼容方式读取' : '') +
+          (skipped ? '；跳过 ' + skipped + ' 条缺少客户名的记录' : '') + '。', 'ok');
+      };
+      reader.readAsText(file, 'utf-8');
+    }
+
+    /* ---------------- 金额一览导出（会议用 Excel） ---------------- */
+    function exportTableXlsx() {
+      var rows = sortedRows();
+      if (!rows.length) {
+        showBanner('暂无可导出的表格数据：请先导入《寄售发货明细》。', 'error');
+        return;
+      }
+      if (typeof XLSX === 'undefined') {
+        showBanner('导出失败：Excel 组件未加载完成，请刷新页面后重试。', 'error');
+        return;
+      }
+
+      var head = ['寄售客户', '发货金额', '退货金额', '结算金额', '预计货值', '实际库存金额', '差异', '差异率'];
+      var aoa = [head];
+      var shipTotal = 0, returnTotal = 0, settleTotal = 0, expectedTotal = 0, actualTotal = 0, diffTotal = 0, actualCount = 0;
+
+      rows.forEach(function (r) {
+        var rate = (r.actual !== null && r.expected) ? round2(r.diff / r.expected * 100) : null;
+        aoa.push([
+          r.name,
+          r.shipAmount,
+          r.returns,
+          r.settlements,
+          r.expected,
+          r.actual === null ? '' : r.actual,
+          r.diff === null ? '' : r.diff,
+          rate === null ? '' : rate
+        ]);
+        shipTotal += r.shipAmount;
+        returnTotal += r.returns;
+        settleTotal += r.settlements;
+        expectedTotal += r.expected;
+        if (r.actual !== null) { actualTotal += r.actual; diffTotal += r.diff; actualCount++; }
+      });
+
+      diffTotal = round2(diffTotal);
+      var totalRate = (actualCount && expectedTotal) ? round2(diffTotal / expectedTotal * 100) : null;
+      aoa.push([
+        '合计（' + rows.length + ' 户）',
+        round2(shipTotal),
+        round2(returnTotal),
+        round2(settleTotal),
+        round2(expectedTotal),
+        actualCount ? round2(actualTotal) : '',
+        actualCount ? diffTotal : '',
+        totalRate === null ? '' : totalRate
+      ]);
+
+      var ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = [{ wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 11 }];
+      for (var r = 1; r < aoa.length; r++) {
+        for (var c = 1; c <= 6; c++) {
+          var cell = ws[XLSX.utils.encode_cell({ r: r, c: c })];
+          if (cell && cell.t === 'n') cell.z = '#,##0.00';
+        }
+        var rateCell = ws[XLSX.utils.encode_cell({ r: r, c: 7 })];
+        if (rateCell && rateCell.t === 'n') rateCell.z = '0.00"%"';
+      }
+
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '寄售库存金额一览');
+      XLSX.writeFile(wb, '寄售库存金额一览_' + todayStr() + '.xlsx');
+      showBanner('已导出《寄售库存金额一览》，共 ' + rows.length + ' 个客户（含合计行）。', 'ok');
     }
 
     /* ---------------- Excel 解析 ---------------- */
@@ -1115,6 +1298,15 @@
         e.target.value = '';
       });
 
+      $('btnExportManual').addEventListener('click', exportManualData);
+      $('btnExportTable').addEventListener('click', exportTableXlsx);
+      $('btnImportManual').addEventListener('click', function () { $('manualInput').click(); });
+      $('manualInput').addEventListener('change', function (e) {
+        var file = e.target.files && e.target.files[0];
+        importManualFile(file);
+        e.target.value = '';
+      });
+
       ['dragenter', 'dragover'].forEach(function (type) {
         $('dropZone').addEventListener(type, function (e) {
           e.preventDefault();
@@ -1154,9 +1346,15 @@
         renderTable();
       });
 
+      // pointerdown 先于输入框 blur 触发：change 里重绘页面会把「录入」按钮挤开，导致首次点击丢失
+      $('tableBody').addEventListener('pointerdown', function (e) {
+        var btn = e.target.closest('[data-edit]');
+        if (btn && !drawerCustomer) openDrawer(btn.getAttribute('data-edit'));
+      });
+
       $('tableBody').addEventListener('click', function (e) {
         var btn = e.target.closest('[data-edit]');
-        if (btn) openDrawer(btn.getAttribute('data-edit'));
+        if (btn && !drawerCustomer) openDrawer(btn.getAttribute('data-edit'));
       });
 
       $('tableBody').addEventListener('change', function (e) {
@@ -1169,7 +1367,8 @@
         saveStore();
         renderHeroStats();
         renderKpis();
-        renderTable();
+        // 延迟重绘：change 在「录入」按钮 mousedown 时触发，立即替换 tbody 会吞掉随后的点击
+        setTimeout(renderTable, 0);
       });
 
       $('mask').addEventListener('click', closeDrawer);
