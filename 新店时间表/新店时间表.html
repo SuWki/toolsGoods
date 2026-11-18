@@ -242,6 +242,26 @@
     .check-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--page-text-secondary); cursor: pointer; white-space: nowrap; }
     .check-inline input { width: 14px; height: 14px; accent-color: var(--page-brand); }
 
+    /* === 自定义提醒列 === */
+    .col-list { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+    .col-list:empty { display: none; }
+    .col-item {
+      display: inline-flex; align-items: center; gap: 8px;
+      border: 1px solid var(--page-brand-soft-strong); background: var(--page-brand-soft);
+      border-radius: var(--radius-pill); padding: 4px 6px 4px 12px;
+      font-size: 12px; color: var(--page-brand-text); white-space: nowrap;
+    }
+    .col-item b { font-weight: 600; }
+    .col-item .col-lead { color: var(--page-text-muted); }
+    .col-item .col-del {
+      border: 1px solid transparent; background: #FFFFFF; color: var(--page-text-muted);
+      border-radius: var(--radius-pill); padding: 1px 8px; font-size: 11.5px; cursor: pointer;
+    }
+    .col-item .col-del:hover { border-color: var(--danger); color: var(--danger); }
+    .col-empty-tip { margin-top: var(--space-3); font-size: 12px; color: var(--page-text-muted); }
+    table.todo thead th.th-custom { background: var(--page-brand-soft); color: var(--page-brand-text); }
+    table.todo thead th.th-custom .lead { color: var(--page-brand-text); opacity: .85; }
+
     .foot-note { font-size: 11.5px; color: var(--page-text-muted); line-height: 1.7; }
     .foot-note code { font-family: var(--font-mono); font-size: 11px; background: var(--page-surface); border: 1px solid var(--page-border); border-radius: 4px; padding: 1px 5px; }
 
@@ -270,7 +290,7 @@
     <header class="hero">
       <div>
         <h1>新店时间表</h1>
-        <p class="hero-sub">录入门店与预计开业日期，系统按自然日自动倒推四个前置节点。勾选完成后该节点会从日历移除；数据保存在本浏览器，刷新不丢失。</p>
+        <p class="hero-sub">录入门店与预计开业日期，系统按自然日自动倒推前置节点；也可自定义提醒列。勾选完成后该节点会从日历移除；数据保存在本浏览器，刷新不丢失。</p>
       </div>
       <div class="stat-row" id="statRow"></div>
     </header>
@@ -299,6 +319,26 @@
         </label>
         <button type="button" class="btn" id="resetSettings">恢复默认</button>
       </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>自定义提醒列</h2>
+        <div class="head-note">与四个固定节点算法一致：按开业日倒推、可勾选完成，完成后从日历移除；勾选记录随列一起保存。</div>
+      </div>
+      <form id="colForm" class="add-grid" novalidate>
+        <label class="field">
+          <span class="field-label">列名</span>
+          <input type="text" id="colName" maxlength="16" placeholder="例如：老香卡发货" autocomplete="off">
+        </label>
+        <label class="field">
+          <span class="field-label">提前天数</span>
+          <span class="inline-unit"><input type="number" id="colLead" min="0" max="365" step="1" value="7"><em>天</em></span>
+        </label>
+        <button type="submit" class="btn btn-primary" id="colAddBtn">新增列</button>
+      </form>
+      <div class="col-list" id="colList"></div>
+      <div class="form-msg" id="colMsg" hidden></div>
     </section>
 
     <section class="panel">
@@ -343,7 +383,7 @@
       <div class="panel-head">
         <h2>待办矩阵</h2>
         <div class="head-controls">
-          <label class="check-inline"><input type="checkbox" id="collapseDone"> 折叠四项已完成门店</label>
+          <label class="check-inline"><input type="checkbox" id="collapseDone"> 折叠已完成门店</label>
         </div>
       </div>
       <div class="matrix-wrap">
@@ -374,6 +414,7 @@
       const dateNow = new Date();
       const state = {
         settings: Object.assign({}, DEFAULT_LEADS),
+        customColumns: [],
         stores: [],
         viewYear: dateNow.getFullYear(),
         viewMonth: dateNow.getMonth(),
@@ -394,6 +435,11 @@
         todoTable: document.getElementById("todoTable"),
         matrixEmpty: document.getElementById("matrixEmpty"),
         collapseDone: document.getElementById("collapseDone"),
+        colForm: document.getElementById("colForm"),
+        colName: document.getElementById("colName"),
+        colLead: document.getElementById("colLead"),
+        colList: document.getElementById("colList"),
+        colMsg: document.getElementById("colMsg"),
         leadInputs: {},
       };
       NODES.forEach((node) => {
@@ -431,8 +477,22 @@
         return toISO(dt);
       }
 
+      function leadOf(key) {
+        const custom = state.customColumns.find((col) => col.key === key);
+        if (custom) return custom.lead;
+        return state.settings[key] || 0;
+      }
+
+      function allNodes() {
+        return NODES.concat(state.customColumns.map((col) => ({
+          key: col.key,
+          name: col.name,
+          isCustom: true,
+        })));
+      }
+
       function nodeISO(store, key) {
-        return shiftDays(store.openingDate, state.settings[key] || 0);
+        return shiftDays(store.openingDate, leadOf(key));
       }
 
       function shortDate(iso) {
@@ -457,8 +517,12 @@
         return "s_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
       }
 
+      function makeColKey() {
+        return "c_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+      }
+
       function isStoreDone(store) {
-        return NODES.every((node) => !!store.done[node.key]);
+        return allNodes().every((node) => !!store.done[node.key]);
       }
 
       function isDuplicateName(name, excludeId) {
@@ -480,12 +544,30 @@
               state.settings[key] = value;
             }
           });
+          state.customColumns = [];
+          if (Array.isArray(parsed.customColumns)) {
+            const usedNames = NODES.map((node) => node.name.toLowerCase());
+            parsed.customColumns.forEach((item) => {
+              if (!item || typeof item !== "object") return;
+              const name = normalizeName(item.name).slice(0, 16);
+              const lead = Number(item.lead);
+              if (!name || !Number.isInteger(lead) || lead < 0 || lead > 365) return;
+              if (usedNames.indexOf(name.toLowerCase()) !== -1) return;
+              let key = typeof item.key === "string" ? item.key : "";
+              if (!/^c_[a-z0-9_]+$/.test(key) || state.customColumns.some((col) => col.key === key)) {
+                key = makeColKey();
+              }
+              usedNames.push(name.toLowerCase());
+              state.customColumns.push({ key: key, name: name, lead: lead });
+            });
+          }
           if (Array.isArray(parsed.stores)) {
+            const nodes = allNodes();
             state.stores = parsed.stores
               .filter((item) => item && typeof item.name === "string" && parseISO(item.openingDate))
               .map((item) => {
                 const done = {};
-                NODES.forEach((node) => {
+                nodes.forEach((node) => {
                   done[node.key] = !!(item.done && item.done[node.key]);
                 });
                 return {
@@ -508,6 +590,7 @@
           localStorage.setItem(STORAGE_KEY, JSON.stringify({
             version: 1,
             settings: state.settings,
+            customColumns: state.customColumns,
             stores: state.stores,
           }));
         } catch (err) {
@@ -557,7 +640,7 @@
         let risk = 0;
         let monthCount = 0;
         state.stores.forEach((store) => {
-          NODES.forEach((node) => {
+          allNodes().forEach((node) => {
             if (store.done[node.key]) return;
             pending += 1;
             const iso = nodeISO(store, node.key);
@@ -577,6 +660,7 @@
       /* ---------- 日历 ---------- */
       function buildEventMap() {
         const map = new Map();
+        const nodes = allNodes();
         const add = (iso, event) => {
           if (!iso) return;
           if (!map.has(iso)) map.set(iso, []);
@@ -586,7 +670,7 @@
           if (parseISO(store.openingDate)) {
             add(store.openingDate, { kind: "opening", store: store, node: null });
           }
-          NODES.forEach((node) => {
+          nodes.forEach((node) => {
             if (store.done[node.key]) return;
             add(nodeISO(store, node.key), { kind: "node", store: store, node: node });
           });
@@ -594,8 +678,8 @@
         map.forEach((list) => {
           list.sort((a, b) => {
             if (a.kind !== b.kind) return a.kind === "opening" ? -1 : 1;
-            const ai = NODES.findIndex((n) => n.key === (a.node && a.node.key));
-            const bi = NODES.findIndex((n) => n.key === (b.node && b.node.key));
+            const ai = nodes.findIndex((n) => n.key === (a.node && a.node.key));
+            const bi = nodes.findIndex((n) => n.key === (b.node && b.node.key));
             if (ai !== bi) return ai - bi;
             return a.store.name.localeCompare(b.store.name, "zh-Hans-CN");
           });
@@ -661,12 +745,13 @@
       function matrixRowHtml(store, today) {
         const editing = state.editingId === store.id;
         const allDone = isStoreDone(store);
+        const nodes = allNodes();
 
         if (editing) {
           return '<tr class="row-edit" data-id="' + escapeHtml(store.id) + '">' +
             '<td class="cell-store"><input type="text" data-edit-field="name" maxlength="40" value="' + escapeHtml(store.name) + '"></td>' +
             '<td class="cell-date"><input type="date" data-edit-field="date" value="' + escapeHtml(store.openingDate) + '"></td>' +
-            NODES.map((node) => {
+            nodes.map((node) => {
               const done = !!store.done[node.key];
               return '<td class="cell-node' + (done ? " is-done" : "") + '">' +
                 '<span class="node-date">' + escapeHtml(shortDate(nodeISO(store, node.key))) + "</span>" +
@@ -678,7 +763,7 @@
             "</td></tr>";
         }
 
-        const nodeCells = NODES.map((node) => {
+        const nodeCells = nodes.map((node) => {
           const done = !!store.done[node.key];
           const iso = nodeISO(store, node.key);
           const late = !done && iso && iso <= today;
@@ -707,12 +792,16 @@
 
       function renderMatrix() {
         const today = todayISO();
+        const nodes = allNodes();
         els.collapseDone.checked = state.collapseDone;
 
         const head = "<thead><tr>" +
           "<th>门店</th><th>开业日期</th>" +
-          NODES.map((node) => '<th>' + escapeHtml(node.name) + '<span class="lead">开业前 ' + state.settings[node.key] + " 天</span></th>").join("") +
+          nodes.map((node) => '<th' + (node.isCustom ? ' class="th-custom"' : "") + ">" + escapeHtml(node.name) +
+            '<span class="lead">' + (node.isCustom ? "自定义 · " : "") + "开业前 " + leadOf(node.key) + " 天</span></th>").join("") +
           "<th>操作</th></tr></thead>";
+
+        els.todoTable.style.minWidth = (840 + state.customColumns.length * 118) + "px";
 
         const sorted = state.stores.slice().sort((a, b) => {
           if (a.openingDate !== b.openingDate) return a.openingDate < b.openingDate ? -1 : 1;
@@ -732,17 +821,44 @@
         els.matrixEmpty.hidden = true;
 
         if (state.collapseDone && doneCount > 0) {
-          body += '<tr class="collapse-tip"><td colspan="7">已完成门店 ' + doneCount +
+          body += '<tr class="collapse-tip"><td colspan="' + (nodes.length + 3) + '">已完成门店 ' + doneCount +
             ' 家已折叠 <button type="button" class="btn btn-sm" data-action="expand-done">展开</button></td></tr>';
         }
 
         els.todoTable.innerHTML = head + "<tbody>" + body + "</tbody>";
       }
 
+      /* ---------- 自定义列 ---------- */
+      function showColMsg(text, type) {
+        els.colMsg.textContent = text;
+        els.colMsg.className = "form-msg " + (type || "ok");
+        els.colMsg.hidden = false;
+      }
+
+      function hideColMsg() {
+        els.colMsg.hidden = true;
+        els.colMsg.textContent = "";
+      }
+
+      function renderColList() {
+        if (!state.customColumns.length) {
+          els.colList.innerHTML = '<span class="col-empty-tip">还没有自定义列。添加后可像四个固定节点一样勾选完成。</span>';
+          return;
+        }
+        els.colList.innerHTML = state.customColumns.map((col) => {
+          return '<span class="col-item">' +
+            "<b>" + escapeHtml(col.name) + "</b>" +
+            '<span class="col-lead">开业前 ' + col.lead + " 天</span>" +
+            '<button type="button" class="col-del" data-action="del-col" data-key="' + escapeHtml(col.key) + '">删除</button>' +
+            "</span>";
+        }).join("");
+      }
+
       function renderAll() {
         renderStats();
         renderCalendar();
         renderMatrix();
+        renderColList();
       }
 
       /* ---------- 交互 ---------- */
@@ -775,7 +891,7 @@
           id: makeId(),
           name: name,
           openingDate: dateISO,
-          done: NODES.reduce((acc, node) => { acc[node.key] = false; return acc; }, {}),
+          done: allNodes().reduce((acc, node) => { acc[node.key] = false; return acc; }, {}),
           createdAt: Date.now(),
         });
         saveState();
@@ -801,6 +917,53 @@
           els.storeName.classList.remove("invalid");
           hideFormMsg();
         }
+      }
+
+      function handleAddColumn(event) {
+        event.preventDefault();
+        const name = normalizeName(els.colName.value).slice(0, 16);
+        const lead = Number(els.colLead.value);
+        const exists = allNodes().some((node) => node.name.toLowerCase() === name.toLowerCase());
+
+        els.colName.classList.toggle("invalid", !name || (!!name && exists));
+        if (!name) {
+          showColMsg("请输入列名。", "error");
+          els.colName.focus();
+          return;
+        }
+        if (exists) {
+          showColMsg("列「" + name + "」已存在，请换一个列名。", "error");
+          els.colName.focus();
+          return;
+        }
+        if (!Number.isInteger(lead) || lead < 0 || lead > 365) {
+          showColMsg("提前天数需为 0–365 的整数。", "error");
+          els.colLead.focus();
+          return;
+        }
+
+        const colKey = makeColKey();
+        state.customColumns.push({ key: colKey, name: name, lead: lead });
+        state.stores.forEach((store) => { store.done[colKey] = false; });
+        saveState();
+        els.colName.value = "";
+        els.colName.classList.remove("invalid");
+        showColMsg("已新增列「" + name + "」，开业前 " + lead + " 天。", "ok");
+        renderAll();
+      }
+
+      function handleColClick(event) {
+        const btn = event.target.closest('[data-action="del-col"]');
+        if (!btn) return;
+        const key = btn.dataset.key;
+        const col = state.customColumns.find((item) => item.key === key);
+        if (!col) return;
+        if (!window.confirm("删除自定义列「" + col.name + "」？\n该列在所有门店的勾选记录会一并清除，删除后不可恢复。")) return;
+        state.customColumns = state.customColumns.filter((item) => item.key !== key);
+        state.stores.forEach((store) => { delete store.done[key]; });
+        saveState();
+        hideColMsg();
+        renderAll();
       }
 
       function handleMatrixClick(event) {
@@ -928,6 +1091,11 @@
       });
 
       els.todoTable.addEventListener("click", handleMatrixClick);
+      els.colForm.addEventListener("submit", handleAddColumn);
+      els.colList.addEventListener("click", handleColClick);
+      els.colName.addEventListener("input", () => {
+        els.colName.classList.remove("invalid");
+      });
 
       /* ---------- 启动 ---------- */
       loadState();
