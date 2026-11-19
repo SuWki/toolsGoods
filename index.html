@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -1521,6 +1521,7 @@ pointer-events: none;
       border: 1px solid rgba(223, 229, 238, .92);
       color: var(--muted);
       background: rgba(255, 255, 255, .7);
+      font-weight: 600;
     }
 
     .season-verdict.is-spring {
@@ -1540,6 +1541,166 @@ pointer-events: none;
       color: var(--muted);
       padding: 28px 12px;
     }
+
+    .season-stats { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+
+    .season-legend-wrap { margin: 4px 0 14px; }
+
+    .season-legend {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .season-legend-end {
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .season-legend-end.is-spring { color: #C1121F; }
+
+    .season-legend-end.is-autumn { color: #7A2E9E; }
+
+    .season-legend-bar {
+      flex: 1 1 260px;
+      min-width: 220px;
+      height: 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(31, 41, 55, .08);
+    }
+
+    .season-legend-ticks {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      margin-top: 5px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .season-section { padding: 6px 0 4px; }
+
+    .season-chart-head {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .season-chart-title {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .season-chart-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .season-chart-controls label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .season-chart-controls select {
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid rgba(223, 229, 238, .92);
+      background: #fff;
+      padding: 0 8px;
+    }
+
+    .season-compare-wrap { margin: 14px 0 4px; overflow-x: auto; }
+
+    .season-compare {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+
+    .season-compare th,
+    .season-compare td {
+      border-bottom: 1px solid rgba(223, 229, 238, .8);
+      padding: 8px 10px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .season-compare th {
+      color: var(--muted);
+      font-weight: 600;
+      background: rgba(9, 105, 218, .04);
+    }
+
+    .season-compare td.is-strong { font-weight: 700; color: var(--text); }
+
+    .season-th-note {
+      display: block;
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+    }
+
+    .season-badge {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(9, 105, 218, .08);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+
+    .season-op { text-align: center; }
+
+    .season-hide-btn {
+      padding: 3px 10px;
+      font-size: 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(223, 229, 238, .92);
+      background: rgba(255, 255, 255, .7);
+      color: var(--muted);
+    }
+
+    .season-hide-btn:hover {
+      color: var(--danger);
+      border-color: rgba(185, 35, 24, .3);
+      background: var(--danger-soft);
+      transform: none;
+    }
+
+    .season-hidden-btn.is-active {
+      color: var(--accent);
+      border-color: rgba(9, 105, 218, .3);
+      background: var(--accent-soft);
+    }
+
+    .season-reset-btn { padding: 6px 12px; font-size: 12px; height: 32px; }
+
+    .season-count-note { margin-left: auto; }
+
+    .season-warn {
+      display: grid;
+      gap: 4px;
+      color: #B45309;
+      font-weight: 600;
+    }
+
+    .season-warn:empty { display: none; }
+
+    .season-toolbar input[type="date"] { min-width: 150px; }
 
     .trend-summary {
       display: grid;
@@ -2147,8 +2308,16 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       historyCompareNodes: ["", "", ""], // 用户选择对比的三个时间节点
       salesTrendFilters: {
         store: "", // 门店筛选，空=全部门店合计
+        category: "", // 品类筛选（商品类目），空=全部品类
         search: "", // 商品名称搜索
         sort: "total", // total=总销量, springDaily=春夏日均, autumnDaily=秋冬日均, diff=差异度
+        startDate: "", // 时间区间起，空=数据最早日期
+        endDate: "", // 时间区间止，空=数据最晚日期
+        hiddenKeys: [], // 已隐藏单品的 nameKey 列表
+        granularity: "daily", // 趋势图粒度 daily / monthly
+        showTrendLine: false, // 趋势图趋势线
+        trendMethod: "linear", // linear / ma
+        showHidden: false, // 是否处于「已隐藏」视图（仅内存态）
       },
       kttImportData: [], // 快团团导入解析结果 [{importNo, name, phone, address, csNote, productName, qty}]
     };
@@ -2273,10 +2442,19 @@ sources: Object.fromEntries(
         }
         if (payload && payload.salesTrendFilters && typeof payload.salesTrendFilters === "object") {
           const savedFilters = payload.salesTrendFilters;
+          const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
           state.salesTrendFilters = {
             store: typeof savedFilters.store === "string" ? savedFilters.store : "",
+            category: typeof savedFilters.category === "string" ? savedFilters.category : "",
             search: typeof savedFilters.search === "string" ? savedFilters.search : "",
             sort: ["total", "springDaily", "autumnDaily", "diff"].indexOf(savedFilters.sort) !== -1 ? savedFilters.sort : "total",
+            startDate: typeof savedFilters.startDate === "string" && isoDatePattern.test(savedFilters.startDate) ? savedFilters.startDate : "",
+            endDate: typeof savedFilters.endDate === "string" && isoDatePattern.test(savedFilters.endDate) ? savedFilters.endDate : "",
+            hiddenKeys: Array.isArray(savedFilters.hiddenKeys) ? savedFilters.hiddenKeys.filter((key) => typeof key === "string") : [],
+            granularity: savedFilters.granularity === "monthly" ? "monthly" : "daily",
+            showTrendLine: !!savedFilters.showTrendLine,
+            trendMethod: savedFilters.trendMethod === "ma" ? "ma" : "linear",
+            showHidden: false,
           };
         }
         if (payload && payload.activeTab) {
@@ -3569,7 +3747,8 @@ sources: Object.fromEntries(
         const date = parseSeasonDate(getCell(row, map, ["日期", "销售日期", "下单日期", "订单日期"]));
         if (!date) continue;
         const store = normalizeText(getCell(row, map, ["归属店铺", "店铺", "门店", "门店名称"])) || "未归属门店";
-        items.push({ productName: rawName, nameKey: nameKey, store: store, qty: qty, date: date });
+        const category = String(getCell(row, map, ["商品类目", "品类", "商品分类", "分类"]) || "").replace(/\s+/g, " ").trim() || "未分类";
+        items.push({ productName: rawName, nameKey: nameKey, store: store, qty: qty, date: date, category: category });
       }
       return items;
     }
@@ -4475,13 +4654,25 @@ inventoryQty,
       ].join("|");
     }
 
-    // 聚合每日销量趋势数据：按商品 key 聚合，每商品保留按日期的线上/线下销量
-    // productRows 用于通过 key 关联商品资料的 category（G列）字段
     /* ===== 门店单品季节分析 ===== */
     const SEASON_EVEN_THRESHOLD = 0.15;
+    const SEASON_MIN_COVER_DAYS = 30;
 
     function isSpringMonth(month) {
       return month >= 3 && month <= 8;
+    }
+
+    function isoDateValue(date) {
+      return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+    }
+
+    function parseIsoDateValue(text) {
+      return new Date(text + "T00:00:00");
+    }
+
+    function daysBetweenIso(startIso, endIso) {
+      if (!startIso || !endIso) return 0;
+      return Math.round((parseIsoDateValue(endIso) - parseIsoDateValue(startIso)) / 86400000);
     }
 
     function buildSeasonCalendar(dateMin, dateMax) {
@@ -4492,15 +4683,14 @@ inventoryQty,
         autumnSegments: [],
       };
       if (!dateMin || !dateMax) return result;
-      const start = new Date(dateMin + "T00:00:00");
-      const end = new Date(dateMax + "T00:00:00");
+      const start = parseIsoDateValue(dateMin);
+      const end = parseIsoDateValue(dateMax);
       if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return result;
-      const isoOf = (date) => date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
       const cursor = new Date(start.getTime());
       let segment = null;
       while (cursor <= end) {
         const spring = isSpringMonth(cursor.getMonth() + 1);
-        const iso = isoOf(cursor);
+        const iso = isoDateValue(cursor);
         if (spring) result.springDays += 1;
         else result.autumnDays += 1;
         if (!segment || segment.spring !== spring) {
@@ -4519,97 +4709,55 @@ inventoryQty,
       return (segments || []).map((item) => (item.start === item.end ? item.start : item.start + " ~ " + item.end)).join("、");
     }
 
-    function aggregateSeasonProducts(rows, store, springDays, autumnDays) {
-      const map = new Map();
-      (rows || []).forEach((row) => {
-        if (store && row.store !== store) return;
-        const key = row.nameKey || normalizeText(row.productName);
-        let item = map.get(key);
-        if (!item) {
-          item = { key: key, name: row.productName, springQty: 0, autumnQty: 0, total: 0 };
-          map.set(key, item);
-        }
-        if (isSpringMonth(Number(row.date.slice(5, 7)))) item.springQty += row.qty;
-        else item.autumnQty += row.qty;
-        item.total += row.qty;
+    // 店天数：门店从首次销售日起算，季节区段内与首次销售日之后的重叠自然天数
+    function countStoreDays(segments, storeNames, storeFirstDate) {
+      let total = 0;
+      (segments || []).forEach((segment) => {
+        (storeNames || []).forEach((store) => {
+          const first = storeFirstDate[store] || segment.start;
+          const begin = first > segment.start ? first : segment.start;
+          if (begin > segment.end) return;
+          total += daysBetweenIso(begin, segment.end) + 1;
+        });
       });
-      const products = Array.from(map.values()).map((item) => {
-        const springDaily = springDays > 0 ? item.springQty / springDays : 0;
-        const autumnDaily = autumnDays > 0 ? item.autumnQty / autumnDays : 0;
-        const larger = Math.max(springDaily, autumnDaily);
-        const ratio = larger > 0 ? Math.abs(springDaily - autumnDaily) / larger : 0;
-        const verdict = ratio < SEASON_EVEN_THRESHOLD ? "even" : (springDaily > autumnDaily ? "spring" : "autumn");
-        return {
-          ...item,
-          springDaily,
-          autumnDaily,
-          ratio,
-          verdict,
-          verdictText: verdict === "spring" ? "春夏表现更好" : (verdict === "autumn" ? "秋冬表现更好" : "均匀"),
-          color: seasonFontColor(verdict, ratio),
-        };
-      });
-      products.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "zh-Hans-CN"));
-      return products;
-    }
-
-    // 色阶：越接近均匀越接近常规文字色；春夏偏橙、秋冬偏蓝，差异越大颜色越深
-    function seasonFontColor(verdict, ratio) {
-      if (verdict === "even") return "";
-      const above = Math.max(0, Math.min(1, (ratio - SEASON_EVEN_THRESHOLD) / (1 - SEASON_EVEN_THRESHOLD)));
-      const saturation = Math.min(1, ratio / 0.45);
-      if (verdict === "spring") {
-        return "hsl(" + Math.round(28 - 8 * above) + ", " + Math.round(25 + 65 * saturation) + "%, " + Math.round(45 - 12 * above) + "%)";
-      }
-      return "hsl(" + Math.round(217 + 4 * above) + ", " + Math.round(25 + 55 * saturation) + "%, " + Math.round(45 - 12 * above) + "%)";
+      return total;
     }
 
     function buildSalesTrendModel(rows) {
       const valid = [];
       const storeSet = new Set();
+      const categorySet = new Set();
+      const storeFirstDate = {};
+      const productFirstDate = {};
       let dateMin = "";
       let dateMax = "";
       (rows || []).forEach((row) => {
         if (!row || !/^\d{4}-\d{2}-\d{2}$/.test(row.date || "")) return;
         if (!row.productName || !(row.qty > 0)) return;
         valid.push(row);
-        if (row.store) storeSet.add(row.store);
+        if (row.store) {
+          storeSet.add(row.store);
+          const prevStore = storeFirstDate[row.store];
+          if (!prevStore || row.date < prevStore) storeFirstDate[row.store] = row.date;
+        }
+        if (row.category) categorySet.add(row.category);
+        const key = row.nameKey || normalizeText(row.productName);
+        const prevProduct = productFirstDate[key];
+        if (!prevProduct || row.date < prevProduct) productFirstDate[key] = row.date;
         if (!dateMin || row.date < dateMin) dateMin = row.date;
         if (!dateMax || row.date > dateMax) dateMax = row.date;
-      });
-
-      const calendar = buildSeasonCalendar(dateMin, dateMax);
-      const products = aggregateSeasonProducts(valid, "", calendar.springDays, calendar.autumnDays);
-
-      const monthDays = new Map();
-      valid.forEach((row) => {
-        const key = row.date.slice(0, 7);
-        if (!monthDays.has(key)) monthDays.set(key, new Set());
-        monthDays.get(key).add(row.date);
-      });
-      const coveredMonths = Array.from(monthDays.keys()).sort();
-      const partialMonths = [];
-      coveredMonths.forEach((key) => {
-        const parts = key.split("-").map(Number);
-        const monthTotal = new Date(parts[0], parts[1], 0).getDate();
-        const days = monthDays.get(key).size;
-        if (days < monthTotal) partialMonths.push({ key: key, days: days, total: monthTotal });
       });
 
       return {
         rows: valid,
         dateMin: dateMin,
         dateMax: dateMax,
-        springDays: calendar.springDays,
-        autumnDays: calendar.autumnDays,
-        springRangeText: seasonRangesText(calendar.springSegments),
-        autumnRangeText: seasonRangesText(calendar.autumnSegments),
         storeNames: Array.from(storeSet).sort((a, b) => a.localeCompare(b, "zh-Hans-CN")),
-        products: products,
-        productCount: products.length,
+        categoryOptions: Array.from(categorySet).sort((a, b) => a.localeCompare(b, "zh-Hans-CN")),
+        storeFirstDate: storeFirstDate,
+        productFirstDate: productFirstDate,
+        productCount: new Set(valid.map((row) => row.nameKey || normalizeText(row.productName))).size,
         recordCount: valid.length,
-        partialMonths: partialMonths,
-        missingDecember: !coveredMonths.some((key) => key.slice(5, 7) === "12"),
       };
     }
 
@@ -4707,14 +4855,17 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       if (state.activeTab === "salesTrend") {
         const t = model.salesTrendModel;
         if (t.productCount) {
+          const filters = getSeasonFilters(t);
+          const view = buildSeasonView(t, filters);
+          const list = getSeasonViewProducts(view, filters);
           const counts = { spring: 0, autumn: 0, even: 0 };
-          t.products.forEach((p) => { counts[p.verdict] += 1; });
+          list.forEach((p) => { counts[p.verdict] += 1; });
           pills = [
-            `<span class="pill">单品 ${formatInteger(t.productCount)}</span>`,
+            `<span class="pill">单品 ${formatInteger(list.length)}</span>`,
             `<span class="pill">春夏更好 ${formatInteger(counts.spring)}</span>`,
             `<span class="pill">秋冬更好 ${formatInteger(counts.autumn)}</span>`,
             `<span class="pill">均匀 ${formatInteger(counts.even)}</span>`,
-            `<span class="pill">覆盖 ${t.dateMin || "-"} ~ ${t.dateMax || "-"}</span>`,
+            `<span class="pill">覆盖 ${view.start || "-"} ~ ${view.end || "-"}</span>`,
           ];
         }
       } else if (state.activeTab === "kttImport") {
@@ -7093,21 +7244,256 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
     }
 
     // ===== 门店单品季节分析：视图与交互 =====
+    const SEASON_TREND_COLOR = "#0969DA";
+
     function getSeasonFilters(model) {
       const filters = state.salesTrendFilters;
       if (typeof filters.search !== "string") filters.search = "";
       if (typeof filters.store !== "string") filters.store = "";
-      if (model && model.storeNames.indexOf(filters.store) === -1) filters.store = "";
+      if (typeof filters.category !== "string") filters.category = "";
+      if (typeof filters.startDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(filters.startDate)) filters.startDate = "";
+      if (typeof filters.endDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(filters.endDate)) filters.endDate = "";
       if (["total", "springDaily", "autumnDaily", "diff"].indexOf(filters.sort) === -1) filters.sort = "total";
+      if (!Array.isArray(filters.hiddenKeys)) filters.hiddenKeys = [];
+      if (["daily", "monthly"].indexOf(filters.granularity) === -1) filters.granularity = "daily";
+      if (["linear", "ma"].indexOf(filters.trendMethod) === -1) filters.trendMethod = "linear";
+      filters.showTrendLine = !!filters.showTrendLine;
+      filters.showHidden = !!filters.showHidden;
+      if (model) {
+        if (model.storeNames.indexOf(filters.store) === -1) filters.store = "";
+        if (filters.category && model.categoryOptions.indexOf(filters.category) === -1) filters.category = "";
+        if (filters.startDate && model.dateMin && filters.startDate < model.dateMin) filters.startDate = model.dateMin;
+        if (filters.endDate && model.dateMax && filters.endDate > model.dateMax) filters.endDate = model.dateMax;
+        if (filters.startDate && filters.endDate && filters.startDate > filters.endDate) filters.endDate = filters.startDate;
+        filters.hiddenKeys = filters.hiddenKeys.filter((key) => typeof key === "string" && model.productFirstDate[key]);
+      }
       return filters;
     }
 
-    function getSeasonViewProducts(model, filters) {
-      let list = aggregateSeasonProducts(model.rows, filters.store, model.springDays, model.autumnDays);
-      const keyword = normalizeText(filters.search);
-      if (keyword) {
-        list = list.filter((item) => normalizeText(item.name).indexOf(keyword) !== -1);
+    function getSeasonRangeBounds(model, filters) {
+      const start = filters.startDate || model.dateMin;
+      const end = filters.endDate || model.dateMax;
+      if (!start || !end) return { start: "", end: "" };
+      return start <= end ? { start: start, end: end } : { start: end, end: start };
+    }
+
+    // 所选区间内各月的覆盖情况（缺失月 / 不完整月）
+    function getSeasonCoverage(rows, start, end) {
+      const monthDays = new Map();
+      (rows || []).forEach((row) => {
+        if (!start || !end || row.date < start || row.date > end) return;
+        const key = row.date.slice(0, 7);
+        if (!monthDays.has(key)) monthDays.set(key, new Set());
+        monthDays.get(key).add(row.date);
+      });
+      const missing = [];
+      const partial = [];
+      if (!start || !end) return { missing: missing, partial: partial };
+      const startDate = parseIsoDateValue(start);
+      const endDate = parseIsoDateValue(end);
+      let cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+      while (cursor <= endDate) {
+        const key = isoDateValue(cursor).slice(0, 7);
+        const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+        const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+        const rangeStart = monthStart < startDate ? startDate : monthStart;
+        const rangeEnd = monthEnd > endDate ? endDate : monthEnd;
+        const totalDays = Math.round((rangeEnd - rangeStart) / 86400000) + 1;
+        const covered = monthDays.has(key) ? monthDays.get(key).size : 0;
+        if (covered === 0) missing.push(key);
+        else if (covered < totalDays) partial.push({ key: key, days: covered, total: totalDays });
+        cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
       }
+      return { missing: missing, partial: partial };
+    }
+
+    // 五段连续色阶：红（最强春夏）→ 橙（偏春夏）→ 绿（均匀）→ 蓝（偏秋冬）→ 紫（最强秋冬）
+    const SEASON_COLOR_STOPS = [
+      { t: 0, h: 355, s: 76, l: 42 },   // 红
+      { t: 0.25, h: 26, s: 88, l: 38 }, // 橙
+      { t: 0.5, h: 145, s: 60, l: 31 }, // 绿
+      { t: 0.75, h: 217, s: 85, l: 43 },// 蓝
+      { t: 1, h: 277, s: 62, l: 41 },   // 紫
+    ];
+
+    function seasonScaleT(verdict, ratio) {
+      if (verdict === "none") return null;
+      if (verdict === "even") return 0.5;
+      const above = Math.max(0, Math.min(1, (ratio - SEASON_EVEN_THRESHOLD) / (1 - SEASON_EVEN_THRESHOLD)));
+      // 用幂函数让「偏春夏/偏秋冬」更快离开均匀绿，强弱差异在橙/蓝段内连续体现
+      const eased = Math.pow(above, 0.55);
+      return verdict === "spring" ? 0.5 * (1 - eased) : 0.5 + 0.5 * eased;
+    }
+
+    function hslToHex(hue, saturation, lightness) {
+      const h = ((hue % 360) + 360) % 360;
+      const s = saturation / 100;
+      const l = lightness / 100;
+      const c = (1 - Math.abs(2 * l - 1)) * s;
+      const hp = h / 60;
+      const x = c * (1 - Math.abs((hp % 2) - 1));
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      if (hp < 1) { r = c; g = x; }
+      else if (hp < 2) { r = x; g = c; }
+      else if (hp < 3) { g = c; b = x; }
+      else if (hp < 4) { g = x; b = c; }
+      else if (hp < 5) { r = x; b = c; }
+      else { r = c; b = x; }
+      const m = l - c / 2;
+      const toHex = (value) => Math.round((value + m) * 255).toString(16).padStart(2, "0");
+      return "#" + toHex(r) + toHex(g) + toHex(b);
+    }
+
+    function hexLuminance(hex) {
+      const rgb = [1, 3, 5].map((index) => parseInt(hex.slice(index, index + 2), 16) / 255);
+      const channel = (value) => (value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4));
+      const r = channel(rgb[0]);
+      const g = channel(rgb[1]);
+      const b = channel(rgb[2]);
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    }
+
+    function contrastOnWhite(hex) {
+      return 1.05 / (hexLuminance(hex) + 0.05);
+    }
+
+    function seasonScaleColor(t) {
+      if (t === null) return "";
+      const clamped = Math.max(0, Math.min(1, t));
+      for (let i = 0; i < SEASON_COLOR_STOPS.length - 1; i += 1) {
+        const from = SEASON_COLOR_STOPS[i];
+        const to = SEASON_COLOR_STOPS[i + 1];
+        if (clamped <= to.t) {
+          const f = (clamped - from.t) / (to.t - from.t);
+          let hueDelta = to.h - from.h;
+          if (hueDelta > 180) hueDelta -= 360;
+          if (hueDelta < -180) hueDelta += 360;
+          const hue = from.h + hueDelta * f;
+          const saturation = from.s + (to.s - from.s) * f;
+          let lightness = from.l + (to.l - from.l) * f;
+          let hex = hslToHex(hue, saturation, lightness);
+          // 橙→绿过渡会经过偏黄的色相，按需压低明度，保证白底可读（对比度 ≥ 4.5）
+          while (contrastOnWhite(hex) < 4.5 && lightness > 16) {
+            lightness -= 1;
+            hex = hslToHex(hue, saturation, lightness);
+          }
+          return hex;
+        }
+      }
+      const last = SEASON_COLOR_STOPS[SEASON_COLOR_STOPS.length - 1];
+      return hslToHex(last.h, last.s, last.l);
+    }
+
+    function seasonFontColor(verdict, ratio) {
+      return seasonScaleColor(seasonScaleT(verdict, ratio));
+    }
+
+    function renderSeasonLegendHtml() {
+      const stops = SEASON_COLOR_STOPS.map((stop) => seasonScaleColor(stop.t) + " " + Math.round(stop.t * 100) + "%").join(", ");
+      return `
+        <div class="season-legend">
+          <span class="season-legend-end is-spring">春夏偏好</span>
+          <span class="season-legend-bar" style="background:linear-gradient(90deg, ${stops});"></span>
+          <span class="season-legend-end is-autumn">秋冬偏好</span>
+        </div>
+        <div class="season-legend-ticks">
+          <span>强春夏</span><span>偏春夏</span><span>均匀（差异 &lt; 15%）</span><span>偏秋冬</span><span>强秋冬</span>
+        </div>`;
+    }
+
+    function buildSeasonView(model, filters) {
+      const bounds = getSeasonRangeBounds(model, filters);
+      const start = bounds.start;
+      const end = bounds.end;
+      const calendar = buildSeasonCalendar(start, end);
+      const storeNames = filters.store ? model.storeNames.filter((name) => name === filters.store) : model.storeNames;
+      const springStoreDays = countStoreDays(calendar.springSegments, storeNames, model.storeFirstDate);
+      const autumnStoreDays = countStoreDays(calendar.autumnSegments, storeNames, model.storeFirstDate);
+      const springAvgStores = calendar.springDays > 0 ? springStoreDays / calendar.springDays : 0;
+      const autumnAvgStores = calendar.autumnDays > 0 ? autumnStoreDays / calendar.autumnDays : 0;
+
+      const rows = [];
+      const map = new Map();
+      (model.rows || []).forEach((row) => {
+        if (!start || !end || row.date < start || row.date > end) return;
+        if (filters.store && row.store !== filters.store) return;
+        if (filters.category && (row.category || "未分类") !== filters.category) return;
+        rows.push(row);
+        const key = row.nameKey || normalizeText(row.productName);
+        let item = map.get(key);
+        if (!item) {
+          item = { key: key, name: row.productName, springQty: 0, autumnQty: 0, total: 0 };
+          map.set(key, item);
+        }
+        if (isSpringMonth(Number(row.date.slice(5, 7)))) item.springQty += row.qty;
+        else item.autumnQty += row.qty;
+        item.total += row.qty;
+      });
+
+      const seasonUnavailable = calendar.springDays === 0 || calendar.autumnDays === 0 || springStoreDays === 0 || autumnStoreDays === 0;
+      const products = Array.from(map.values()).map((item) => {
+        const springDaily = springStoreDays > 0 ? item.springQty / springStoreDays : 0;
+        const autumnDaily = autumnStoreDays > 0 ? item.autumnQty / autumnStoreDays : 0;
+        const springDailyOld = calendar.springDays > 0 ? item.springQty / calendar.springDays : 0;
+        const autumnDailyOld = calendar.autumnDays > 0 ? item.autumnQty / calendar.autumnDays : 0;
+        const larger = Math.max(springDaily, autumnDaily);
+        const ratio = larger > 0 ? Math.abs(springDaily - autumnDaily) / larger : 0;
+        let verdict = "none";
+        if (!seasonUnavailable) verdict = ratio < SEASON_EVEN_THRESHOLD ? "even" : (springDaily > autumnDaily ? "spring" : "autumn");
+        return {
+          ...item,
+          springDaily: springDaily,
+          autumnDaily: autumnDaily,
+          springDailyOld: springDailyOld,
+          autumnDailyOld: autumnDailyOld,
+          ratio: ratio,
+          firstSale: model.productFirstDate[item.key] || "",
+          verdict: verdict,
+          verdictText: verdict === "spring" ? "春夏更好" : (verdict === "autumn" ? "秋冬更好" : (verdict === "even" ? "均匀" : "无法判定")),
+          color: seasonFontColor(verdict, ratio),
+        };
+      });
+      products.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "zh-Hans-CN"));
+
+      // 数据缺口只看门店/时间，不受品类与隐藏影响
+      const coverageRows = (model.rows || []).filter((row) => {
+        if (!start || !end || row.date < start || row.date > end) return false;
+        if (filters.store && row.store !== filters.store) return false;
+        return true;
+      });
+      const coverage = getSeasonCoverage(coverageRows, start, end);
+
+      const warnings = [];
+      if (calendar.springDays === 0) warnings.push("所选区间不含春夏（3–8 月）数据，春夏无法对比，结论显示为「无法判定」。");
+      else if (calendar.springDays < SEASON_MIN_COVER_DAYS) warnings.push("春夏仅覆盖 " + calendar.springDays + " 天，样本偏少，结论波动可能较大。");
+      if (calendar.autumnDays === 0) warnings.push("所选区间不含秋冬（9–2 月）数据，秋冬无法对比，结论显示为「无法判定」。");
+      else if (calendar.autumnDays < SEASON_MIN_COVER_DAYS) warnings.push("秋冬仅覆盖 " + calendar.autumnDays + " 天，样本偏少，结论波动可能较大。");
+      if (calendar.springDays > 0 && springStoreDays === 0) warnings.push("所选门店在春夏区间内没有营业天数，春夏无法对比。");
+      if (calendar.autumnDays > 0 && autumnStoreDays === 0) warnings.push("所选门店在秋冬区间内没有营业天数，秋冬无法对比。");
+
+      return {
+        start: start,
+        end: end,
+        calendar: calendar,
+        springStoreDays: springStoreDays,
+        autumnStoreDays: autumnStoreDays,
+        springAvgStores: springAvgStores,
+        autumnAvgStores: autumnAvgStores,
+        products: products,
+        rows: rows,
+        coverage: coverage,
+        warnings: warnings,
+        seasonUnavailable: seasonUnavailable,
+      };
+    }
+
+    function getSeasonViewProducts(view, filters) {
+      const hidden = new Set(filters.hiddenKeys);
+      let list = view.products.filter((item) => (filters.showHidden ? hidden.has(item.key) : !hidden.has(item.key)));
+      const keyword = normalizeText(filters.search);
+      if (keyword) list = list.filter((item) => normalizeText(item.name).indexOf(keyword) !== -1);
       if (filters.sort === "springDaily") {
         list.sort((a, b) => b.springDaily - a.springDaily || b.total - a.total);
       } else if (filters.sort === "autumnDaily") {
@@ -7118,47 +7504,324 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       return list;
     }
 
-    function renderSeasonSummaryHtml(list) {
-      const counts = { spring: 0, autumn: 0, even: 0 };
+    function renderSeasonSummaryHtml(list, view) {
+      const counts = { spring: 0, autumn: 0, even: 0, none: 0 };
       list.forEach((item) => { counts[item.verdict] += 1; });
+      const parts = [
+        `<div class="trend-stat"><small>当前单品</small><strong>${formatInteger(list.length)}</strong><span class="note">个</span></div>`,
+        `<div class="trend-stat"><small>春夏表现更好</small><strong style="color:#C2410C">${formatInteger(counts.spring)}</strong><span class="note">个</span></div>`,
+        `<div class="trend-stat"><small>秋冬表现更好</small><strong style="color:#1D4ED8">${formatInteger(counts.autumn)}</strong><span class="note">个</span></div>`,
+        `<div class="trend-stat"><small>两季均匀</small><strong>${formatInteger(counts.even)}</strong><span class="note">个</span></div>`,
+      ];
+      if (counts.none) {
+        parts.push(`<div class="trend-stat"><small>无法判定</small><strong>${formatInteger(counts.none)}</strong><span class="note">个</span></div>`);
+      }
+      return parts.join("");
+    }
+
+    function renderSeasonCompareHtml(list, view) {
+      const springQty = list.reduce((sum, item) => sum + item.springQty, 0);
+      const autumnQty = list.reduce((sum, item) => sum + item.autumnQty, 0);
+      const springDaily = view.springStoreDays > 0 ? springQty / view.springStoreDays : 0;
+      const autumnDaily = view.autumnStoreDays > 0 ? autumnQty / view.autumnStoreDays : 0;
+      const springDailyOld = view.calendar.springDays > 0 ? springQty / view.calendar.springDays : 0;
+      const autumnDailyOld = view.calendar.autumnDays > 0 ? autumnQty / view.calendar.autumnDays : 0;
       return `
-        <div class="trend-stat"><small>当前单品</small><strong>${formatInteger(list.length)}</strong><span class="note">个</span></div>
-        <div class="trend-stat"><small>春夏表现更好</small><strong style="color:#C2410C">${formatInteger(counts.spring)}</strong><span class="note">个</span></div>
-        <div class="trend-stat"><small>秋冬表现更好</small><strong style="color:#1D4ED8">${formatInteger(counts.autumn)}</strong><span class="note">个</span></div>
-        <div class="trend-stat"><small>两季均匀</small><strong>${formatInteger(counts.even)}</strong><span class="note">个</span></div>
+        <table class="season-compare">
+          <thead>
+            <tr>
+              <th>季节</th>
+              <th class="season-num">销量</th>
+              <th class="season-num">自然天数</th>
+              <th class="season-num">店天数</th>
+              <th class="season-num">平均营业门店</th>
+              <th class="season-num">原口径日均（÷自然天数）</th>
+              <th class="season-num">新口径日均（÷店天数）</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>春夏</td>
+              <td class="season-num">${formatInteger(springQty)}</td>
+              <td class="season-num">${formatInteger(view.calendar.springDays)}</td>
+              <td class="season-num">${formatInteger(view.springStoreDays)}</td>
+              <td class="season-num">${view.springAvgStores.toFixed(1)}</td>
+              <td class="season-num">${springDailyOld.toFixed(2)}</td>
+              <td class="season-num is-strong">${springDaily.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td>秋冬</td>
+              <td class="season-num">${formatInteger(autumnQty)}</td>
+              <td class="season-num">${formatInteger(view.calendar.autumnDays)}</td>
+              <td class="season-num">${formatInteger(view.autumnStoreDays)}</td>
+              <td class="season-num">${view.autumnAvgStores.toFixed(1)}</td>
+              <td class="season-num">${autumnDailyOld.toFixed(2)}</td>
+              <td class="season-num is-strong">${autumnDaily.toFixed(2)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="note" style="margin-top:8px;">店天数 = 各门店从在本数据里的首次销售日起、落在该季节区间内的自然天数之和；新口径日均 = 季节销量 ÷ 店天数，结论按新口径判定。</div>
       `;
     }
 
-    function renderSeasonRowsHtml(list) {
+    function renderSeasonRowsHtml(list, view, filters) {
+      const colspan = 8;
       if (!list.length) {
-        return '<tr><td colspan="7" class="season-empty">没有匹配的单品，试试调整门店或搜索关键词。</td></tr>';
+        const message = filters.showHidden
+          ? "还没有隐藏任何单品。"
+          : "没有匹配的单品，试试调整门店、品类、时间区间或搜索关键词。";
+        return `<tr><td colspan="${colspan}" class="season-empty">${message}</td></tr>`;
       }
       return list.map((item) => {
         const colorStyle = item.color ? ' style="color:' + item.color + '"' : "";
         const verdictClass = item.verdict === "spring" ? "is-spring" : (item.verdict === "autumn" ? "is-autumn" : "");
+        const verdictStyle = item.color ? ` style="color:${item.color};border-color:${item.color}55;background:${item.color}14;"` : "";
+        const firstBadge = item.firstSale && view.start && daysBetweenIso(view.start, item.firstSale) >= 30
+          ? `<span class="season-badge" title="首次销售 ${item.firstSale}，在所选区间内覆盖不足">首销 ${item.firstSale.slice(5)}</span>`
+          : "";
+        const action = filters.showHidden
+          ? `<button type="button" class="season-hide-btn" data-restore-key="${escapeHtml(item.key)}">恢复</button>`
+          : `<button type="button" class="season-hide-btn" data-hide-key="${escapeHtml(item.key)}">隐藏</button>`;
+        const diffText = item.verdict === "none" ? "—" : (item.ratio * 100).toFixed(1) + "%";
         return `<tr>
-          <td class="season-name"${colorStyle} title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</td>
+          <td class="season-name"${colorStyle} title="${escapeHtml(item.name)}">${escapeHtml(item.name)}${firstBadge}</td>
+          <td><span class="season-verdict ${verdictClass}"${verdictStyle}>${item.verdictText}</span></td>
           <td class="season-num">${formatInteger(item.springQty)}</td>
-          <td class="season-num">${item.springDaily.toFixed(2)}</td>
+          <td class="season-num" title="原口径（÷自然天数 ${view.calendar.springDays} 天）：${item.springDailyOld.toFixed(2)}">${item.springDaily.toFixed(2)}</td>
           <td class="season-num">${formatInteger(item.autumnQty)}</td>
-          <td class="season-num">${item.autumnDaily.toFixed(2)}</td>
-          <td class="season-num">${(item.ratio * 100).toFixed(1)}%</td>
-          <td><span class="season-verdict ${verdictClass}">${item.verdictText}</span></td>
+          <td class="season-num" title="原口径（÷自然天数 ${view.calendar.autumnDays} 天）：${item.autumnDailyOld.toFixed(2)}">${item.autumnDaily.toFixed(2)}</td>
+          <td class="season-num">${diffText}</td>
+          <td class="season-op">${action}</td>
         </tr>`;
       }).join("");
     }
 
-    function buildSeasonGapText(trend) {
+    function buildSeasonGapText(view) {
+      if (!view.start || !view.end) return "未选择区间";
       const parts = [];
-      if (trend.missingDecember) parts.push("12 月数据缺失");
-      (trend.partialMonths || []).forEach((item) => {
-        if (item.key.slice(5, 7) === "11" && trend.dateMax.slice(0, 7) === item.key) {
-          parts.push("11 月截至 " + Number(trend.dateMax.slice(8, 10)) + " 日");
+      if (view.coverage.missing.length) {
+        parts.push(view.coverage.missing.map((key) => Number(key.slice(5, 7)) + " 月无数据").join("、"));
+      }
+      if (view.coverage.partial.length) {
+        parts.push(view.coverage.partial.map((item) => item.key + " 仅覆盖 " + item.days + "/" + item.total + " 天").join("、"));
+      }
+      return parts.length ? parts.join("；") : "所选区间各月均有数据";
+    }
+
+    function renderSeasonWarningsHtml(view) {
+      if (!view.warnings.length) return "";
+      return view.warnings.map((text) => `<div>⚠ ${escapeHtml(text)}</div>`).join("");
+    }
+
+    // ---- 时间趋势图 ----
+    function getSeasonChartData(view, filters) {
+      const hidden = new Set(filters.hiddenKeys);
+      const granularity = filters.granularity === "monthly" ? "monthly" : "daily";
+      const bucketMap = new Map();
+      (view.rows || []).forEach((row) => {
+        const key = row.nameKey || normalizeText(row.productName);
+        if (hidden.has(key)) return;
+        const bucket = granularity === "monthly" ? row.date.slice(0, 7) : row.date;
+        bucketMap.set(bucket, (bucketMap.get(bucket) || 0) + row.qty);
+      });
+      const dates = [];
+      if (view.start && view.end) {
+        if (granularity === "monthly") {
+          const startDate = parseIsoDateValue(view.start);
+          const endDate = parseIsoDateValue(view.end);
+          let cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+          while (cursor <= endDate) {
+            dates.push(isoDateValue(cursor).slice(0, 7));
+            cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+          }
         } else {
-          parts.push(item.key + " 仅覆盖 " + item.days + "/" + item.total + " 天");
+          const cursor = parseIsoDateValue(view.start);
+          const endDate = parseIsoDateValue(view.end);
+          while (cursor <= endDate) {
+            dates.push(isoDateValue(cursor));
+            cursor.setDate(cursor.getDate() + 1);
+          }
+        }
+      }
+      const values = dates.map((key) => bucketMap.get(key) || 0);
+      return { dates: dates, values: values, granularity: granularity };
+    }
+
+    function niceCeil(value) {
+      if (value <= 0) return 10;
+      const exponent = Math.floor(Math.log10(value));
+      const fraction = value / Math.pow(10, exponent);
+      let niceFraction;
+      if (fraction <= 1) niceFraction = 1;
+      else if (fraction <= 2) niceFraction = 2;
+      else if (fraction <= 5) niceFraction = 5;
+      else niceFraction = 10;
+      return niceFraction * Math.pow(10, exponent);
+    }
+
+    function renderSeasonTrendSvg(dates, values, opts) {
+      const options = opts || {};
+      const hasData = dates.length > 0 && values.some((value) => value > 0);
+      if (!hasData) {
+        return '<div class="trend-product-empty">当前筛选条件下没有销量数据，试试调整门店、品类或时间区间。</div>';
+      }
+      const n = dates.length;
+      const granularity = options.granularity || "daily";
+      const showTrendLine = !!options.showTrendLine;
+      const trendValues = showTrendLine ? computeTrendValues(values, options.trendMethod || "linear") : [];
+      const padL = 64;
+      const padR = 28;
+      const padT = 20;
+      const padB = 50;
+      const minW = options.big ? 1100 : 700;
+      const maxW = options.big ? 2000 : 1600;
+      const step = granularity === "monthly" ? 46 : 26;
+      const W = Math.min(maxW, Math.max(minW, n * step + padL + padR));
+      const H = Math.round(W / (options.big ? 3.4 : 3.8));
+      const plotW = W - padL - padR;
+      const plotH = H - padT - padB;
+      const yMax = niceCeil(Math.max(1, ...values, ...trendValues));
+      const x = (i) => padL + (n <= 1 ? plotW / 2 : (i * plotW) / (n - 1));
+      const y = (value) => padT + plotH - (Math.max(0, value) / yMax) * plotH;
+
+      let gridHtml = "";
+      for (let t = 0; t <= 5; t += 1) {
+        const value = (yMax / 5) * t;
+        const yy = y(value);
+        gridHtml += `<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W - padR}" y2="${yy.toFixed(1)}" stroke="#ececec" stroke-width="1"/>`;
+        gridHtml += `<text x="${padL - 8}" y="${(yy + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#67717F">${formatInteger(value)}</text>`;
+      }
+
+      const xStep = Math.max(1, Math.ceil(n / 12));
+      let xLabelsHtml = "";
+      for (let i = 0; i < n; i += xStep) {
+        const xx = x(i);
+        const label = granularity === "monthly" ? dates[i] : dates[i].slice(5);
+        xLabelsHtml += `<text x="${xx.toFixed(1)}" y="${H - padB + 18}" text-anchor="middle" font-size="11" fill="#67717F">${label}</text>`;
+        xLabelsHtml += `<line x1="${xx.toFixed(1)}" y1="${padT + plotH}" x2="${xx.toFixed(1)}" y2="${padT + plotH + 4}" stroke="#C6D2E2" stroke-width="1"/>`;
+      }
+      xLabelsHtml += `<text x="${padL}" y="${H - 8}" text-anchor="start" font-size="11" fill="#1F2937">${dates[0]}</text>`;
+      xLabelsHtml += `<text x="${W - padR}" y="${H - 8}" text-anchor="end" font-size="11" fill="#1F2937">${dates[n - 1]}</text>`;
+
+      const points = values.map((value, i) => `${x(i).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
+      let linesHtml = `<polyline points="${points}" fill="none" stroke="${SEASON_TREND_COLOR}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.92"/>`;
+      if (n <= 62) {
+        values.forEach((value, i) => {
+          if (value > 0) linesHtml += `<circle cx="${x(i).toFixed(1)}" cy="${y(value).toFixed(1)}" r="2.4" fill="${SEASON_TREND_COLOR}" opacity="0.92"/>`;
+        });
+      }
+      if (showTrendLine && trendValues.length === n) {
+        const trendPoints = trendValues.map((value, i) => `${x(i).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
+        linesHtml += `<polyline points="${trendPoints}" fill="none" stroke="#67717F" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="7 4" opacity="0.75"/>`;
+      }
+
+      const axesHtml = `
+        <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="#C6D2E2" stroke-width="1"/>
+        <line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="#C6D2E2" stroke-width="1"/>
+        <text x="${padL - 44}" y="${padT + plotH / 2}" text-anchor="middle" font-size="11" fill="#67717F" transform="rotate(-90 ${padL - 44} ${padT + plotH / 2})">销量（件）</text>
+      `;
+
+      let overlayHtml = "";
+      if (n <= 400) {
+        const colW = plotW / Math.max(1, n);
+        const rx = Math.max(colW / 2, 6);
+        for (let i = 0; i < n; i += 1) {
+          overlayHtml += `<rect x="${(x(i) - rx).toFixed(1)}" y="${padT}" width="${(rx * 2).toFixed(1)}" height="${plotH}" fill="white" fill-opacity="0" pointer-events="all"><title>${dates[i]}：${formatInteger(values[i])} 件</title></rect>`;
+        }
+      }
+
+      return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="门店销量趋势折线图">
+        ${gridHtml}
+        ${axesHtml}
+        ${linesHtml}
+        ${xLabelsHtml}
+        ${overlayHtml}
+      </svg>`;
+    }
+
+    function renderSeasonChartAreaHtml(view, filters) {
+      const data = getSeasonChartData(view, filters);
+      const total = data.values.reduce((sum, value) => sum + value, 0);
+      let peakValue = 0;
+      let peakDate = "-";
+      data.values.forEach((value, i) => {
+        if (value > peakValue) { peakValue = value; peakDate = data.dates[i]; }
+      });
+      const isMonthly = data.granularity === "monthly";
+      const avg = data.dates.length ? total / data.dates.length : 0;
+      const svg = renderSeasonTrendSvg(data.dates, data.values, {
+        granularity: data.granularity,
+        showTrendLine: filters.showTrendLine,
+        trendMethod: filters.trendMethod,
+      });
+      const trendName = filters.trendMethod === "ma" ? "移动平均" : "线性回归";
+      const legend = `<div class="trend-legend">
+        <span class="trend-legend-item"><span class="trend-legend-swatch" style="background:${SEASON_TREND_COLOR}"></span>门店销量合计</span>
+        ${filters.showTrendLine ? `<span class="trend-legend-item"><span class="trend-legend-swatch trend-legend-swatch--dash" style="background:repeating-linear-gradient(90deg,#67717F 0 6px,transparent 6px 10px);"></span>趋势线（${trendName}）</span>` : ""}
+      </div>`;
+      return `
+        <div class="season-chart-head">
+          <div>
+            <div class="season-chart-title">销量时间趋势</div>
+            <div class="note">按${isMonthly ? "月" : "日"}汇总当前筛选（门店 / 品类 / 时间区间，不含已隐藏单品）的销量，点击图表可放大查看。</div>
+          </div>
+          <div class="season-chart-controls">
+            <label>粒度<select id="season-granularity">
+              <option value="daily"${data.granularity === "daily" ? " selected" : ""}>按日</option>
+              <option value="monthly"${data.granularity === "monthly" ? " selected" : ""}>按月</option>
+            </select></label>
+            <label class="season-check"><input type="checkbox" id="season-trend-toggle"${filters.showTrendLine ? " checked" : ""}>趋势线</label>
+            <label>算法<select id="season-trend-method"${filters.showTrendLine ? "" : " disabled"}>
+              <option value="linear"${filters.trendMethod === "linear" ? " selected" : ""}>线性回归</option>
+              <option value="ma"${filters.trendMethod === "ma" ? " selected" : ""}>移动平均</option>
+            </select></label>
+          </div>
+        </div>
+        <div class="trend-summary season-stats" style="margin-bottom:10px;">
+          <div class="trend-stat"><small>区间销量合计</small><strong>${formatInteger(total)}</strong></div>
+          <div class="trend-stat"><small>${isMonthly ? "单月峰值" : "单日峰值"}</small><strong>${formatInteger(peakValue)}</strong><div class="note">${escapeHtml(peakDate)}</div></div>
+          <div class="trend-stat"><small>${isMonthly ? "月均销量" : "日均销量"}</small><strong>${avg.toFixed(1)}</strong><div class="note">${data.dates.length} ${isMonthly ? "个月" : "天"}</div></div>
+        </div>
+        <div class="trend-chart-wrap" data-season-chart="1" title="点击放大查看">${svg}<div class="trend-chart-zoom-hint">点击图表可放大查看</div></div>
+        ${legend}
+      `;
+    }
+
+    function ensureSeasonChartModal() {
+      let modal = document.getElementById("season-chart-modal");
+      if (modal) return modal;
+      modal = document.createElement("div");
+      modal.id = "season-chart-modal";
+      modal.className = "trend-modal";
+      modal.innerHTML = `<div class="trend-modal-back"></div>
+        <div class="trend-modal-box">
+          <div class="trend-modal-head"><strong>门店销量时间趋势</strong><button type="button" class="ghost" id="season-chart-modal-close">关闭</button></div>
+          <div class="trend-modal-body" id="season-chart-modal-body"></div>
+        </div>`;
+      document.body.appendChild(modal);
+      modal.addEventListener("click", (event) => {
+        if (event.target.closest(".trend-modal-back") || event.target.id === "season-chart-modal-close") {
+          modal.classList.remove("open");
         }
       });
-      return parts.length ? parts.join("；") : "各月数据完整";
+      return modal;
+    }
+
+    function openSeasonChartModal() {
+      const model = modelCache.model;
+      if (!model || !model.salesTrendModel) return;
+      const filters = getSeasonFilters(model.salesTrendModel);
+      const view = buildSeasonView(model.salesTrendModel, filters);
+      const data = getSeasonChartData(view, filters);
+      const svg = renderSeasonTrendSvg(data.dates, data.values, {
+        granularity: data.granularity,
+        showTrendLine: filters.showTrendLine,
+        trendMethod: filters.trendMethod,
+        big: true,
+      });
+      const modal = ensureSeasonChartModal();
+      document.getElementById("season-chart-modal-body").innerHTML = `<div class="trend-chart-wrap trend-chart-wrap--modal">${svg}</div>`;
+      modal.classList.add("open");
     }
 
     function renderSalesTrendTab(model) {
@@ -7167,10 +7830,13 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         return renderSalesTrendEmpty();
       }
       const filters = getSeasonFilters(trend);
-      const list = getSeasonViewProducts(trend, filters);
-      const gapText = buildSeasonGapText(trend);
+      const view = buildSeasonView(trend, filters);
+      const list = getSeasonViewProducts(view, filters);
       const storeOptions = ['<option value="">全部门店（合计）</option>'].concat(
         trend.storeNames.map((name) => `<option value="${escapeHtml(name)}"${filters.store === name ? " selected" : ""}>${escapeHtml(name)}</option>`)
+      ).join("");
+      const categoryOptions = ['<option value="">全部品类</option>'].concat(
+        trend.categoryOptions.map((name) => `<option value="${escapeHtml(name)}"${filters.category === name ? " selected" : ""}>${escapeHtml(name)}</option>`)
       ).join("");
       const sortOptions = [
         ["total", "总销量优先"],
@@ -7178,6 +7844,9 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         ["autumnDaily", "秋冬日均优先"],
         ["diff", "季节差异优先"],
       ].map((option) => `<option value="${option[0]}"${filters.sort === option[0] ? " selected" : ""}>${option[1]}</option>`).join("");
+      const startValue = filters.startDate || trend.dateMin;
+      const endValue = filters.endDate || trend.dateMax;
+      const hiddenCount = filters.hiddenKeys.length;
 
       return `
         <div class="panel trend-panel">
@@ -7191,35 +7860,49 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
 
           <div class="season-note">
             <div><b>季节划分</b>春夏 3–8 月；秋冬 9、10、11、12、1、2 月。</div>
-            <div><b>对比口径</b>春夏：${trend.springRangeText}（${trend.springDays} 天）；秋冬：${trend.autumnRangeText}（${trend.autumnDays} 天）。按「实际覆盖天数」计算日均销量（销量 ÷ 天数），避免月份天数或未覆盖整月造成偏差。</div>
-            <div><b>数据缺口</b><span class="is-warn">${gapText}</span>，秋冬覆盖不足 6 个整月，结论按现有数据计算。</div>
-            <div><b>判定规则</b>赠品与小样不计入销量；|春夏日均 − 秋冬日均| ÷ 两者较大值 &lt; 15% 记为「均匀」，否则判给日均更高的一方。</div>
-            <div><b>颜色</b>商品名称：春夏更强偏橙、秋冬更强偏蓝，颜色越深差异越大，接近常规文字色表示两季接近。</div>
+            <div><b>日均归一</b>日均 = 该季销量 ÷ 该季「店天数」（各门店从在本数据里的首次销售日起、落在该季区间内的自然天数之和），等价于平均每家营业门店每天卖多少，剔除门店数量变化的影响；表内同时给出原口径（÷自然天数）便于对比。</div>
+            <div><b>当前区间</b><span id="season-range">${view.start} ~ ${view.end}</span>；<span id="season-gap">${buildSeasonGapText(view)}</span>。全量数据 2026-01-01 ~ 2026-11-15（12 月无数据、11 月截至 15 日）。</div>
+            <div><b>判定规则</b>赠品与小样不计入；品类取《店铺销售》「商品类目」；|春夏日均 − 秋冬日均| ÷ 两者较大值 &lt; 15% 记为「均匀」，否则判给较高的一方。</div>
+            <div><b>单品提示</b>未做逐品归一；若单品首次销售日晚于所选区间起点，名称后标注「首销 M-DD」，表示该单品在区间内覆盖不足。</div>
+            <div><b>颜色</b>商品名称与季节结论使用同一条五段连续色阶：红（最强春夏）→ 橙（偏春夏）→ 绿（均匀）→ 蓝（偏秋冬）→ 紫（最强秋冬），同一色相内颜色越深表示差异越大。</div>
+            <div class="season-warn" id="season-warn">${renderSeasonWarningsHtml(view)}</div>
           </div>
 
-          <div class="trend-summary" id="season-summary">${renderSeasonSummaryHtml(list)}</div>
+          <div class="season-section" id="season-chart-area">${renderSeasonChartAreaHtml(view, filters)}</div>
+
+          <div class="trend-summary season-stats" id="season-summary">${renderSeasonSummaryHtml(list, view)}</div>
+
+          <div class="season-compare-wrap" id="season-compare">${renderSeasonCompareHtml(list, view)}</div>
+
+          <div class="season-legend-wrap">${renderSeasonLegendHtml()}</div>
 
           <div class="season-toolbar">
             <label>门店<select id="season-store">${storeOptions}</select></label>
+            <label>品类<select id="season-category">${categoryOptions}</select></label>
+            <label>开始日期<input id="season-start" type="date" min="${trend.dateMin}" max="${trend.dateMax}" value="${startValue}"></label>
+            <label>结束日期<input id="season-end" type="date" min="${trend.dateMin}" max="${trend.dateMax}" value="${endValue}"></label>
+            <button type="button" class="ghost season-reset-btn" id="season-reset-dates">重置区间</button>
             <label>商品搜索<input id="season-search" type="search" placeholder="输入商品名称关键词" value="${escapeHtml(filters.search)}"></label>
             <label>排序<select id="season-sort">${sortOptions}</select></label>
-            <span class="note" style="margin-left:auto;">共 <b id="season-count">${list.length}</b> 个单品</span>
+            <span class="note season-count-note">当前 <b id="season-count">${list.length}</b> 个单品</span>
+            <button type="button" class="ghost season-hidden-btn${filters.showHidden ? " is-active" : ""}" id="season-hidden-toggle">${filters.showHidden ? "返回全部单品" : "已隐藏 " + hiddenCount}</button>
           </div>
 
           <div class="table-wrap">
             <table class="season-table">
               <thead>
                 <tr>
-                  <th style="width:38%">商品名称</th>
+                  <th style="width:34%">商品名称</th>
+                  <th style="width:110px;">季节结论</th>
                   <th class="season-num">春夏销量</th>
-                  <th class="season-num">春夏日均</th>
+                  <th class="season-num">春夏日均<span class="season-th-note">÷店天数</span></th>
                   <th class="season-num">秋冬销量</th>
-                  <th class="season-num">秋冬日均</th>
+                  <th class="season-num">秋冬日均<span class="season-th-note">÷店天数</span></th>
                   <th class="season-num">日均差异</th>
-                  <th style="width:130px;">季节结论</th>
+                  <th style="width:64px;">操作</th>
                 </tr>
               </thead>
-              <tbody id="season-body">${renderSeasonRowsHtml(list)}</tbody>
+              <tbody id="season-body">${renderSeasonRowsHtml(list, view, filters)}</tbody>
             </table>
           </div>
         </div>
@@ -7248,14 +7931,39 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       const trend = model && model.salesTrendModel;
       if (!trend) return;
       const filters = getSeasonFilters(trend);
-      const list = getSeasonViewProducts(trend, filters);
-      const body = document.getElementById("season-body");
+      const view = buildSeasonView(trend, filters);
+      const list = getSeasonViewProducts(view, filters);
+
+      const chartArea = document.getElementById("season-chart-area");
+      if (chartArea) chartArea.innerHTML = renderSeasonChartAreaHtml(view, filters);
       const summary = document.getElementById("season-summary");
+      if (summary) summary.innerHTML = renderSeasonSummaryHtml(list, view);
+      const compare = document.getElementById("season-compare");
+      if (compare) compare.innerHTML = renderSeasonCompareHtml(list, view);
+      const range = document.getElementById("season-range");
+      if (range) range.textContent = view.start + " ~ " + view.end;
+      const gap = document.getElementById("season-gap");
+      if (gap) gap.textContent = buildSeasonGapText(view);
+      const warn = document.getElementById("season-warn");
+      if (warn) warn.innerHTML = renderSeasonWarningsHtml(view);
+      const body = document.getElementById("season-body");
+      if (body) body.innerHTML = renderSeasonRowsHtml(list, view, filters);
       const count = document.getElementById("season-count");
-      if (body) body.innerHTML = renderSeasonRowsHtml(list);
-      if (summary) summary.innerHTML = renderSeasonSummaryHtml(list);
       if (count) count.textContent = String(list.length);
+      const hiddenToggle = document.getElementById("season-hidden-toggle");
+      if (hiddenToggle) {
+        hiddenToggle.textContent = filters.showHidden ? "返回全部单品" : "已隐藏 " + filters.hiddenKeys.length;
+        hiddenToggle.classList.toggle("is-active", filters.showHidden);
+      }
       cacheAppState();
+    }
+
+    function toggleSeasonHidden(key, hidden) {
+      const filters = state.salesTrendFilters;
+      const set = new Set(filters.hiddenKeys);
+      if (hidden) set.add(key);
+      else set.delete(key);
+      filters.hiddenKeys = Array.from(set);
     }
 
     function bindTrendInteractions() {
@@ -7267,6 +7975,50 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       if (storeEl) {
         storeEl.addEventListener("change", () => {
           filters.store = storeEl.value;
+          updateSeasonView();
+        });
+      }
+
+      const categoryEl = document.getElementById("season-category");
+      if (categoryEl) {
+        categoryEl.addEventListener("change", () => {
+          filters.category = categoryEl.value;
+          updateSeasonView();
+        });
+      }
+
+      const startEl = document.getElementById("season-start");
+      if (startEl) {
+        startEl.addEventListener("change", () => {
+          filters.startDate = startEl.value || "";
+          if (filters.startDate && filters.endDate && filters.startDate > filters.endDate) {
+            filters.endDate = filters.startDate;
+            const endEl = document.getElementById("season-end");
+            if (endEl) endEl.value = filters.endDate;
+          }
+          updateSeasonView();
+        });
+      }
+
+      const endEl = document.getElementById("season-end");
+      if (endEl) {
+        endEl.addEventListener("change", () => {
+          filters.endDate = endEl.value || "";
+          if (filters.startDate && filters.endDate && filters.startDate > filters.endDate) {
+            filters.startDate = filters.endDate;
+            if (startEl) startEl.value = filters.startDate;
+          }
+          updateSeasonView();
+        });
+      }
+
+      const resetEl = document.getElementById("season-reset-dates");
+      if (resetEl) {
+        resetEl.addEventListener("click", () => {
+          filters.startDate = "";
+          filters.endDate = "";
+          if (startEl) startEl.value = model.salesTrendModel.dateMin;
+          if (endEl) endEl.value = model.salesTrendModel.dateMax;
           updateSeasonView();
         });
       }
@@ -7284,6 +8036,52 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         sortEl.addEventListener("change", () => {
           filters.sort = sortEl.value;
           updateSeasonView();
+        });
+      }
+
+      const hiddenToggle = document.getElementById("season-hidden-toggle");
+      if (hiddenToggle) {
+        hiddenToggle.addEventListener("click", () => {
+          filters.showHidden = !filters.showHidden;
+          updateSeasonView();
+        });
+      }
+
+      const body = document.getElementById("season-body");
+      if (body) {
+        body.addEventListener("click", (event) => {
+          const hideBtn = event.target.closest("[data-hide-key]");
+          if (hideBtn) {
+            toggleSeasonHidden(hideBtn.dataset.hideKey, true);
+            updateSeasonView();
+            return;
+          }
+          const restoreBtn = event.target.closest("[data-restore-key]");
+          if (restoreBtn) {
+            toggleSeasonHidden(restoreBtn.dataset.restoreKey, false);
+            updateSeasonView();
+          }
+        });
+      }
+
+      const chartArea = document.getElementById("season-chart-area");
+      if (chartArea) {
+        chartArea.addEventListener("change", (event) => {
+          if (event.target.id === "season-granularity") {
+            filters.granularity = event.target.value;
+            updateSeasonView();
+          } else if (event.target.id === "season-trend-toggle") {
+            filters.showTrendLine = event.target.checked;
+            updateSeasonView();
+          } else if (event.target.id === "season-trend-method") {
+            filters.trendMethod = event.target.value;
+            updateSeasonView();
+          }
+        });
+        chartArea.addEventListener("click", (event) => {
+          if (event.target.closest(".trend-chart-wrap") && !event.target.closest("select")) {
+            openSeasonChartModal();
+          }
         });
       }
     }
@@ -7626,6 +8424,19 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
             loading: false,
             error: "",
           };
+          state.salesTrendFilters = {
+            store: "",
+            category: "",
+            search: "",
+            sort: "total",
+            startDate: "",
+            endDate: "",
+            hiddenKeys: [],
+            granularity: "daily",
+            showTrendLine: false,
+            trendMethod: "linear",
+            showHidden: false,
+          };
         } else {
           const fileData = await readRowsFromFile(file, cfg.preferredSheets);
           const parsed = cfg.parser(fileData.rows);
@@ -7709,8 +8520,19 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       state.matrixFocusKey = "";
       state.matrixExpandedCells = {};
       state.matrixFilters = { category: "全部", isRegularPrice: "全部", productionNote: "全部", kpiFilter: "all" };
-      state.salesTrendFilters = { selectedKeys: [], startDate: "", endDate: "", search: "", mode: "split", granularity: "daily", showTrendLine: false, trendMethod: "linear", category: "全部" };
-      // 注: granularity 支持 daily / monthly / quarterly
+      state.salesTrendFilters = {
+        store: "",
+        category: "",
+        search: "",
+        sort: "total",
+        startDate: "",
+        endDate: "",
+        hiddenKeys: [],
+        granularity: "daily",
+        showTrendLine: false,
+        trendMethod: "linear",
+        showHidden: false,
+      };
       setBatchNote("");
       render();
     }
