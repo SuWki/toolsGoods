@@ -1286,7 +1286,7 @@ pointer-events: none;
       color: #fff;
     }
 
-    /* ===== 销售趋势 ===== */
+    /* ===== 门店单品季节分析 ===== */
     .trend-panel {
       display: grid;
       gap: 16px;
@@ -1442,6 +1442,103 @@ pointer-events: none;
       width: 22px;
       height: 3px;
       border-radius: 2px;
+    }
+
+    .season-note {
+      display: grid;
+      gap: 6px;
+      border: 1px solid rgba(9, 105, 218, .18);
+      background: rgba(9, 105, 218, .05);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: var(--muted);
+      margin: 12px 0;
+    }
+
+    .season-note b {
+      color: var(--text);
+      margin-right: 6px;
+    }
+
+    .season-note .is-warn {
+      color: #B45309;
+      font-weight: 600;
+    }
+
+    .season-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 12px;
+      padding: 12px 0 10px;
+    }
+
+    .season-toolbar label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .season-toolbar select,
+    .season-toolbar input {
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid rgba(223, 229, 238, .92);
+      background: #fff;
+      color: var(--text);
+      padding: 0 10px;
+      font: inherit;
+      min-width: 168px;
+    }
+
+    .season-toolbar input {
+      min-width: 220px;
+    }
+
+    .season-table th.season-num,
+    .season-table td.season-num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .season-table td.season-name {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      font-weight: 600;
+      line-height: 1.45;
+    }
+
+    .season-verdict {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 9px;
+      font-size: 12px;
+      border: 1px solid rgba(223, 229, 238, .92);
+      color: var(--muted);
+      background: rgba(255, 255, 255, .7);
+    }
+
+    .season-verdict.is-spring {
+      color: #B45309;
+      border-color: rgba(234, 88, 12, .28);
+      background: rgba(234, 88, 12, .08);
+    }
+
+    .season-verdict.is-autumn {
+      color: #1D4ED8;
+      border-color: rgba(29, 78, 216, .24);
+      background: rgba(29, 78, 216, .07);
+    }
+
+    .season-empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 28px 12px;
     }
 
     .trend-summary {
@@ -2002,10 +2099,10 @@ pointer-events: none;
       },
       {
         key: "salesTrend",
-        label: "每日销量趋势",
-        hint: "各商品每天线上 / 线下销售数量，用于趋势对比",
-        preferredSheets: [],
-        parser: parseSalesTrendRows,
+        label: "门店单品季节分析",
+        hint: "门店销售明细（店铺销售），按单品对比春夏 / 秋冬日均销量",
+        preferredSheets: ["店铺销售"],
+        parser: parseStoreSalesTrendRows,
       },
     ];
 
@@ -2049,15 +2146,9 @@ matrixBigCell: null, // 当前展开的大宫格 {cellKey, cellData}
       matrixHistoryNodes: [], // 所有历史时间节点标签列表
       historyCompareNodes: ["", "", ""], // 用户选择对比的三个时间节点
       salesTrendFilters: {
-        selectedKeys: [], // 选中的商品 key，空表示未选(渲染时自动取全部)
-        startDate: "",
-        endDate: "",
-        search: "", // 商品搜索文本
-        mode: "split", // split=分商品对比, merge=合并求和
-        granularity: "daily", // daily=每日, monthly=按月, quarterly=按季度
-        showTrendLine: false, // 是否叠加趋势线
-        trendMethod: "linear", // linear=线性回归, ma=移动平均
-        category: "全部", // 分类筛选（来自商品资料G列）
+        store: "", // 门店筛选，空=全部门店合计
+        search: "", // 商品名称搜索
+        sort: "total", // total=总销量, springDaily=春夏日均, autumnDaily=秋冬日均, diff=差异度
       },
       kttImportData: [], // 快团团导入解析结果 [{importNo, name, phone, address, csNote, productName, qty}]
     };
@@ -2181,10 +2272,11 @@ sources: Object.fromEntries(
           state.historyCompareNodes = payload.historyCompareNodes;
         }
         if (payload && payload.salesTrendFilters && typeof payload.salesTrendFilters === "object") {
+          const savedFilters = payload.salesTrendFilters;
           state.salesTrendFilters = {
-            ...state.salesTrendFilters,
-            ...payload.salesTrendFilters,
-            selectedKeys: Array.isArray(payload.salesTrendFilters.selectedKeys) ? payload.salesTrendFilters.selectedKeys : [],
+            store: typeof savedFilters.store === "string" ? savedFilters.store : "",
+            search: typeof savedFilters.search === "string" ? savedFilters.search : "",
+            sort: ["total", "springDaily", "autumnDaily", "diff"].indexOf(savedFilters.sort) !== -1 ? savedFilters.sort : "total",
           };
         }
         if (payload && payload.activeTab) {
@@ -3346,7 +3438,7 @@ sources: Object.fromEntries(
       return list.find((v) => /^69\d{11}$/.test(v)) || list.find((v) => /^\d{13}$/.test(v)) || list[0] || "";
     }
 
-    // 销售趋势专用：统一用 69 码做 key，保证出库单(线上)和门店单(线下)能按同一商品对齐
+    // 旧版趋势文件解析（已停用，保留以兼容历史缓存）
     function makeTrendKey(row) {
       const barcode = pickTrendBarcode(row.barcode, row.sku, row.specCode, row.productCode);
       if (barcode) return barcode;
@@ -3444,170 +3536,72 @@ sources: Object.fromEntries(
       });
     }
 
+    // 解析门店销售明细（《店铺销售》表）：一行一条订单商品，按商品名称合并规格
+    function parseStoreSalesTrendRows(rows) {
+      const cleaned = cleanSheetRows(rows || []);
+      if (!cleaned.length) return [];
+      let headerRowIndex = -1;
+      let map = null;
+      for (let i = 0; i < Math.min(5, cleaned.length); i += 1) {
+        const candidate = headerIndex(cleaned[i]);
+        if (candidate.has(normalizeText("商品名称")) &&
+          (candidate.has(normalizeText("归属店铺")) || candidate.has(normalizeText("店铺")) || candidate.has(normalizeText("门店")))) {
+          headerRowIndex = i;
+          map = candidate;
+          break;
+        }
+      }
+      if (headerRowIndex < 0) return [];
+
+      const items = [];
+      for (let i = headerRowIndex + 1; i < cleaned.length; i += 1) {
+        const row = cleaned[i];
+        const status = normalizeText(getCell(row, map, ["订单商品状态", "商品状态", "订单状态"]));
+        if (status === "关闭" || status === "取消" || status === "退款成功" || status === "已退款" || status === "交易关闭") continue;
+        const rawName = String(getCell(row, map, ["商品名称", "商品"]) || "").replace(/\s+/g, " ").trim();
+        if (!rawName) continue;
+        const nameKey = normalizeText(rawName);
+        if (!nameKey) continue;
+        const giftFlag = normalizeText(getCell(row, map, ["小样/赠品", "小样赠品", "赠品/小样", "赠品小样"]));
+        if (giftFlag === "赠品" || giftFlag === "小样") continue;
+        const qty = parseNumber(getCell(row, map, ["商品数量", "数量", "销量", "销售数量"]), 0);
+        if (!(qty > 0)) continue;
+        const date = parseSeasonDate(getCell(row, map, ["日期", "销售日期", "下单日期", "订单日期"]));
+        if (!date) continue;
+        const store = normalizeText(getCell(row, map, ["归属店铺", "店铺", "门店", "门店名称"])) || "未归属门店";
+        items.push({ productName: rawName, nameKey: nameKey, store: store, qty: qty, date: date });
+      }
+      return items;
+    }
+
+    function parseSeasonDate(value) {
+      if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        return value.getFullYear() + "-" + String(value.getMonth() + 1).padStart(2, "0") + "-" + String(value.getDate()).padStart(2, "0");
+      }
+      if (typeof value === "number" && value > 20000 && value < 70000) {
+        const serial = new Date(Date.UTC(1899, 11, 30));
+        serial.setUTCDate(serial.getUTCDate() + Math.floor(value));
+        return serial.toISOString().slice(0, 10);
+      }
+      const text = String(value == null ? "" : value).trim();
+      if (!text) return "";
+      let match = /^(\d{4})(\d{2})(\d{2})$/.exec(text);
+      if (match) return match[1] + "-" + match[2] + "-" + match[3];
+      match = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/.exec(text);
+      if (match) {
+        return match[1] + "-" + String(Number(match[2])).padStart(2, "0") + "-" + String(Number(match[3])).padStart(2, "0");
+      }
+      return "";
+    }
+
     async function parseSalesTrendRowsFromFile(file) {
-      const lower = file.name.toLowerCase();
-      // CSV：单表，主线程通用解析
-      if (lower.endsWith(".csv")) {
-        const text = await file.text();
-        const rows = parseCsvText(text);
-        return { sheetName: file.name, rows: parseSalesTrendRows(rows) };
+      if (!window.XLSX) throw new Error("Excel 解析库未加载，请刷新页面后重试。");
+      const fileData = await readRowsFromFile(file, ["店铺销售"]);
+      const parsed = parseStoreSalesTrendRows(fileData.rows);
+      if (!parsed.length) {
+        throw new Error("未解析到门店销售数据，请确认文件包含《店铺销售》工作表，且含日期、商品名称、归属店铺、商品数量列。");
       }
-      if (!window.XLSX) {
-        throw new Error("Excel 解析库没有加载成功，请刷新页面后重试。");
-      }
-      const buffer = await file.arrayBuffer();
-      // 让「解析中」状态先渲染出来，再开始解析
-      await new Promise((resolve) => setTimeout(resolve, 30));
-
-      // 优先用 Web Worker 在后台完成全部解析（读取+聚合），避免大文件阻塞 UI
-      // Worker 只传回聚合后的 rows，避免大对象 postMessage 超时
-      const workerResult = await parseSalesTrendWorker(buffer);
-      if (workerResult.directResult) {
-        // Worker 成功完成全部解析，直接返回结果
-        return workerResult.directResult;
-      }
-
-      // Worker 失败，回退到主线程解析
-      const { sheetNames: wbSheetNames, sheets: wbSheets } = workerResult;
-
-      // ===== 新数据源结构（趋势图数据源 0630.xlsx）=====
-      // 子表1 商品资料：商品主档，用条码关联品名
-      // 子表2 线上销售：I列(8)条码、AX列(49)日期、J列(9)数量
-      // 子表3 线上退货：L列(11)条码、AY列(50)日期、M列(12)数量
-      // 子表4 线下销售：O列(14)规格条码、AY列(50)日期、T列(19)数量
-      // 线上净销售 = 线上销售 - 线上退货；线下净销售 = 线下销售
-
-      // 商品资料：条码 -> 品名
-      const productMap = new Map();
-
-      // 按 商品key+日期 聚合
-      const agg = new Map();
-      const addRow = (key, info, date, onlineQty, offlineQty) => {
-        if (!key || !date) return;
-        const k = key + "__" + date;
-        let entry = agg.get(k);
-        if (!entry) {
-          entry = { key, productName: info.productName || "", barcode: info.barcode || "", sku: info.sku || "", spec: info.spec || "", category: info.category || "", date, onlineQty: 0, offlineQty: 0 };
-          agg.set(k, entry);
-        }
-        entry.onlineQty += onlineQty;
-        entry.offlineQty += offlineQty;
-        if (!entry.productName && info.productName) entry.productName = info.productName;
-        if (!entry.barcode && info.barcode) entry.barcode = info.barcode;
-        if (!entry.sku && info.sku) entry.sku = info.sku;
-        if (!entry.category && info.category) entry.category = info.category;
-      };
-
-      const usedSheets = [];
-
-      for (const sheetName of wbSheetNames) {
-        const rows = cleanSheetRows(wbSheets[sheetName] || []);
-        if (!rows.length) continue;
-        const nameNorm = normalizeText(sheetName);
-
-        // 子表1：商品资料 —— 建立条码→品名映射
-        if (nameNorm.includes("商品资料") || nameNorm.includes("商品信息") || nameNorm.includes("产品资料")) {
-          // 商品资料表可能有标题行/时间戳行，真正表头不一定在第0行
-          // 找到包含"条码"的那一行作为表头
-          let headerRowIdx = 0;
-          let map = headerIndex(rows[0] || []);
-          if (!map.has(normalizeText("条码"))) {
-            for (let h = 1; h < Math.min(5, rows.length); h++) {
-              const testMap = headerIndex(rows[h] || []);
-              if (testMap.has(normalizeText("条码"))) {
-                headerRowIdx = h;
-                map = testMap;
-                break;
-              }
-            }
-          }
-          for (let i = headerRowIdx + 1; i < rows.length; i++) {
-            const row = rows[i];
-            const barcode = pickTrendBarcode(getCell(row, map, ["条码", "商品条码", "规格条码", "69码"]));
-            const productName = getCell(row, map, ["产品名称", "商品名称", "货品名称", "品名"]);
-            const sku = getCell(row, map, ["货号", "商品编码", "规格编码", "SKU"]);
-            const category = getCell(row, map, ["分类", "商品类目", "一级分类", "类别", "商品分类", "类目"]);
-            if (barcode) {
-              productMap.set(barcode, { productName: productName || "", sku: sku || "", category: category || "" });
-            }
-          }
-          usedSheets.push(sheetName);
-          continue;
-        }
-
-        // 子表2：线上销售 —— I列(8)条码、AX列(49)日期、J列(9)数量
-        if (nameNorm.includes("线上销售") || nameNorm.includes("线上销量")) {
-          for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            const barcode = String(row[8] != null ? row[8] : "").trim();
-            const date = parseTrendDate(row[49]);
-            const qty = parseNumber(row[9], 0);
-            if (!barcode || !date || qty <= 0) continue;
-            const key = barcode;
-            const pInfo = productMap.get(barcode) || {};
-            // 商品资料表查到的品名优先，否则用本表 col[6] 货品名称
-            const fallbackName = String(row[6] != null ? row[6] : "").trim();
-            addRow(key, { productName: pInfo.productName || fallbackName || "", barcode, sku: pInfo.sku || "", category: pInfo.category || "" }, date, qty, 0);
-          }
-          usedSheets.push(sheetName);
-          continue;
-        }
-
-        // 子表3：线上退货 —— L列(11)条码、AY列(50)日期、M列(12)数量
-        if (nameNorm.includes("线上退货") || nameNorm.includes("退货")) {
-          for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            const barcode = String(row[11] != null ? row[11] : "").trim();
-            const date = parseTrendDate(row[50]);
-            const qty = parseNumber(row[12], 0);
-            if (!barcode || !date || qty <= 0) continue;
-            const key = barcode;
-            const pInfo = productMap.get(barcode) || {};
-            const fallbackName = String(row[9] != null ? row[9] : "").trim();
-            // 退货扣减线上销量
-            addRow(key, { productName: pInfo.productName || fallbackName || "", barcode, sku: pInfo.sku || "", category: pInfo.category || "" }, date, -qty, 0);
-          }
-          usedSheets.push(sheetName);
-          continue;
-        }
-
-        // 子表4：线下销售 —— O列(14)规格条码、AY列(50)日期、T列(19)数量
-        if (nameNorm.includes("线下销售") || nameNorm.includes("线下销量") || nameNorm.includes("门店")) {
-          for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            const barcode = pickTrendBarcode(String(row[14] != null ? row[14] : "").trim());
-            const date = parseTrendDate(row[50]);
-            const qty = parseNumber(row[19], 0);
-            if (!barcode || !date || qty <= 0) continue;
-            // 跳过已关闭/取消/退款的订单
-            const status = String(row[2] != null ? row[2] : "").trim();
-            if (status === "关闭" || status === "取消" || status === "退款成功") continue;
-            const key = barcode;
-            const pInfo = productMap.get(barcode) || {};
-            const fallbackName = String(row[3] != null ? row[3] : "").trim();
-            addRow(key, { productName: pInfo.productName || fallbackName || "", barcode, sku: pInfo.sku || "", category: pInfo.category || "" }, date, 0, qty);
-          }
-          usedSheets.push(sheetName);
-          continue;
-        }
-      }
-
-      let rows = Array.from(agg.values());
-      // 线上净销售 = 销售 - 退货，如果退货>销售则净值为负，限制为0
-      rows.forEach((r) => {
-        if (r.onlineQty < 0) r.onlineQty = 0;
-        if (r.offlineQty < 0) r.offlineQty = 0;
-      });
-      // 过滤掉全部为0的记录
-      rows = rows.filter((r) => r.onlineQty > 0 || r.offlineQty > 0);
-
-      if (!rows.length) {
-        // 未识别到新结构子表时，回退到旧解析逻辑
-        const fd = await readRowsFromFile(file);
-        rows = parseSalesTrendRows(fd.rows);
-        return { sheetName: fd.sheetName, rows };
-      }
-      return { sheetName: usedSheets.length ? usedSheets.join(" + ") : file.name, rows };
+      return { sheetName: fileData.sheetName, rows: parsed };
     }
 
     function parseInventorySalesRows(rows) {
@@ -4483,57 +4477,139 @@ inventoryQty,
 
     // 聚合每日销量趋势数据：按商品 key 聚合，每商品保留按日期的线上/线下销量
     // productRows 用于通过 key 关联商品资料的 category（G列）字段
-    function buildSalesTrendModel(rows, productRows) {
-      // 双重索引：product 源 key 走 normalizeText，salesTrend xlsx 路径 key 是 raw trim，
-      // 用 normalizeText(barcode) 兜底匹配，保证两边 key 格式不一致也能关联上 category
-      const catMap = new Map();
-      (productRows || []).forEach((r) => {
-        if (!r.category) return;
-        if (r.key) catMap.set(r.key, r.category);
-        if (r.barcode) catMap.set(normalizeText(r.barcode), r.category);
-      });
-      const lookupCat = (row) => row.category || catMap.get(row.key) || (row.barcode ? catMap.get(normalizeText(row.barcode)) : "") || "";
-      const productMap = new Map();
-      const dateSet = new Set();
-      (rows || []).forEach((row) => {
-        if (!row.key || !row.date) return;
-        dateSet.add(row.date);
-        let entry = productMap.get(row.key);
-        if (!entry) {
-          entry = {
-            key: row.key,
-            productName: row.productName || "",
-            barcode: row.barcode || "",
-            sku: row.sku || "",
-            spec: row.spec || "",
-            category: lookupCat(row),
-            dates: {},
-            totalOnline: 0,
-            totalOffline: 0,
-          };
-          productMap.set(row.key, entry);
+    /* ===== 门店单品季节分析 ===== */
+    const SEASON_EVEN_THRESHOLD = 0.15;
+
+    function isSpringMonth(month) {
+      return month >= 3 && month <= 8;
+    }
+
+    function buildSeasonCalendar(dateMin, dateMax) {
+      const result = {
+        springDays: 0,
+        autumnDays: 0,
+        springSegments: [],
+        autumnSegments: [],
+      };
+      if (!dateMin || !dateMax) return result;
+      const start = new Date(dateMin + "T00:00:00");
+      const end = new Date(dateMax + "T00:00:00");
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return result;
+      const isoOf = (date) => date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+      const cursor = new Date(start.getTime());
+      let segment = null;
+      while (cursor <= end) {
+        const spring = isSpringMonth(cursor.getMonth() + 1);
+        const iso = isoOf(cursor);
+        if (spring) result.springDays += 1;
+        else result.autumnDays += 1;
+        if (!segment || segment.spring !== spring) {
+          if (segment) (segment.spring ? result.springSegments : result.autumnSegments).push(segment);
+          segment = { spring: spring, start: iso, end: iso };
+        } else {
+          segment.end = iso;
         }
-        const slot = entry.dates[row.date] || { online: 0, offline: 0 };
-        slot.online += row.onlineQty || 0;
-        slot.offline += row.offlineQty || 0;
-        entry.dates[row.date] = slot;
-        entry.totalOnline += row.onlineQty || 0;
-        entry.totalOffline += row.offlineQty || 0;
-        if (!entry.productName && row.productName) entry.productName = row.productName;
-        if (!entry.barcode && row.barcode) entry.barcode = row.barcode;
-        if (!entry.sku && row.sku) entry.sku = row.sku;
-        if (!entry.category) { const c = lookupCat(row); if (c) entry.category = c; }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      if (segment) (segment.spring ? result.springSegments : result.autumnSegments).push(segment);
+      return result;
+    }
+
+    function seasonRangesText(segments) {
+      return (segments || []).map((item) => (item.start === item.end ? item.start : item.start + " ~ " + item.end)).join("、");
+    }
+
+    function aggregateSeasonProducts(rows, store, springDays, autumnDays) {
+      const map = new Map();
+      (rows || []).forEach((row) => {
+        if (store && row.store !== store) return;
+        const key = row.nameKey || normalizeText(row.productName);
+        let item = map.get(key);
+        if (!item) {
+          item = { key: key, name: row.productName, springQty: 0, autumnQty: 0, total: 0 };
+          map.set(key, item);
+        }
+        if (isSpringMonth(Number(row.date.slice(5, 7)))) item.springQty += row.qty;
+        else item.autumnQty += row.qty;
+        item.total += row.qty;
       });
-      const allDates = Array.from(dateSet).sort();
-      const products = Array.from(productMap.values()).sort(
-        (a, b) => (b.totalOnline + b.totalOffline) - (a.totalOnline + a.totalOffline)
-      );
+      const products = Array.from(map.values()).map((item) => {
+        const springDaily = springDays > 0 ? item.springQty / springDays : 0;
+        const autumnDaily = autumnDays > 0 ? item.autumnQty / autumnDays : 0;
+        const larger = Math.max(springDaily, autumnDaily);
+        const ratio = larger > 0 ? Math.abs(springDaily - autumnDaily) / larger : 0;
+        const verdict = ratio < SEASON_EVEN_THRESHOLD ? "even" : (springDaily > autumnDaily ? "spring" : "autumn");
+        return {
+          ...item,
+          springDaily,
+          autumnDaily,
+          ratio,
+          verdict,
+          verdictText: verdict === "spring" ? "春夏表现更好" : (verdict === "autumn" ? "秋冬表现更好" : "均匀"),
+          color: seasonFontColor(verdict, ratio),
+        };
+      });
+      products.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "zh-Hans-CN"));
+      return products;
+    }
+
+    // 色阶：越接近均匀越接近常规文字色；春夏偏橙、秋冬偏蓝，差异越大颜色越深
+    function seasonFontColor(verdict, ratio) {
+      if (verdict === "even") return "";
+      const above = Math.max(0, Math.min(1, (ratio - SEASON_EVEN_THRESHOLD) / (1 - SEASON_EVEN_THRESHOLD)));
+      const saturation = Math.min(1, ratio / 0.45);
+      if (verdict === "spring") {
+        return "hsl(" + Math.round(28 - 8 * above) + ", " + Math.round(25 + 65 * saturation) + "%, " + Math.round(45 - 12 * above) + "%)";
+      }
+      return "hsl(" + Math.round(217 + 4 * above) + ", " + Math.round(25 + 55 * saturation) + "%, " + Math.round(45 - 12 * above) + "%)";
+    }
+
+    function buildSalesTrendModel(rows) {
+      const valid = [];
+      const storeSet = new Set();
+      let dateMin = "";
+      let dateMax = "";
+      (rows || []).forEach((row) => {
+        if (!row || !/^\d{4}-\d{2}-\d{2}$/.test(row.date || "")) return;
+        if (!row.productName || !(row.qty > 0)) return;
+        valid.push(row);
+        if (row.store) storeSet.add(row.store);
+        if (!dateMin || row.date < dateMin) dateMin = row.date;
+        if (!dateMax || row.date > dateMax) dateMax = row.date;
+      });
+
+      const calendar = buildSeasonCalendar(dateMin, dateMax);
+      const products = aggregateSeasonProducts(valid, "", calendar.springDays, calendar.autumnDays);
+
+      const monthDays = new Map();
+      valid.forEach((row) => {
+        const key = row.date.slice(0, 7);
+        if (!monthDays.has(key)) monthDays.set(key, new Set());
+        monthDays.get(key).add(row.date);
+      });
+      const coveredMonths = Array.from(monthDays.keys()).sort();
+      const partialMonths = [];
+      coveredMonths.forEach((key) => {
+        const parts = key.split("-").map(Number);
+        const monthTotal = new Date(parts[0], parts[1], 0).getDate();
+        const days = monthDays.get(key).size;
+        if (days < monthTotal) partialMonths.push({ key: key, days: days, total: monthTotal });
+      });
+
       return {
-        products,
-        allDates,
-        dateMin: allDates[0] || "",
-        dateMax: allDates[allDates.length - 1] || "",
+        rows: valid,
+        dateMin: dateMin,
+        dateMax: dateMax,
+        springDays: calendar.springDays,
+        autumnDays: calendar.autumnDays,
+        springRangeText: seasonRangesText(calendar.springSegments),
+        autumnRangeText: seasonRangesText(calendar.autumnSegments),
+        storeNames: Array.from(storeSet).sort((a, b) => a.localeCompare(b, "zh-Hans-CN")),
+        products: products,
         productCount: products.length,
+        recordCount: valid.length,
+        partialMonths: partialMonths,
+        missingDecember: !coveredMonths.some((key) => key.slice(5, 7) === "12"),
       };
     }
 
@@ -4614,7 +4690,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
         replenishmentRows,
         slowRows,
         expiryRows,
-        salesTrendModel: buildSalesTrendModel(state.sources.salesTrend.rows, state.sources.product.rows),
+        salesTrendModel: buildSalesTrendModel(state.sources.salesTrend.rows),
       };
       modelCache.signature = signature;
       modelCache.model = model;
@@ -4631,13 +4707,14 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
       if (state.activeTab === "salesTrend") {
         const t = model.salesTrendModel;
         if (t.productCount) {
-          let totalOn = 0, totalOff = 0;
-          t.products.forEach((p) => { totalOn += p.totalOnline; totalOff += p.totalOffline; });
+          const counts = { spring: 0, autumn: 0, even: 0 };
+          t.products.forEach((p) => { counts[p.verdict] += 1; });
           pills = [
-            `<span class="pill">商品数 ${formatInteger(t.productCount)}</span>`,
-            `<span class="pill">日期范围 ${t.dateMin || "-"} ~ ${t.dateMax || "-"}</span>`,
-            `<span class="pill">线上净销售 ${formatInteger(Math.max(0, totalOn))}</span>`,
-            `<span class="pill">线下净销售 ${formatInteger(Math.max(0, totalOff))}</span>`,
+            `<span class="pill">单品 ${formatInteger(t.productCount)}</span>`,
+            `<span class="pill">春夏更好 ${formatInteger(counts.spring)}</span>`,
+            `<span class="pill">秋冬更好 ${formatInteger(counts.autumn)}</span>`,
+            `<span class="pill">均匀 ${formatInteger(counts.even)}</span>`,
+            `<span class="pill">覆盖 ${t.dateMin || "-"} ~ ${t.dateMax || "-"}</span>`,
           ];
         }
       } else if (state.activeTab === "kttImport") {
@@ -4695,7 +4772,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
         return SOURCE_CONFIGS.filter(cfg => cfg.key === "matrixWorkbook");
       }
       if (state.activeTab === "salesTrend") {
-        // 销售趋势Tab只显示每日销量趋势文件
+        // 门店单品季节分析Tab只显示门店销售明细文件
         return SOURCE_CONFIGS.filter(cfg => cfg.key === "salesTrend");
       }
       if (state.activeTab === "kttImport") {
@@ -4726,7 +4803,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
         // 寄售库存看板自带数据导入入口，无需侧边栏文件位
         return [];
       }
-      // 驾驶舱Tab显示除九宫格与销售趋势外的所有文件
+      // 驾驶舱Tab显示除九宫格与门店单品季节分析外的所有文件
       return SOURCE_CONFIGS.filter(cfg => cfg.key !== "matrixWorkbook" && cfg.key !== "salesTrend");
     }
 
@@ -4743,7 +4820,9 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
           ? (ready ? `${formatInteger(new Set(source.rows.map((row) => row.barcode || row.sku || row.key)).size)} 个条码` : "建议用条码做主键")
           : cfg.key === "channelSales" || cfg.key === "storeSales"
             ? (ready ? `${formatInteger(source.rows.reduce((sum, row) => sum + (row.qty || 0), 0))} 件销量` : "会自动汇总销量")
-            : (ready ? `${formatInteger(source.rows.reduce((sum, row) => sum + (row.availableQty || 0), 0))} 件库存` : cfg.hint);
+            : cfg.key === "salesTrend"
+              ? (ready ? `${formatInteger(new Set(source.rows.map((row) => row.store).filter(Boolean)).size)} 家门店` : cfg.hint)
+              : (ready ? `${formatInteger(source.rows.reduce((sum, row) => sum + (row.availableQty || 0), 0))} 件库存` : cfg.hint);
 
         return `
           <div class="source-card">
@@ -4840,10 +4919,10 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
           { label: "九宫格文件", value: empty(model.sources.matrixWorkbook) ? "未上传" : `${formatInteger(model.sources.matrixWorkbook.rows.length)} 条` },
         ];
       } else if (state.activeTab === "salesTrend") {
-        // 销售趋势Tab只显示每日销量趋势文件状态
+        // 门店单品季节分析Tab只显示门店销售明细文件状态
         const trend = model.salesTrendModel;
         items = [
-          { label: "每日销量趋势", value: empty(model.sources.salesTrend) ? "未上传" : `${formatInteger(model.sources.salesTrend.rows.length)} 条` },
+          { label: "门店销售明细", value: empty(model.sources.salesTrend) ? "未上传" : `${formatInteger(model.sources.salesTrend.rows.length)} 条` },
           { label: "商品数", value: trend.productCount ? `${formatInteger(trend.productCount)} 个` : "未上传" },
           { label: "日期范围", value: trend.dateMin ? `${trend.dateMin} ~ ${trend.dateMax}` : "未上传" },
         ];
@@ -4909,7 +4988,7 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
     const MODE_CONFIG = [
       { id: "cockpit", label: "驾驶舱", defaultColor: "#0969DA", icon: '<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/>' },
       { id: "matrix", label: "九宫格", defaultColor: "#0969DA", icon: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>' },
-      { id: "salesTrend", label: "销售趋势", defaultColor: "#0969DA", icon: '<path d="M3 17l6-6 4 4 7-8"/><path d="M14 7h6v6"/>' },
+      { id: "salesTrend", label: "门店单品季节分析", defaultColor: "#0969DA", icon: '<path d="M3 17l6-6 4 4 7-8"/><path d="M14 7h6v6"/>' },
       { id: "kttImport", label: "快团团导入", defaultColor: "#0969DA", icon: '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/>' },
       { id: "skuRank", label: "门店SKU排名", defaultColor: "#0969DA", icon: '<path d="M5 20V10M12 20V4M19 20v-7"/>' },
       { id: "stockWaterline", label: "库存水位线", defaultColor: "#0969DA", icon: '<path d="M2 10c2.5-3 4.5-3 7 0s4.5 3 7 0 4.5-3 6 0"/><path d="M2 17c2.5-3 4.5-3 7 0s4.5 3 7 0 4.5-3 6 0"/>' },
@@ -5277,16 +5356,16 @@ const channelSalesAgg = summarizeChannelSales(channelSales.rows);
           <div class="note">8. 页面会在本地缓存已上传文件，刷新后可自动恢复。</div>
         `;
       } else if (state.activeTab === "salesTrend") {
-        titleEl.textContent = "每日销量趋势文件";
-        subtitleEl.textContent = "销售趋势模式：上传《趋势图数据源》文件，自动解析线上销售/退货/线下销售，生成每日销量趋势对比折线图。";
+        titleEl.textContent = "门店单品季节分析";
+        subtitleEl.textContent = "门店单品季节分析模式：上传《门店销售明细》（店铺销售工作表），按「商品名称」合并规格，用春夏（3–8 月）与秋冬（9–2 月）的实际覆盖天数日均销量对比，逐单品给出春夏更好 / 秋冬更好 / 均匀结论，并用橙蓝色阶标注强弱。";
         notesEl.innerHTML = `
-          <div class="note">1. 文件需包含4个子表：商品资料、线上销售、线上退货、线下销售。</div>
-          <div class="note">2. 商品资料：条码(A列)、产品名称(D列)，用于关联品名。</div>
-          <div class="note">3. 线上销售：I列条码、AX列日期、J列数量（线上出库）。</div>
-          <div class="note">4. 线上退货：L列条码、AY列日期、M列数量（线上入库/退货）。</div>
-          <div class="note">5. 线下销售：O列规格条码、AY列日期、T列数量。</div>
-          <div class="note">6. 线上净销售 = 线上销售 - 线上退货；线下净销售 = 线下销售。</div>
-          <div class="note">7. 横轴=日期，纵轴=销量；可多商品对比、按日期段筛选。</div>
+          <div class="note">1. 文件需包含《店铺销售》工作表（仅一张销售表也可），必需列：日期、商品名称、归属店铺、商品数量。</div>
+          <div class="note">2. 日期支持 20260101 或 2026-01-01 格式；同一商品名称的多规格自动合并为单品。</div>
+          <div class="note">3. 排除规则：非「交易完成」记录、赠品与小样、数量 ≤ 0 均不计入销量。</div>
+          <div class="note">4. 季节划分：3–8 月为春夏，9、10、11、12、1、2 月为秋冬；按实际覆盖天数计算日均销量，避免月份天数不同造成偏差。</div>
+          <div class="note">5. 判定：|春夏日均 − 秋冬日均| ÷ 两者较大值 &lt; 15% 记为「均匀」，否则判给日均更高的一方。</div>
+          <div class="note">6. 商品名称颜色：春夏更强偏橙、秋冬更强偏蓝，颜色越深差异越大。</div>
+          <div class="note">7. 当前数据若缺失月份，页面「数据缺口」会明确标注，结论仅按已覆盖数据计算。</div>
           <div class="note">8. 页面会在本地缓存已上传文件，刷新后可自动恢复。</div>
         `;
       } else if (state.activeTab === "kttImport") {
@@ -6934,7 +7013,7 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       `;
     }
 
-    // ===== 销售趋势：折线图与交互 =====
+    // ===== 旧版趋势图辅助函数（保留供历史缓存兼容，页面已不再使用） =====
     const TREND_ONLINE_COLOR = "#2563eb"; // 线上 蓝（合并模式/单商品）
     const TREND_OFFLINE_COLOR = "#f97316"; // 线下 橙（合并模式/单商品）
     const TREND_DASH_PATTERNS = ["", "6 4", "2 5", "10 4 2 4", "12 2 4 2", "4 2"];
@@ -7013,448 +7092,138 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       return values.map((_, i) => slope * i + intercept);
     }
 
-    function getTrendFilteredDates(model) {
-      const trend = model.salesTrendModel;
-      const f = state.salesTrendFilters;
-      let dates = trend.allDates;
-      if (f.startDate) dates = dates.filter((d) => d >= f.startDate);
-      if (f.endDate) dates = dates.filter((d) => d <= f.endDate);
-      return dates;
+    // ===== 门店单品季节分析：视图与交互 =====
+    function getSeasonFilters(model) {
+      const filters = state.salesTrendFilters;
+      if (typeof filters.search !== "string") filters.search = "";
+      if (typeof filters.store !== "string") filters.store = "";
+      if (model && model.storeNames.indexOf(filters.store) === -1) filters.store = "";
+      if (["total", "springDaily", "autumnDaily", "diff"].indexOf(filters.sort) === -1) filters.sort = "total";
+      return filters;
     }
 
-    // 按季度聚合：返回筛选日期段内的季度列表（升序）
-    function getTrendFilteredQuarters(model) {
-      const trend = model.salesTrendModel;
-      const f = state.salesTrendFilters;
-      const qSet = new Set();
-      trend.products.forEach((p) => {
-        Object.keys(p.dates).forEach((d) => {
-          if (f.startDate && d < f.startDate) return;
-          if (f.endDate && d > f.endDate) return;
-          const q = dateToQuarter(d);
-          if (q) qSet.add(q);
-        });
-      });
-      return Array.from(qSet).sort();
+    function getSeasonViewProducts(model, filters) {
+      let list = aggregateSeasonProducts(model.rows, filters.store, model.springDays, model.autumnDays);
+      const keyword = normalizeText(filters.search);
+      if (keyword) {
+        list = list.filter((item) => normalizeText(item.name).indexOf(keyword) !== -1);
+      }
+      if (filters.sort === "springDaily") {
+        list.sort((a, b) => b.springDaily - a.springDaily || b.total - a.total);
+      } else if (filters.sort === "autumnDaily") {
+        list.sort((a, b) => b.autumnDaily - a.autumnDaily || b.total - a.total);
+      } else if (filters.sort === "diff") {
+        list.sort((a, b) => b.ratio - a.ratio || b.total - a.total);
+      }
+      return list;
     }
 
-    function getTrendSelectedProducts(model) {
-      const trend = model.salesTrendModel;
-      const f = state.salesTrendFilters;
-      const keySet = new Set(f.selectedKeys);
-      return trend.products.filter((p) => {
-        if (!keySet.has(p.key)) return false;
-        if (f.category && f.category !== "全部" && (p.category || "") !== f.category) return false;
-        return true;
-      });
-    }
-
-    // 获取销售趋势数据中出现的所有分类（来自商品资料G列），用于筛选下拉
-    function getTrendCategoryOptions(model) {
-      const trend = model.salesTrendModel;
-      const set = new Set();
-      trend.products.forEach((p) => { if (p.category) set.add(p.category); });
-      return ["全部", ...Array.from(set).sort()];
-    }
-
-    function buildTrendSeries(model) {
-      const f = state.salesTrendFilters;
-      if (f.granularity === "quarterly") {
-        return buildTrendSeriesQuarterly(model);
-      }
-      if (f.granularity === "monthly") {
-        return buildTrendSeriesMonthly(model);
-      }
-      return buildTrendSeriesDaily(model);
-    }
-
-    // 每日维度系列
-    function buildTrendSeriesDaily(model) {
-      const dates = getTrendFilteredDates(model);
-      const selected = getTrendSelectedProducts(model);
-      const f = state.salesTrendFilters;
-      const series = [];
-
-      if (f.mode === "merge") {
-        // 合并：把选中商品汇总成 线上 / 线下 两条线
-        const onlineValues = new Array(dates.length).fill(0);
-        const offlineValues = new Array(dates.length).fill(0);
-        selected.forEach((p) => {
-          dates.forEach((d, i) => {
-            const slot = p.dates[d];
-            if (slot) {
-              onlineValues[i] += slot.online || 0;
-              offlineValues[i] += slot.offline || 0;
-            }
-          });
-        });
-        series.push({ label: "线上(合计)", color: TREND_ONLINE_COLOR, dash: "", values: onlineValues, channel: "online" });
-        series.push({ label: "线下(合计)", color: TREND_OFFLINE_COLOR, dash: "", values: offlineValues, channel: "offline" });
-      } else {
-        // 分商品：每个商品各画 线上 / 线下 两条线，用 dash 区分商品
-        selected.forEach((p, idx) => {
-          const pair = TREND_PRODUCT_PAIRS[idx % TREND_PRODUCT_PAIRS.length];
-          const onlineValues = dates.map((d) => (p.dates[d] ? p.dates[d].online || 0 : 0));
-          const offlineValues = dates.map((d) => (p.dates[d] ? p.dates[d].offline || 0 : 0));
-          const name = shortenProductName(p.productName || p.barcode || p.sku || p.key) || (p.productName || p.barcode || p.sku || p.key);
-          series.push({ label: `${name}·线上`, color: pair.online, dash: "", values: onlineValues, product: name, channel: "online" });
-          series.push({ label: `${name}·线下`, color: pair.offline, dash: "", values: offlineValues, product: name, channel: "offline" });
-        });
-      }
-      return { dates, series, selected, granularity: "daily" };
-    }
-
-    // 季度维度系列：把每日销量按季度聚合，同一产品不同季度对比
-    function buildTrendSeriesQuarterly(model) {
-      const quarters = getTrendFilteredQuarters(model);
-      const selected = getTrendSelectedProducts(model);
-      const f = state.salesTrendFilters;
-
-      // 把商品的每日销量按季度聚合
-      const aggregateQuarter = (p, q) => {
-        let online = 0, offline = 0;
-        for (const d in p.dates) {
-          if (dateToQuarter(d) !== q) continue;
-          if (f.startDate && d < f.startDate) continue;
-          if (f.endDate && d > f.endDate) continue;
-          online += p.dates[d].online || 0;
-          offline += p.dates[d].offline || 0;
-        }
-        return { online, offline };
-      };
-
-      const series = [];
-      if (f.mode === "merge") {
-        const onlineValues = new Array(quarters.length).fill(0);
-        const offlineValues = new Array(quarters.length).fill(0);
-        selected.forEach((p) => {
-          quarters.forEach((q, i) => {
-            const agg = aggregateQuarter(p, q);
-            onlineValues[i] += agg.online;
-            offlineValues[i] += agg.offline;
-          });
-        });
-        series.push({ label: "线上(合计)", color: TREND_ONLINE_COLOR, dash: "", values: onlineValues, channel: "online" });
-        series.push({ label: "线下(合计)", color: TREND_OFFLINE_COLOR, dash: "", values: offlineValues, channel: "offline" });
-      } else {
-        selected.forEach((p, idx) => {
-          const pair = TREND_PRODUCT_PAIRS[idx % TREND_PRODUCT_PAIRS.length];
-          const onlineValues = quarters.map((q) => aggregateQuarter(p, q).online);
-          const offlineValues = quarters.map((q) => aggregateQuarter(p, q).offline);
-          const name = shortenProductName(p.productName || p.barcode || p.sku || p.key) || (p.productName || p.barcode || p.sku || p.key);
-          series.push({ label: `${name}·线上`, color: pair.online, dash: "", values: onlineValues, product: name, channel: "online" });
-          series.push({ label: `${name}·线下`, color: pair.offline, dash: "", values: offlineValues, product: name, channel: "offline" });
-        });
-      }
-      return { dates: quarters, series, selected, granularity: "quarterly" };
-    }
-
-    // 按月维度系列：把每日销量按月聚合（YYYY-MM），介于每日与季度之间
-    function getTrendFilteredMonths(model) {
-      const trend = model.salesTrendModel;
-      const f = state.salesTrendFilters;
-      const mSet = new Set();
-      trend.products.forEach((p) => {
-        Object.keys(p.dates).forEach((d) => {
-          if (f.startDate && d < f.startDate) return;
-          if (f.endDate && d > f.endDate) return;
-          const m = dateToMonth(d);
-          if (m) mSet.add(m);
-        });
-      });
-      return Array.from(mSet).sort();
-    }
-
-    function buildTrendSeriesMonthly(model) {
-      const months = getTrendFilteredMonths(model);
-      const selected = getTrendSelectedProducts(model);
-      const f = state.salesTrendFilters;
-
-      // 把商品的每日销量按月聚合
-      const aggregateMonth = (p, m) => {
-        let online = 0, offline = 0;
-        for (const d in p.dates) {
-          if (dateToMonth(d) !== m) continue;
-          if (f.startDate && d < f.startDate) continue;
-          if (f.endDate && d > f.endDate) continue;
-          online += p.dates[d].online || 0;
-          offline += p.dates[d].offline || 0;
-        }
-        return { online, offline };
-      };
-
-      const series = [];
-      if (f.mode === "merge") {
-        const onlineValues = new Array(months.length).fill(0);
-        const offlineValues = new Array(months.length).fill(0);
-        selected.forEach((p) => {
-          months.forEach((m, i) => {
-            const agg = aggregateMonth(p, m);
-            onlineValues[i] += agg.online;
-            offlineValues[i] += agg.offline;
-          });
-        });
-        series.push({ label: "线上(合计)", color: TREND_ONLINE_COLOR, dash: "", values: onlineValues, channel: "online" });
-        series.push({ label: "线下(合计)", color: TREND_OFFLINE_COLOR, dash: "", values: offlineValues, channel: "offline" });
-      } else {
-        selected.forEach((p, idx) => {
-          const pair = TREND_PRODUCT_PAIRS[idx % TREND_PRODUCT_PAIRS.length];
-          const onlineValues = months.map((m) => aggregateMonth(p, m).online);
-          const offlineValues = months.map((m) => aggregateMonth(p, m).offline);
-          const name = shortenProductName(p.productName || p.barcode || p.sku || p.key) || (p.productName || p.barcode || p.sku || p.key);
-          series.push({ label: `${name}·线上`, color: pair.online, dash: "", values: onlineValues, product: name, channel: "online" });
-          series.push({ label: `${name}·线下`, color: pair.offline, dash: "", values: offlineValues, product: name, channel: "offline" });
-        });
-      }
-      return { dates: months, series, selected, granularity: "monthly" };
-    }
-
-    function niceCeil(value) {
-      if (value <= 0) return 10;
-      const exponent = Math.floor(Math.log10(value));
-      const fraction = value / Math.pow(10, exponent);
-      let niceFraction;
-      if (fraction <= 1) niceFraction = 1;
-      else if (fraction <= 2) niceFraction = 2;
-      else if (fraction <= 5) niceFraction = 5;
-      else niceFraction = 10;
-      return niceFraction * Math.pow(10, exponent);
-    }
-
-    function renderTrendSvg(dates, series, opts = {}) {
-      const hasData = dates.length > 0 && series.some((s) => s.values.some((v) => v > 0));
-      if (!hasData) {
-        return `<div class="trend-product-empty">当前筛选条件下没有销量数据，请调整商品或日期段。</div>`;
-      }
-
-      const n = dates.length;
-      const granularity = opts.granularity || "daily";
-      const showTrendLine = !!opts.showTrendLine;
-      const trendMethod = opts.trendMethod || "linear";
-      // 双纵轴：左轴=线上(蓝)，右轴=线下(橙)；右轴需要额外留白
-      const dualAxis = series.some((s) => s.channel === "offline");
-      const padL = 64, padR = dualAxis ? 64 : 24, padT = 20, padB = 50;
-      const minW = opts.minW || 700, maxW = opts.maxW || 1600;
-      const W = Math.min(maxW, Math.max(minW, n * 36 + padL + padR));
-      // 固定宽高比：H 随 W 按比例计算，确保不同粒度（按天/月/季度）图表渲染大小一致
-      // 配合 CSS width:100%;height:auto，viewBox 比例固定后浏览器渲染高度才会统一
-      const aspectRatio = opts.aspectRatio || 4;
-      const H = Math.round(W / aspectRatio);
-      const pointR = opts.pointR || 2.4;
-      const strokeW = opts.strokeWidth || 2;
-      const plotW = W - padL - padR;
-      const plotH = H - padT - padB;
-
-      // 趋势线值参与 y 轴上限计算（线性回归可能略高于原始最大值）
-      const trendValuesList = showTrendLine
-        ? series.map((s) => computeTrendValues(s.values, trendMethod))
-        : [];
-      // 双纵轴：分别计算线上/线下的最大值
-      const onlineVals = series.filter((s) => s.channel === "online").flatMap((s) => s.values);
-      const offlineVals = series.filter((s) => s.channel === "offline").flatMap((s) => s.values);
-      if (showTrendLine) {
-        series.forEach((s, i) => {
-          if (s.channel === "online") Array.prototype.push.apply(onlineVals, trendValuesList[i]);
-          else if (s.channel === "offline") Array.prototype.push.apply(offlineVals, trendValuesList[i]);
-        });
-      }
-      const yMaxLeft = niceCeil(Math.max(1, ...onlineVals));
-      let yMaxRight;
-      if (dualAxis) {
-        const rawOfflineMax = Math.max(1, ...offlineVals);
-        // 线下峰值低于线上50%时，右轴量程按线下峰值*2（让线下线约占图表50%高度，看得清趋势又不至于过度放大）；
-        // 超过线上50%则按线下实际峰值。
-        if (rawOfflineMax < yMaxLeft * 0.5) {
-          yMaxRight = niceCeil(rawOfflineMax * 2);
-        } else {
-          yMaxRight = niceCeil(rawOfflineMax);
-        }
-      } else {
-        yMaxRight = yMaxLeft;
-      }
-
-      const x = (i) => padL + (n <= 1 ? plotW / 2 : (i * plotW) / (n - 1));
-      // 根据 channel 决定用左轴还是右轴比例
-      const y = (v, channel) => {
-        const yMax = channel === "offline" ? yMaxRight : yMaxLeft;
-        return padT + plotH - (Math.max(0, v) / yMax) * plotH;
-      };
-
-      // 横向网格 + 左 y 轴刻度(蓝色, 线上)
-      const yTicks = 5;
-      let gridHtml = "";
-      for (let t = 0; t <= yTicks; t++) {
-        const val = (yMaxLeft / yTicks) * t;
-        const yy = y(val, "online");
-        gridHtml += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#ececec" stroke-width="1"/>`;
-        gridHtml += `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="11" fill="${TREND_ONLINE_COLOR}">${formatInteger(val)}</text>`;
-      }
-      // 右 y 轴刻度(橙色, 线下)
-      let rightAxisHtml = "";
-      if (dualAxis) {
-        rightAxisHtml += `<line x1="${W - padR}" y1="${padT}" x2="${W - padR}" y2="${padT + plotH}" stroke="#C6D2E2" stroke-width="1"/>`;
-        for (let t = 0; t <= yTicks; t++) {
-          const val = (yMaxRight / yTicks) * t;
-          const yy = y(val, "offline");
-          rightAxisHtml += `<text x="${W - padR + 8}" y="${yy + 4}" text-anchor="start" font-size="11" fill="${TREND_OFFLINE_COLOR}">${formatInteger(val)}</text>`;
-        }
-      }
-
-      // x 轴刻度(日期/季度)，太多时跳着显示
-      const xStep = Math.max(1, Math.ceil(n / 12));
-      let xLabelsHtml = "";
-      for (let i = 0; i < n; i += xStep) {
-        const xx = x(i);
-        // 季度显示 "YYYY-Qn"，月份显示 "YYYY-MM"，日维度显示 "MM-DD"
-        const label = (granularity === "quarterly" || granularity === "monthly") ? dates[i] : dates[i].slice(5);
-        xLabelsHtml += `<text x="${xx}" y="${H - padB + 18}" text-anchor="middle" font-size="11" fill="#67717F">${label}</text>`;
-        xLabelsHtml += `<line x1="${xx}" y1="${padT + plotH}" x2="${xx}" y2="${padT + plotH + 4}" stroke="#C6D2E2" stroke-width="1"/>`;
-      }
-      // 起止完整标注
-      xLabelsHtml += `<text x="${padL}" y="${H - 8}" text-anchor="start" font-size="11" fill="#1F2937">${dates[0]}</text>`;
-      xLabelsHtml += `<text x="${W - padR}" y="${H - 8}" text-anchor="end" font-size="11" fill="#1F2937">${dates[n - 1]}</text>`;
-
-      // 折线
-      let linesHtml = "";
-      series.forEach((s, sIdx) => {
-        if (!s.values.some((v) => v > 0)) return;
-        const ch = s.channel || "online";
-        const pts = s.values.map((v, i) => `${x(i).toFixed(1)},${y(v, ch).toFixed(1)}`).join(" ");
-        const dashAttr = s.dash ? ` stroke-dasharray="${s.dash}"` : "";
-        linesHtml += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${strokeW}" stroke-linejoin="round" stroke-linecap="round"${dashAttr} opacity="0.92"/>`;
-        // 数据点(数据量不大时显示)
-        if (n <= 60) {
-          s.values.forEach((v, i) => {
-            if (v > 0) {
-              linesHtml += `<circle cx="${x(i).toFixed(1)}" cy="${y(v, ch).toFixed(1)}" r="${pointR}" fill="${s.color}" opacity="0.92"/>`;
-            }
-          });
-        }
-        // 起止数值标注：用该线对应的轴颜色，标在起点左侧和终点右侧
-        const firstIdx = s.values.findIndex((v) => v > 0);
-        const lastIdx = s.values.length - 1 - [...s.values].reverse().findIndex((v) => v > 0);
-        if (firstIdx >= 0 && firstIdx < n) {
-          const fv = s.values[firstIdx];
-          const fx = x(firstIdx);
-          const fy = y(fv, ch);
-          // 起点：标在线点左侧，用同色背景块避免与网格刻度重叠
-          linesHtml += `<text x="${(fx - 6).toFixed(1)}" y="${(fy - 6).toFixed(1)}" text-anchor="end" font-size="11" font-weight="600" fill="${s.color}">${formatInteger(fv)}</text>`;
-        }
-        if (lastIdx > firstIdx && lastIdx < n) {
-          const lv = s.values[lastIdx];
-          const lx = x(lastIdx);
-          const ly = y(lv, ch);
-          // 终点：标在线点右侧
-          linesHtml += `<text x="${(lx + 6).toFixed(1)}" y="${(ly - 6).toFixed(1)}" text-anchor="start" font-size="11" font-weight="600" fill="${s.color}">${formatInteger(lv)}</text>`;
-        }
-        // 趋势线：用同色虚线，半透明，叠加在原折线之上
-        if (showTrendLine) {
-          const tv = trendValuesList[sIdx];
-          if (tv && tv.length === n) {
-            const tPts = tv.map((v, i) => `${x(i).toFixed(1)},${y(v, ch).toFixed(1)}`).join(" ");
-            const tLabel = trendMethod === "ma" ? "移动平均" : "线性回归";
-            linesHtml += `<polyline points="${tPts}" fill="none" stroke="${s.color}" stroke-width="${(strokeW * 0.8).toFixed(2)}" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="7 4" opacity="0.6" data-trend-line="1" data-trend-label="${tLabel}"/>`;
-            // 趋势线起止数值标注：保留一位小数（避免 0.x 被取整为 0）
-            // 放在图表内部（绘图区域内），避免与左右 Y 轴刻度重叠
-            const tFirst = tv[0];
-            const tLast = tv[n - 1];
-            const tfy = y(tFirst, ch);
-            const tly = y(tLast, ch);
-            linesHtml += `<text x="${(x(0) + 8).toFixed(1)}" y="${(tfy + 14).toFixed(1)}" text-anchor="start" font-size="10" fill="${s.color}" opacity="0.85">${formatTrendFloat(tFirst)}</text>`;
-            linesHtml += `<text x="${(x(n - 1) - 8).toFixed(1)}" y="${(tly + 14).toFixed(1)}" text-anchor="end" font-size="10" fill="${s.color}" opacity="0.85">${formatTrendFloat(tLast)}</text>`;
-          }
-        }
-      });
-
-      // 坐标轴
-      const axesHtml = `
-        <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="#C6D2E2" stroke-width="1"/>
-        <line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="#C6D2E2" stroke-width="1"/>
-        <text x="${padL - 44}" y="${padT + plotH / 2}" text-anchor="middle" font-size="11" fill="${TREND_ONLINE_COLOR}" transform="rotate(-90 ${padL - 44} ${padT + plotH / 2})">线上销量</text>
-        ${dualAxis ? `<text x="${W - padR + 44}" y="${padT + plotH / 2}" text-anchor="middle" font-size="11" fill="${TREND_OFFLINE_COLOR}" transform="rotate(90 ${W - padR + 44} ${padT + plotH / 2})">线下销量</text>` : ""}
-      `;
-
-      // Tooltip 交互：在 SVG 内覆盖透明层捕获鼠标，并输出 data-* 属性供 JS 读取
-      let overlayHtml = "";
-      if (n <= 365) {
-        const colW = plotW / n;
-        for (let i = 0; i < n; i++) {
-          const cx = x(i);
-          const rx = Math.max(colW / 2, 10);
-          overlayHtml += `<rect x="${cx - rx}" y="${padT}" width="${rx * 2}" height="${plotH}" fill="white" fill-opacity="0" pointer-events="all" data-trend-tip="1" data-date="${dates[i]}" data-values="${series.map((s) => s.values[i] || 0).join(",")}" data-labels="${series.map((s) => s.label).join(",")}" data-colors="${series.map((s) => s.color).join(",")}"/>`;
-        }
-      }
-
-      return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="销量趋势折线图" data-trend-svg="1">
-        ${gridHtml}
-        ${rightAxisHtml}
-        ${axesHtml}
-        ${linesHtml}
-        ${xLabelsHtml}
-        ${overlayHtml}
-      </svg>`;
-    }
-
-    function renderTrendLegendHtml(series, selected, mode, f) {
-      const items = [];
-      if (mode === "merge") {
-        items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch" style="background:${TREND_ONLINE_COLOR}"></span>线上(合计)</span>`);
-        items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch" style="background:${TREND_OFFLINE_COLOR}"></span>线下(合计)</span>`);
-      } else {
-        // 分商品：每条折线独立颜色，两两对比时 4 条线 4 种颜色
-        series.forEach((s) => {
-          items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch" style="background:${s.color}"></span>${escapeHtml(s.label)}</span>`);
-        });
-      }
-      if (f && f.showTrendLine) {
-        const tName = f.trendMethod === "ma" ? "移动平均" : "线性回归";
-        items.push(`<span class="trend-legend-item"><span class="trend-legend-swatch trend-legend-swatch--dash" style="background:repeating-linear-gradient(90deg,#67717F 0 6px,transparent 6px 10px);"></span>趋势线(${tName})</span>`);
-      }
-      return `<div class="trend-legend">${items.join("")}</div>`;
-    }
-
-    function renderTrendSummaryHtml(dates, series, granularity) {
-      let totalOnline = 0, totalOffline = 0;
-      series.forEach((s) => {
-        const sum = s.values.reduce((a, b) => a + b, 0);
-        if (s.channel === "online") totalOnline += sum;
-        else totalOffline += sum;
-      });
-      // 找单点总量最高
-      let peakVal = 0, peakDate = "";
-      for (let i = 0; i < dates.length; i++) {
-        let dayTotal = 0;
-        series.forEach((s) => { dayTotal += s.values[i] || 0; });
-        if (dayTotal > peakVal) { peakVal = dayTotal; peakDate = dates[i]; }
-      }
-      const periodCount = dates.length || 1;
-      const avg = (totalOnline + totalOffline) / periodCount;
-      const isQuarterly = granularity === "quarterly";
-      const isMonthly = granularity === "monthly";
-      const peakLabel = isQuarterly ? "单季峰值" : isMonthly ? "单月峰值" : "单日峰值";
-      const avgLabel = isQuarterly ? "季均总销量" : isMonthly ? "月均总销量" : "日均总销量";
-      const periodUnit = isQuarterly ? "个季度" : isMonthly ? "个月" : "天";
+    function renderSeasonSummaryHtml(list) {
+      const counts = { spring: 0, autumn: 0, even: 0 };
+      list.forEach((item) => { counts[item.verdict] += 1; });
       return `
-        <div class="trend-summary">
-          <div class="trend-stat"><small>线上销量合计</small><strong style="color:${TREND_ONLINE_COLOR}">${formatInteger(totalOnline)}</strong></div>
-          <div class="trend-stat"><small>线下销量合计</small><strong style="color:${TREND_OFFLINE_COLOR}">${formatInteger(totalOffline)}</strong></div>
-          <div class="trend-stat"><small>${peakLabel}</small><strong>${formatInteger(peakVal)}</strong><div class="note">${escapeHtml(peakDate || "-")}</div></div>
-          <div class="trend-stat"><small>${avgLabel}</small><strong>${avg.toFixed(1)}</strong><div class="note">${periodCount} ${periodUnit}</div></div>
+        <div class="trend-stat"><small>当前单品</small><strong>${formatInteger(list.length)}</strong><span class="note">个</span></div>
+        <div class="trend-stat"><small>春夏表现更好</small><strong style="color:#C2410C">${formatInteger(counts.spring)}</strong><span class="note">个</span></div>
+        <div class="trend-stat"><small>秋冬表现更好</small><strong style="color:#1D4ED8">${formatInteger(counts.autumn)}</strong><span class="note">个</span></div>
+        <div class="trend-stat"><small>两季均匀</small><strong>${formatInteger(counts.even)}</strong><span class="note">个</span></div>
+      `;
+    }
+
+    function renderSeasonRowsHtml(list) {
+      if (!list.length) {
+        return '<tr><td colspan="7" class="season-empty">没有匹配的单品，试试调整门店或搜索关键词。</td></tr>';
+      }
+      return list.map((item) => {
+        const colorStyle = item.color ? ' style="color:' + item.color + '"' : "";
+        const verdictClass = item.verdict === "spring" ? "is-spring" : (item.verdict === "autumn" ? "is-autumn" : "");
+        return `<tr>
+          <td class="season-name"${colorStyle} title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</td>
+          <td class="season-num">${formatInteger(item.springQty)}</td>
+          <td class="season-num">${item.springDaily.toFixed(2)}</td>
+          <td class="season-num">${formatInteger(item.autumnQty)}</td>
+          <td class="season-num">${item.autumnDaily.toFixed(2)}</td>
+          <td class="season-num">${(item.ratio * 100).toFixed(1)}%</td>
+          <td><span class="season-verdict ${verdictClass}">${item.verdictText}</span></td>
+        </tr>`;
+      }).join("");
+    }
+
+    function buildSeasonGapText(trend) {
+      const parts = [];
+      if (trend.missingDecember) parts.push("12 月数据缺失");
+      (trend.partialMonths || []).forEach((item) => {
+        if (item.key.slice(5, 7) === "11" && trend.dateMax.slice(0, 7) === item.key) {
+          parts.push("11 月截至 " + Number(trend.dateMax.slice(8, 10)) + " 日");
+        } else {
+          parts.push(item.key + " 仅覆盖 " + item.days + "/" + item.total + " 天");
+        }
+      });
+      return parts.length ? parts.join("；") : "各月数据完整";
+    }
+
+    function renderSalesTrendTab(model) {
+      const trend = model.salesTrendModel;
+      if (!trend || !trend.productCount) {
+        return renderSalesTrendEmpty();
+      }
+      const filters = getSeasonFilters(trend);
+      const list = getSeasonViewProducts(trend, filters);
+      const gapText = buildSeasonGapText(trend);
+      const storeOptions = ['<option value="">全部门店（合计）</option>'].concat(
+        trend.storeNames.map((name) => `<option value="${escapeHtml(name)}"${filters.store === name ? " selected" : ""}>${escapeHtml(name)}</option>`)
+      ).join("");
+      const sortOptions = [
+        ["total", "总销量优先"],
+        ["springDaily", "春夏日均优先"],
+        ["autumnDaily", "秋冬日均优先"],
+        ["diff", "季节差异优先"],
+      ].map((option) => `<option value="${option[0]}"${filters.sort === option[0] ? " selected" : ""}>${option[1]}</option>`).join("");
+
+      return `
+        <div class="panel trend-panel">
+          <div class="block-head">
+            <div>
+              <h2>门店单品季节分析</h2>
+              <div class="note">数据源：门店销售明细（《店铺销售》）· ${trend.dateMin} ~ ${trend.dateMax} · ${formatInteger(trend.recordCount)} 条销售记录</div>
+            </div>
+            <button class="primary" data-open-source="salesTrend">重新上传门店销售明细</button>
+          </div>
+
+          <div class="season-note">
+            <div><b>季节划分</b>春夏 3–8 月；秋冬 9、10、11、12、1、2 月。</div>
+            <div><b>对比口径</b>春夏：${trend.springRangeText}（${trend.springDays} 天）；秋冬：${trend.autumnRangeText}（${trend.autumnDays} 天）。按「实际覆盖天数」计算日均销量（销量 ÷ 天数），避免月份天数或未覆盖整月造成偏差。</div>
+            <div><b>数据缺口</b><span class="is-warn">${gapText}</span>，秋冬覆盖不足 6 个整月，结论按现有数据计算。</div>
+            <div><b>判定规则</b>赠品与小样不计入销量；|春夏日均 − 秋冬日均| ÷ 两者较大值 &lt; 15% 记为「均匀」，否则判给日均更高的一方。</div>
+            <div><b>颜色</b>商品名称：春夏更强偏橙、秋冬更强偏蓝，颜色越深差异越大，接近常规文字色表示两季接近。</div>
+          </div>
+
+          <div class="trend-summary" id="season-summary">${renderSeasonSummaryHtml(list)}</div>
+
+          <div class="season-toolbar">
+            <label>门店<select id="season-store">${storeOptions}</select></label>
+            <label>商品搜索<input id="season-search" type="search" placeholder="输入商品名称关键词" value="${escapeHtml(filters.search)}"></label>
+            <label>排序<select id="season-sort">${sortOptions}</select></label>
+            <span class="note" style="margin-left:auto;">共 <b id="season-count">${list.length}</b> 个单品</span>
+          </div>
+
+          <div class="table-wrap">
+            <table class="season-table">
+              <thead>
+                <tr>
+                  <th style="width:38%">商品名称</th>
+                  <th class="season-num">春夏销量</th>
+                  <th class="season-num">春夏日均</th>
+                  <th class="season-num">秋冬销量</th>
+                  <th class="season-num">秋冬日均</th>
+                  <th class="season-num">日均差异</th>
+                  <th style="width:130px;">季节结论</th>
+                </tr>
+              </thead>
+              <tbody id="season-body">${renderSeasonRowsHtml(list)}</tbody>
+            </table>
+          </div>
         </div>
       `;
-    }
-
-    function renderTrendChartAreaHtml(model) {
-      const { dates, series, selected, granularity } = buildTrendSeries(model);
-      const f = state.salesTrendFilters;
-      const svg = renderTrendSvg(dates, series, {
-        granularity,
-        showTrendLine: f.showTrendLine,
-        trendMethod: f.trendMethod,
-      });
-      const legend = renderTrendLegendHtml(series, selected, f.mode, f);
-      const summary = renderTrendSummaryHtml(dates, series, granularity);
-      return `${summary}<div class="trend-chart-wrap" data-trend-chart="1" title="点击放大查看">${svg}<div class="trend-chart-zoom-hint">点击图表可放大查看</div></div>${legend}`;
     }
 
     function renderSalesTrendLoading() {
@@ -7462,8 +7231,8 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
         <div class="panel trend-panel">
           <div class="block-head">
             <div>
-              <h2>每日销量趋势对比</h2>
-              <div class="note">正在解析销量文件，大文件可能需要数十秒，请稍候…</div>
+              <h2>门店单品季节分析</h2>
+              <div class="note">正在解析门店销售明细，大文件可能需要数十秒，请稍候…</div>
             </div>
           </div>
           <div class="soft-card" style="text-align:center;padding:48px 16px;">
@@ -7474,655 +7243,50 @@ cellHead.innerHTML = `<div style="font-weight:700;font-size:14px;color:${themeCo
       `;
     }
 
-    function ensureTrendModal() {
-      let modal = document.getElementById("trend-chart-modal");
-      if (modal) return modal;
-      modal = document.createElement("div");
-      modal.id = "trend-chart-modal";
-      modal.className = "trend-modal";
-      modal.innerHTML = `
-        <div class="trend-modal-back"></div>
-        <div class="trend-modal-box">
-          <div class="trend-modal-head">
-            <strong>每日销量趋势对比（放大）</strong>
-            <button type="button" class="ghost" id="trend-modal-close">关闭</button>
-          </div>
-          <div id="trend-modal-body" class="trend-modal-body"></div>
-        </div>
-      `;
-      document.body.appendChild(modal);
-      modal.addEventListener("click", (e) => {
-        if (e.target.classList.contains("trend-modal-back") || e.target.id === "trend-modal-close" || e.target === modal) {
-          modal.classList.remove("open");
-        }
-      });
-      return modal;
-    }
-
-    function openTrendChartModal(model) {
-      const modal = ensureTrendModal();
-      const { dates, series, selected, granularity } = buildTrendSeries(model);
-      const f = state.salesTrendFilters;
-      const svg = renderTrendSvg(dates, series, {
-        minW: 960, maxW: 2400, aspectRatio: 3, pointR: 3, strokeWidth: 2.4,
-        granularity, showTrendLine: f.showTrendLine, trendMethod: f.trendMethod,
-      });
-      const legend = renderTrendLegendHtml(series, selected, f.mode, f);
-      const summary = renderTrendSummaryHtml(dates, series, granularity);
-      document.getElementById("trend-modal-body").innerHTML = `${summary}<div class="trend-chart-wrap trend-chart-wrap--modal">${svg}</div>${legend}`;
-      modal.classList.add("open");
-      // 弹窗内的 tooltip 也要绑定
-      const modalBody = document.getElementById("trend-modal-body");
-      if (modalBody) bindTrendTooltip(modalBody);
-    }
-
-    // 销售趋势 tooltip 交互
-    function bindTrendTooltip(container) {
-      if (container._trendTooltipBound) return;
-      container._trendTooltipBound = true;
-      let tip = document.getElementById("trend-tooltip");
-      if (!tip) {
-        tip = document.createElement("div");
-        tip.id = "trend-tooltip";
-        tip.style.cssText = "position:fixed;z-index:10000;pointer-events:none;background:rgba(45,36,29,.92);color:#fff;padding:8px 12px;border-radius:8px;font-size:12px;line-height:1.6;box-shadow:0 6px 20px rgba(0,0,0,.25);display:none;max-width:260px;";
-        document.body.appendChild(tip);
-      }
-      container.addEventListener("mouseover", (e) => {
-        const rect = e.target.closest("[data-trend-tip]");
-        if (!rect) { tip.style.display = "none"; return; }
-        const date = rect.dataset.date || "";
-        const values = (rect.dataset.values || "").split(",").map((v) => Number(v) || 0);
-        const labels = (rect.dataset.labels || "").split(",");
-        const colors = (rect.dataset.colors || "").split(",");
-        let html = `<div style="font-weight:600;margin-bottom:4px;">${escapeHtml(date)}</div>`;
-        for (let i = 0; i < labels.length; i++) {
-          if (!labels[i]) continue;
-          const val = values[i] || 0;
-          const color = colors[i] || "#fff";
-          html += `<div style="display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;"></span><span>${escapeHtml(labels[i])}: <strong>${formatInteger(val)}</strong></span></div>`;
-        }
-        tip.innerHTML = html;
-        tip.style.display = "block";
-        // 立即定位到鼠标位置，避免初始出现在 (0,0)
-        const px = e.clientX + 14;
-        const py = e.clientY + 14;
-        const maxX = window.innerWidth - tip.offsetWidth - 10;
-        const maxY = window.innerHeight - tip.offsetHeight - 10;
-        tip.style.left = Math.min(px, maxX) + "px";
-        tip.style.top = Math.min(py, maxY) + "px";
-      });
-      container.addEventListener("mousemove", (e) => {
-        if (tip.style.display !== "block") return;
-        const x = e.clientX + 14;
-        const y = e.clientY + 14;
-        const maxX = window.innerWidth - tip.offsetWidth - 10;
-        const maxY = window.innerHeight - tip.offsetHeight - 10;
-        tip.style.left = Math.min(x, maxX) + "px";
-        tip.style.top = Math.min(y, maxY) + "px";
-      });
-      container.addEventListener("mouseleave", () => {
-        tip.style.display = "none";
-      });
-    }
-
-    function renderTrendProductListHtml(model) {
-      const trend = model.salesTrendModel;
-      const f = state.salesTrendFilters;
-      const search = normalizeText(f.search);
-      const keySet = new Set(f.selectedKeys);
-      const filtered = trend.products.filter((p) => {
-        if (f.category && f.category !== "全部" && (p.category || "") !== f.category) return false;
-        if (!search) return true;
-        return normalizeText(p.productName).includes(search)
-          || normalizeText(p.barcode).includes(search)
-          || normalizeText(p.sku).includes(search);
-      });
-      if (!filtered.length) {
-        return `<div class="trend-product-empty">没有匹配的商品</div>`;
-      }
-      return filtered.map((p) => {
-        const checked = keySet.has(p.key) ? "checked" : "";
-        const fullName = p.productName || p.barcode || p.sku || p.key;
-        const name = shortenProductName(fullName) || fullName;
-        const sub = [p.barcode, p.sku].filter(Boolean).join(" / ");
-        return `
-          <label class="trend-product-item" data-trend-key="${escapeHtml(p.key)}">
-            <input type="checkbox" ${checked} data-trend-key="${escapeHtml(p.key)}">
-            <span class="trend-product-name" title="${escapeHtml(fullName)}">${escapeHtml(name)}</span>
-            <span class="trend-product-sub">${escapeHtml(sub)}</span>
-          </label>
-        `;
-      }).join("");
-    }
-
-    // ===== 快团团销售单导入 =====
-
-    // 解析快团团聊天记录为导入行
-    // 输入：多订单聊天记录文本
-    // 输出：[{importNo, name, phone, address, csNote, productName, qty}]
-    function parseKttChatLog(text) {
-      if (!text || !text.trim()) return [];
-      // 按"跟团号："分割订单块
-      const blocks = text.split(/跟团号[：:]/).slice(1);
-      const rows = [];
-      let importNo = 0;
-      blocks.forEach((block) => {
-        const orderText = block.trim();
-        if (!orderText) return;
-        // 提取跟团号（块开头的数字）
-        const groupMatch = orderText.match(/^(\d+)/);
-        const groupNo = groupMatch ? groupMatch[1] : "";
-        // 提取订单编号
-        const orderMatch = orderText.match(/订单编号[：:]\s*([^\n\r]+)/);
-        const orderNo = orderMatch ? orderMatch[1].trim() : "";
-        // 提取商品信息
-        const productMatch = orderText.match(/商品信息[：:]\s*\n([\s\S]*?)(?=\n快递信息[：:]|$)/);
-        const productInfo = productMatch ? productMatch[1].trim() : "";
-        // 提取收货信息
-        const addrMatch = orderText.match(/收货信息[：:]\s*([^\n\r]+)/);
-        const addrInfo = addrMatch ? addrMatch[1].trim() : "";
-        // 提取团员备注
-        const memberNoteMatch = orderText.match(/团员备注[：:]\s*([^\n\r]+)/);
-        const memberNote = memberNoteMatch ? memberNoteMatch[1].trim() : "";
-
-        // 解析收货信息：姓名 手机号 地址
-        let name = "", phone = "", address = "";
-        if (addrInfo) {
-          const parts = addrInfo.split(/\s+/);
-          if (parts.length >= 3) {
-            name = parts[0];
-            phone = parts[1];
-            address = parts.slice(2).join(" ");
-          } else if (parts.length === 2) {
-            name = parts[0];
-            phone = parts[1];
-          } else {
-            name = parts[0] || "";
-          }
-        }
-
-        // 客服备注：跟团号 + 订单编号
-        const csNote = `跟团号：${groupNo}\n订单编号：${orderNo}`;
-
-        importNo += 1;
-
-        // 判断是否香型备注
-        const isFragranceNote = productInfo.includes("香型备注");
-
-        if (isFragranceNote) {
-          // 香型备注：从团员备注解析商品和数量
-          const items = parseKttMemberNotes(memberNote);
-          if (items.length === 0) {
-            // 备注为"暂无"等无效内容，回退用商品信息名称
-            const fallback = extractKttProductName(productInfo);
-            rows.push({ importNo, name, phone, address, csNote, productName: fallback, qty: 1 });
-          } else {
-            items.forEach((item) => {
-              rows.push({ importNo, name, phone, address, csNote, productName: item.name, qty: item.qty });
-            });
-          }
-        } else {
-          // 非香型备注：直接用商品信息
-          const product = extractKttProductInfo(productInfo);
-          rows.push({ importNo, name, phone, address, csNote, productName: product.name, qty: product.qty });
-        }
-      });
-      return rows;
-    }
-
-    // 解析团员备注为商品项数组 [{name, qty}]
-    // 支持分隔符：逗号(，,)、加号(+)、&、空格、中文"和"
-    function parseKttMemberNotes(note) {
-      if (!note || note === "暂无" || note === "无") return [];
-      // 按逗号/加号/&/和 分割
-      let parts = note.split(/[，,+&]|和/).map((s) => s.trim()).filter(Boolean);
-      // 对每段再按空格分割（处理"月影和琥珀 薄荷"等混合分隔）
-      parts = parts.flatMap((p) => p.includes(" ") ? p.split(/\s+/).map((s) => s.trim()).filter(Boolean) : [p]);
-      return parts.map((part) => {
-        // 解析 "xN" 或 "×N" 后缀
-        const m = part.match(/^(.+?)[x×](\d+)$/);
-        if (m) {
-          return { name: m[1].trim(), qty: parseInt(m[2], 10) };
-        }
-        return { name: part, qty: 1 };
-      });
-    }
-
-    // 从商品信息提取产品名（非香型备注情况）
-    // 格式如 "黑爪：风雅色香水x1瓶(月影) +1" → {name: "风雅色香水(月影)", qty: 1}
-    function extractKttProductInfo(info) {
-      if (!info) return { name: "", qty: 1 };
-      let text = info.trim();
-      // 去除品牌前缀（"黑爪："等）
-      const colonIdx = text.indexOf("：");
-      if (colonIdx >= 0) text = text.slice(colonIdx + 1).trim();
-      const colonIdx2 = text.indexOf(":");
-      if (colonIdx2 >= 0 && colonIdx2 < 10) text = text.slice(colonIdx2 + 1).trim();
-      // 提取括号内容（香型规格）
-      const parenMatch = text.match(/[（(]([^)）]+)[)）]/);
-      const fragrance = parenMatch ? parenMatch[1].trim() : "";
-      // 去除括号及之后内容
-      text = text.replace(/[（(][^)）]+[)）]/g, "").trim();
-      // 提取数量 xN 或 ×N
-      const qtyMatch = text.match(/[x×](\d+)/);
-      const qty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
-      // 去除 xN 和后缀
-      text = text.replace(/[x×]\d+.*$/, "").trim();
-      // 拼接香型规格
-      const name = fragrance ? `${text}(${fragrance})` : text;
-      return { name: name || info, qty };
-    }
-
-    // 从商品信息提取产品名（简版，用于香型备注回退）
-    function extractKttProductName(info) {
-      if (!info) return "";
-      let text = info.trim();
-      const colonIdx = text.indexOf("：");
-      if (colonIdx >= 0) text = text.slice(colonIdx + 1).trim();
-      const qtyMatch = text.match(/[x×](\d+)/);
-      text = text.replace(/[（(][^)）]+[)）]/g, "").replace(/[x×]\d+.*$/, "").trim();
-      return text || info;
-    }
-
-    // 导出快团团导入数据为 Excel
-    function exportKttImportExcel(rows) {
-      if (!rows || !rows.length) {
-        alert("没有可导出的数据，请先粘贴并解析聊天记录");
-        return;
-      }
-      const headers = ["导入编号", "收货人", "手机", "收货地址", "客服备注", "货品名称", "数量"];
-      const data = [headers];
-      rows.forEach((row) => {
-        data.push([
-          row.importNo,
-          row.name,
-          row.phone,
-          row.address,
-          row.csNote,
-          row.productName,
-          row.qty,
-        ]);
-      });
-      const ws = XLSX.utils.aoa_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "快团团导入");
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
-      XLSX.writeFile(wb, `快团团导入_${timestamp}.xlsx`);
-    }
-
-    // 渲染快团团导入 Tab
-    function renderKttImportTab() {
-      const rows = state.kttImportData;
-      const previewRows = rows.slice(0, 200);
-      const orderCount = rows.length ? new Set(rows.map((r) => r.importNo)).size : 0;
-
-      let tableHtml = "";
-      if (rows.length) {
-        tableHtml = `
-          <div class="soft-card" style="overflow-x:auto;">
-            <table class="data-table" style="width:100%;font-size:13px;">
-              <thead>
-                <tr>
-                  <th>导入编号</th>
-                  <th>收货人</th>
-                  <th>手机</th>
-                  <th>收货地址</th>
-                  <th>客服备注</th>
-                  <th>货品名称</th>
-                  <th>数量</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${previewRows.map((row) => `
-                  <tr>
-                    <td>${escapeHtml(row.importNo)}</td>
-                    <td>${escapeHtml(row.name)}</td>
-                    <td>${escapeHtml(row.phone)}</td>
-                    <td style="max-width:280px;word-break:break-all;">${escapeHtml(row.address)}</td>
-                    <td style="white-space:pre-line;max-width:200px;">${escapeHtml(row.csNote)}</td>
-                    <td>${escapeHtml(row.productName)}</td>
-                    <td>${escapeHtml(row.qty)}</td>
-                  </tr>
-                `).join("")}
-              </tbody>
-            </table>
-          </div>
-          ${rows.length > 200 ? `<div class="note" style="margin-top:8px;">预览仅显示前 200 条，导出 Excel 包含全部 ${formatInteger(rows.length)} 条。</div>` : ""}
-        `;
-      }
-
-      return `
-        <div class="panel">
-          <div class="block-head">
-            <div>
-              <h2>快团团销售单导入</h2>
-              <div class="note">粘贴快团团聊天记录，自动解析生成导入模板 Excel。同一订单的商品共享同一导入编号。</div>
-            </div>
-          </div>
-          <div class="soft-card" style="display:grid;gap:12px;">
-            <div class="note" style="line-height:1.7;">
-              <strong>使用说明：</strong><br>
-              1. 复制快团团订单聊天记录（包含跟团号、订单编号、商品信息、收货信息、团员备注等字段）<br>
-              2. 粘贴到下方输入框，支持一次粘贴多笔订单<br>
-              3. 点击"解析"按钮预览结果，确认无误后点击"下载 Excel"<br>
-              4. <strong>货品名称规则：</strong>商品信息含"香型备注"时取团员备注的香型名称；否则取商品信息中的产品名
-            </div>
-            <textarea id="ktt-input" placeholder="在此粘贴快团团聊天记录..." style="width:100%;min-height:200px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;resize:vertical;font-family:inherit;" rows="10"></textarea>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <button class="primary" id="ktt-parse-btn">解析</button>
-              <button class="ghost" id="ktt-clear-btn">清空</button>
-              ${rows.length ? `<button class="primary" id="ktt-export-btn">下载 Excel</button>` : ""}
-              ${rows.length ? `<span class="note">已解析 ${formatInteger(orderCount)} 单 / ${formatInteger(rows.length)} 条商品</span>` : ""}
-            </div>
-          </div>
-          ${tableHtml}
-        </div>
-      `;
-    }
-
-    // 绑定快团团导入交互
-    function bindKttImportInteractions() {
-      const parseBtn = document.getElementById("ktt-parse-btn");
-      const clearBtn = document.getElementById("ktt-clear-btn");
-      const exportBtn = document.getElementById("ktt-export-btn");
-      const input = document.getElementById("ktt-input");
-
-      if (parseBtn && input) {
-        parseBtn.addEventListener("click", () => {
-          const text = input.value;
-          if (!text || !text.trim()) {
-            alert("请先粘贴聊天记录");
-            return;
-          }
-          const rows = parseKttChatLog(text);
-          if (!rows.length) {
-            alert("未能解析出任何订单，请检查格式是否正确（需包含“跟团号：”字段）");
-            return;
-          }
-          state.kttImportData = rows;
-          render();
-        });
-      }
-      if (clearBtn) {
-        clearBtn.addEventListener("click", () => {
-          state.kttImportData = [];
-          if (input) input.value = "";
-          render();
-        });
-      }
-      if (exportBtn) {
-        exportBtn.addEventListener("click", () => {
-          exportKttImportExcel(state.kttImportData);
-        });
-      }
-    }
-
-    function renderSalesTrendTab(model) {
-      const trend = model.salesTrendModel;
-      const f = state.salesTrendFilters;
-      if (!trend.productCount) {
-        return `
-          <div class="panel trend-panel">
-            <div class="block-head">
-              <div>
-                <h2>每日销量趋势对比</h2>
-                <div class="note">已切换到销售趋势模式，但还没有解析到有效数据。请检查文件是否包含商品、日期和线上/线下销量列。</div>
-              </div>
-              <button class="primary" data-open-source="salesTrend">重新上传每日销量文件</button>
-            </div>
-          </div>
-        `;
-      }
-
-      const startVal = f.startDate || trend.dateMin;
-      const endVal = f.endDate || trend.dateMax;
-      const selectedCount = f.selectedKeys.length;
-      const isQuarterly = f.granularity === "quarterly";
-      const isMonthly = f.granularity === "monthly";
-      const titleText = isQuarterly ? "销量趋势对比·按季度" : isMonthly ? "销量趋势对比·按月" : "每日销量趋势对比";
-      const subNote = isQuarterly
-        ? "横轴=季度（YYYY-Qn），纵轴=销量；同一产品不同季度对比，可叠加趋势线。"
-        : isMonthly
-        ? "横轴=月份（YYYY-MM），纵轴=销量；同一产品不同月份对比，可叠加趋势线。"
-        : "横轴=日期，纵轴=销量；最多选择 2 个商品两两对比，4 条折线 4 种颜色。";
-
-      return `
-        <div class="panel trend-panel">
-          <div class="block-head">
-            <div>
-              <h2>${titleText}</h2>
-              <div class="note">${subNote}</div>
-            </div>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-              <span class="badge neutral">共 ${formatInteger(trend.productCount)} 个商品 · 已选 ${formatInteger(selectedCount)}</span>
-              <div class="trend-mode-toggle">
-                <button type="button" class="trend-mode-btn ${f.mode === "split" ? "active" : ""}" data-trend-mode="split">分商品</button>
-                <button type="button" class="trend-mode-btn ${f.mode === "merge" ? "active" : ""}" data-trend-mode="merge">合并</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="trend-view-bar">
-            <div class="trend-mode-toggle">
-              <button type="button" class="trend-mode-btn ${f.granularity === "daily" ? "active" : ""}" data-trend-granularity="daily">每日</button>
-              <button type="button" class="trend-mode-btn ${f.granularity === "monthly" ? "active" : ""}" data-trend-granularity="monthly">按月</button>
-              <button type="button" class="trend-mode-btn ${f.granularity === "quarterly" ? "active" : ""}" data-trend-granularity="quarterly">按季度</button>
-            </div>
-            <div class="trend-mode-toggle">
-              <button type="button" class="trend-mode-btn ${!f.showTrendLine ? "active" : ""}" data-trend-trendline="off">无趋势线</button>
-              <button type="button" class="trend-mode-btn ${f.showTrendLine && f.trendMethod === "linear" ? "active" : ""}" data-trend-trendline="linear">线性趋势</button>
-              <button type="button" class="trend-mode-btn ${f.showTrendLine && f.trendMethod === "ma" ? "active" : ""}" data-trend-trendline="ma">移动平均</button>
-            </div>
-            <span class="note trend-view-bar-hint">趋势线算法：线性回归(最小二乘)反映长期方向；移动平均平滑短期波动。</span>
-          </div>
-
-          <div class="trend-toolbar">
-            <label>
-              商品搜索
-              <input type="text" id="trend-search" class="trend-search" placeholder="输入品名 / 条码 / 编码" value="${escapeHtml(f.search)}">
-            </label>
-            <label>
-              分类(G列)
-              <select id="trend-category">
-                ${getTrendCategoryOptions(model).map((c) => `<option value="${escapeHtml(c)}" ${c === f.category ? "selected" : ""}>${escapeHtml(c)}</option>`).join("")}
-              </select>
-            </label>
-            <label>
-              开始日期
-              <input type="date" id="trend-start" value="${escapeHtml(startVal)}" min="${escapeHtml(trend.dateMin)}" max="${escapeHtml(trend.dateMax)}">
-            </label>
-            <label>
-              结束日期
-              <input type="date" id="trend-end" value="${escapeHtml(endVal)}" min="${escapeHtml(trend.dateMin)}" max="${escapeHtml(trend.dateMax)}">
-            </label>
-            <div style="display:flex;gap:8px;align-items:flex-end;">
-              <button type="button" class="ghost" id="trend-select-top2">前2对比</button>
-              <button type="button" class="ghost" id="trend-clear">清空</button>
-            </div>
-          </div>
-
-          <div class="trend-picker">
-            <div class="trend-picker-col">
-              <div class="note">商品列表（按总销量排序，最多选 2 个）</div>
-              <div id="trend-product-list" class="trend-product-list">${renderTrendProductListHtml(model)}</div>
-            </div>
-            <div class="trend-picker-col">
-              <div id="trend-chart-area">${renderTrendChartAreaHtml(model)}</div>
-            </div>
-          </div>
-        </div>
-      `;
+    function updateSeasonView() {
+      const model = modelCache.model;
+      const trend = model && model.salesTrendModel;
+      if (!trend) return;
+      const filters = getSeasonFilters(trend);
+      const list = getSeasonViewProducts(trend, filters);
+      const body = document.getElementById("season-body");
+      const summary = document.getElementById("season-summary");
+      const count = document.getElementById("season-count");
+      if (body) body.innerHTML = renderSeasonRowsHtml(list);
+      if (summary) summary.innerHTML = renderSeasonSummaryHtml(list);
+      if (count) count.textContent = String(list.length);
+      cacheAppState();
     }
 
     function bindTrendInteractions() {
-      if (state.activeTab !== "salesTrend") return;
-      // 内容区「重新上传每日销量文件」按钮：无论是否有数据都需可点击，触发隐藏文件选择框
-      document.querySelectorAll('[data-open-source="salesTrend"]').forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const input = document.getElementById("input-salesTrend");
-          if (input) input.click();
+      const model = modelCache.model;
+      if (!model || !model.salesTrendModel) return;
+      const filters = getSeasonFilters(model.salesTrendModel);
+
+      const storeEl = document.getElementById("season-store");
+      if (storeEl) {
+        storeEl.addEventListener("change", () => {
+          filters.store = storeEl.value;
+          updateSeasonView();
         });
-      });
-      const listEl = document.getElementById("trend-product-list");
-      const chartEl = document.getElementById("trend-chart-area");
-      if (!listEl || !chartEl) return;
-      const model = buildModel();
+      }
 
-      const refreshList = () => {
-        listEl.innerHTML = renderTrendProductListHtml(model);
-        bindCheckboxes();
-      };
-      const refreshChart = () => {
-        chartEl.innerHTML = renderTrendChartAreaHtml(model);
-      };
-
-      const bindCheckboxes = () => {
-        listEl.querySelectorAll('input[type="checkbox"][data-trend-key]').forEach((cb) => {
-          cb.addEventListener("change", () => {
-            const key = cb.dataset.trendKey;
-            const set = new Set(state.salesTrendFilters.selectedKeys);
-            if (cb.checked) {
-              set.add(key);
-              // 最多两两对比：超出 2 个时移除最早选中的
-              while (set.size > 2) {
-                const oldest = state.salesTrendFilters.selectedKeys.find((k) => set.has(k));
-                if (oldest) set.delete(oldest);
-              }
-            } else {
-              set.delete(key);
-            }
-            state.salesTrendFilters.selectedKeys = Array.from(set);
-            refreshList();
-            refreshChart();
-            cacheAppState();
-          });
-        });
-      };
-
-      bindCheckboxes();
-
-      const searchEl = document.getElementById("trend-search");
+      const searchEl = document.getElementById("season-search");
       if (searchEl) {
         searchEl.addEventListener("input", () => {
-          state.salesTrendFilters.search = searchEl.value || "";
-          refreshList();
-          cacheAppState();
+          filters.search = searchEl.value;
+          updateSeasonView();
         });
       }
 
-      const startEl = document.getElementById("trend-start");
-      const endEl = document.getElementById("trend-end");
-      if (startEl) {
-        startEl.addEventListener("change", () => {
-          state.salesTrendFilters.startDate = startEl.value || "";
-          refreshChart();
-          cacheAppState();
+      const sortEl = document.getElementById("season-sort");
+      if (sortEl) {
+        sortEl.addEventListener("change", () => {
+          filters.sort = sortEl.value;
+          updateSeasonView();
         });
       }
-      if (endEl) {
-        endEl.addEventListener("change", () => {
-          state.salesTrendFilters.endDate = endEl.value || "";
-          refreshChart();
-          cacheAppState();
-        });
-      }
-
-      // 分类筛选（来自商品资料G列）
-      const categoryEl = document.getElementById("trend-category");
-      if (categoryEl) {
-        categoryEl.addEventListener("change", () => {
-          state.salesTrendFilters.category = categoryEl.value || "全部";
-          // 切换分类后，清空已选商品中不属于该分类的项
-          const keySet = new Set(state.salesTrendFilters.selectedKeys);
-          const validKeys = new Set(model.salesTrendModel.products
-            .filter((p) => !state.salesTrendFilters.category || state.salesTrendFilters.category === "全部" || (p.category || "") === state.salesTrendFilters.category)
-            .map((p) => p.key));
-          state.salesTrendFilters.selectedKeys = Array.from(keySet).filter((k) => validKeys.has(k));
-          refreshList();
-          refreshChart();
-          cacheAppState();
-        });
-      }
-
-      document.querySelectorAll(".trend-mode-btn[data-trend-mode]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          state.salesTrendFilters.mode = btn.dataset.trendMode || "split";
-          refreshChart();
-          // 更新按钮高亮
-          document.querySelectorAll(".trend-mode-btn[data-trend-mode]").forEach((b) => {
-            b.classList.toggle("active", b.dataset.trendMode === state.salesTrendFilters.mode);
-          });
-          cacheAppState();
-        });
-      });
-
-      // 视图粒度切换：每日 / 按季度
-      document.querySelectorAll(".trend-mode-btn[data-trend-granularity]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          state.salesTrendFilters.granularity = btn.dataset.trendGranularity || "daily";
-          // 切换粒度时刷新整个面板（标题/提示文案需同步更新）
-          render();
-          cacheAppState();
-        });
-      });
-
-      // 趋势线开关与算法切换
-      document.querySelectorAll(".trend-mode-btn[data-trend-trendline]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const v = btn.dataset.trendTrendline;
-          if (v === "off") {
-            state.salesTrendFilters.showTrendLine = false;
-          } else {
-            state.salesTrendFilters.showTrendLine = true;
-            state.salesTrendFilters.trendMethod = v === "ma" ? "ma" : "linear";
-          }
-          refreshChart();
-          // 同步按钮高亮
-          const f = state.salesTrendFilters;
-          document.querySelectorAll(".trend-mode-btn[data-trend-trendline]").forEach((b) => {
-            const bv = b.dataset.trendTrendline;
-            const active = bv === "off" ? !f.showTrendLine
-              : (f.showTrendLine && (bv === "linear" ? f.trendMethod === "linear" : f.trendMethod === "ma"));
-            b.classList.toggle("active", active);
-          });
-          cacheAppState();
-        });
-      });
-
-      const top2Btn = document.getElementById("trend-select-top2");
-      if (top2Btn) {
-        top2Btn.addEventListener("click", () => {
-          // 前2对比：尊重当前分类筛选，取该分类下销量最高的2个商品
-          const f = state.salesTrendFilters;
-          const pool = model.salesTrendModel.products.filter((p) =>
-            !f.category || f.category === "全部" || (p.category || "") === f.category
-          );
-          state.salesTrendFilters.selectedKeys = pool.slice(0, 2).map((p) => p.key);
-          refreshList();
-          refreshChart();
-          cacheAppState();
-        });
-      }
-      const clearBtn = document.getElementById("trend-clear");
-      if (clearBtn) {
-        clearBtn.addEventListener("click", () => {
-          state.salesTrendFilters.selectedKeys = [];
-          refreshList();
-          refreshChart();
-          cacheAppState();
-        });
-      }
-
-// 点击折线图区域弹出放大弹窗
-chartEl.addEventListener("click", (e) => {
-if (e.target.closest(".trend-chart-wrap--modal")) return;
-openTrendChartModal(model);
-});
-
-// 鼠标悬停 tooltip：绑定到 chartEl 利用事件委托
-bindTrendTooltip(chartEl);
-
-}
+    }
 
     function renderEmptyTabContent() {
       // 根据当前选中的 Tab 显示对应的空状态
@@ -8140,23 +7304,23 @@ bindTrendTooltip(chartEl);
         <div class="panel trend-panel" id="trend-empty-panel">
           <div class="block-head">
             <div>
-              <h2>每日销量趋势对比</h2>
-              <div class="note">请先上传一份各商品每天线上 / 线下销售数量文件，系统会绘制折线趋势图。</div>
+              <h2>门店单品季节分析</h2>
+              <div class="note">上传《门店销售明细》后，按单品对比春夏 / 秋冬的日均销量，判断季节倾向并用色阶标注强弱。</div>
             </div>
-            <button class="primary" id="trend-upload-btn">上传每日销量文件</button>
+            <button class="primary" data-open-source="salesTrend">上传门店销售明细</button>
           </div>
           <div class="soft-card">
             <div style="display:grid;gap:12px;">
               <div class="note">文件要求：</div>
               <ul style="margin:0;padding-left:20px;color:var(--muted);">
                 <li>格式：Excel (.xlsx/.xls) 或 CSV</li>
-                <li>必需列：商品(品名/条码/编码)、日期</li>
-                <li>销量列：线上销量 + 线下销量（或「渠道 + 数量」长格式）</li>
+                <li>工作表：包含《店铺销售》（仅一张销售表也可）</li>
+                <li>必需列：日期、商品名称、归属店铺、商品数量</li>
+                <li>建议保留「订单商品状态」「小样/赠品」列，用于排除非完成单与赠品、小样</li>
               </ul>
-              <div class="note" style="margin-top:8px;">上传后，横轴=日期、纵轴=销量，蓝色线=线上、橙色线=线下，可多商品对比、按日期段筛选。</div>
+              <div class="note" style="margin-top:8px;">季节：春夏 3–8 月，秋冬 9、10、11、12、1、2 月；按实际覆盖天数的日均销量对比；|日均差| ÷ 较大值 &lt; 15% 记为「均匀」。</div>
             </div>
           </div>
-          <input id="trend-empty-input" type="file" accept=".xlsx,.xls,.csv" hidden>
         </div>
       `;
     }
@@ -8356,7 +7520,7 @@ bindTrendTooltip(chartEl);
         tabsBar.style.display = "none";
       }
 
-      // 销售趋势解析中：先显示加载态，避免用户以为卡死
+      // 门店销售明细解析中：先显示加载态，避免用户以为卡死
       if (state.activeTab === "salesTrend" && state.sources.salesTrend && state.sources.salesTrend.loading) {
         kpiGrid.style.display = "none";
         tabsBar.style.display = "none";
@@ -8393,22 +7557,7 @@ bindTrendTooltip(chartEl);
             });
           }
         }
-        // 绑定销售趋势空状态的上传按钮事件
-        if (state.activeTab === "salesTrend") {
-          const uploadBtn = document.getElementById("trend-upload-btn");
-          const fileInput = document.getElementById("trend-empty-input");
-          if (uploadBtn && fileInput) {
-            uploadBtn.addEventListener("click", () => {
-              fileInput.click();
-            });
-            fileInput.addEventListener("change", async () => {
-              const file = fileInput.files && fileInput.files[0];
-              if (!file) return;
-              await handleUpload("salesTrend", file);
-              fileInput.value = "";
-            });
-          }
-        }
+        // 门店单品季节分析的空状态上传由全局 data-open-source 处理
         return;
       }
 
@@ -8508,18 +7657,11 @@ bindTrendTooltip(chartEl);
         }
       }
 
-      // 销售趋势文件上传后：自动设置日期段并默认选中销量最高的商品
+      // 门店单品季节分析文件上传后：重置筛选
       if (key === "salesTrend") {
-        const trend = buildSalesTrendModel(state.sources.salesTrend.rows, state.sources.product.rows);
-        state.salesTrendFilters.startDate = trend.dateMin || "";
-        state.salesTrendFilters.endDate = trend.dateMax || "";
+        state.salesTrendFilters.store = "";
         state.salesTrendFilters.search = "";
-        state.salesTrendFilters.mode = trend.products.length <= 1 ? "split" : "split";
-        // 默认选中总销量(线上+线下)最高的商品
-        const topKey = trend.products
-          .slice()
-          .sort((a, b) => (b.totalOnline + b.totalOffline) - (a.totalOnline + a.totalOffline))[0]?.key || "";
-        state.salesTrendFilters.selectedKeys = topKey ? [topKey] : [];
+        state.salesTrendFilters.sort = "total";
       }
 
       if (!skipFinalRender) render();
