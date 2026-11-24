@@ -259,6 +259,20 @@
     .date-input.is-undated { border-color: var(--warning-border); background: var(--warning-soft); }
     .entry-hint { font-size: 11.5px; color: var(--warning-text); line-height: 1.6; }
     .entry-hint[hidden] { display: none; }
+    .undated-bar {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+      padding: 8px 12px; border-radius: var(--radius-md);
+      background: var(--warning-soft); border: 1px solid var(--warning-border);
+      font-size: 12px; color: var(--warning-text); line-height: 1.6;
+    }
+    .undated-bar[hidden] { display: none; }
+    .undated-bar > span { flex: 1 1 240px; }
+    .undated-bar label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; white-space: nowrap; }
+    .undated-bar select, .undated-bar input[type="date"] {
+      padding: 4px 7px; border: 1px solid var(--warning-border); border-radius: var(--radius-sm);
+      background: #fff; color: var(--ink); font-size: 12px;
+    }
+    .undated-bar select:focus, .undated-bar input[type="date"]:focus { border-color: var(--page-brand); outline: none; box-shadow: 0 0 0 2px var(--page-brand-soft); }
 
     .foot { text-align: center; font-size: 11.5px; color: var(--page-text-muted); line-height: 1.8; }
 
@@ -269,7 +283,7 @@
     }
     .mask.on { opacity: 1; pointer-events: auto; }
     .drawer {
-      position: fixed; top: 0; right: 0; height: 100%; width: min(600px, 94vw);
+      position: fixed; top: 0; right: 0; height: 100%; width: min(760px, 96vw);
       background: #fff; box-shadow: -18px 0 48px rgba(19, 32, 51, .18);
       transform: translateX(102%); transition: transform .24s ease; z-index: 51;
       display: grid; grid-template-rows: auto 1fr;
@@ -304,9 +318,16 @@
       display: grid; grid-template-columns: 138px 128px minmax(0, 1fr) 52px; gap: 8px;
       font-size: 11px; color: var(--page-text-muted); padding: 0 1px;
     }
-    .entry-head.is-settle { grid-template-columns: 138px 128px minmax(0, 1fr) 52px; }
+    .entry-head.is-settle { grid-template-columns: 118px 118px 104px minmax(0, 1fr) 104px 48px; gap: 6px; }
     .entry-row { display: grid; grid-template-columns: 138px 128px minmax(0, 1fr) 52px; gap: 8px; align-items: center; }
-    .entry-row.is-settle { grid-template-columns: 138px 128px minmax(0, 1fr) 52px; }
+    .entry-row.is-settle { grid-template-columns: 118px 118px 104px minmax(0, 1fr) 104px 48px; gap: 6px; }
+    .entry-row.is-settle .btn-sm { padding: 3px 4px; }
+    .month-quick {
+      width: 100%; padding: 5px 4px; border: 1px solid var(--page-border); border-radius: var(--radius-sm);
+      font-size: 11.5px; color: var(--page-text-secondary); background: #fff;
+    }
+    .month-quick:focus { border-color: var(--page-brand); outline: none; box-shadow: 0 0 0 2px var(--page-brand-soft); }
+    .entry-row.is-invalid .date-input { border-color: var(--danger-border); background: var(--danger-soft); }
     .entry-row input {
       width: 100%; padding: 6px 9px; border: 1px solid var(--page-border); border-radius: var(--radius-sm);
       font-size: 12.5px; color: var(--ink); background: #fff;
@@ -348,7 +369,11 @@
       .hero { padding: var(--space-4); }
       .panel { padding: var(--space-4); }
       .entry-head, .entry-row { grid-template-columns: 1fr 1fr; }
-      .entry-head.is-settle, .entry-row.is-settle { grid-template-columns: 1fr 1fr; }
+      .entry-head.is-settle { display: none; }
+      .entry-row.is-settle { grid-template-columns: 1fr 1fr 48px; }
+      .entry-row.is-settle .note-input { grid-column: 1 / -1; }
+      .entry-row.is-settle .month-quick { grid-column: 1 / 2; }
+      .entry-row.is-settle .btn-danger { grid-column: 3 / 4; }
       .entry-head span:nth-child(3) { display: none; }
       .entry-row .note-input { grid-column: 1 / -1; }
     }
@@ -359,7 +384,7 @@
     <header class="hero">
       <div>
         <h1>寄售库存金额一览</h1>
-        <p class="hero-sub">导入《寄售发货明细》后按 AC 列「归属」汇总各寄售客户发货金额；退货、结算（含结算日期）与实际库存手工录入并保存在本浏览器；预计货值 = 发货金额 − 退货金额 − 结算金额。</p>
+        <p class="hero-sub">导入《寄售发货明细》后按 AC 列「归属」汇总各寄售客户发货金额；退货、结算（结算区间 + 金额 + 备注）与实际库存手工录入并保存在本浏览器；预计货值 = 发货金额 − 退货金额 − 结算金额。</p>
         <div class="stat-row" id="heroStats"></div>
       </div>
       <div class="hero-actions">
@@ -411,10 +436,18 @@
       </div>
       <div class="calc-cards" id="saleableCards"></div>
       <div class="calc-warn" id="saleableWarn" hidden></div>
+      <div class="undated-bar" id="undatedBar" hidden>
+        <span id="undatedText"></span>
+        <label>整月 <select id="undatedMonth"></select></label>
+        <button class="btn btn-sm" type="button" id="undatedApplyMonth">按整月补录</button>
+        <label>区间 <input type="date" id="undatedStart"> <span>至</span> <input type="date" id="undatedEnd"></label>
+        <button class="btn btn-sm" type="button" id="undatedApplyRange">按区间补录</button>
+      </div>
       <div class="table-hint">
-        可售天数 = 测算库存金额 ÷ 日均结算金额；日均结算金额 = 区间结算金额 ÷ 区间天数（含首尾两天）；折合月数 = 可售天数 ÷ 30，保留一位小数。
-        测算库存优先取「实际库存金额」，该客户未填写时回退「预计货值」，表格与卡片会标注每户当前使用的口径。
-        区间结算为 0、无结算数据或未选择有效区间时显示「无法测算」。区间与结算日期保存在本浏览器，刷新后保留。
+        日均结算金额 = 参与测算的结算金额合计 ÷ 这些结算条目覆盖的天数（多条区间重叠只计一次，按并集算）；可售天数 = 测算库存金额 ÷ 日均结算金额；折合月数 = 可售天数 ÷ 30，保留一位小数。
+        全局结算区间只决定哪些结算条目参与（与区间有重叠即纳入），天数以每条记录自己的起止日期为准。
+        例：库存 ¥30,000，结算条目 2026-09-01 ~ 2026-09-30 金额 ¥10,000 → 覆盖 30 天，日均 ¥333.33，可售 90 天（≈ 3.0 个月）。
+        测算库存优先取「实际库存金额」，该客户未填写时回退「预计货值」，表格与卡片会标注每户当前使用的口径；区间结算为 0 或没有可测算记录时显示「无法测算」。
       </div>
     </section>
 
@@ -431,9 +464,9 @@
         </table>
       </div>
       <div class="table-hint">
-        点击表头可排序；「录入」维护该客户的退货 / 结算明细（结算需填写结算日期），实际库存金额可直接在表格中填写（失焦即保存）。
+        点击表头可排序；「录入」维护该客户的退货 / 结算明细（结算按起止日期录入，可一键设为整月），实际库存金额可直接在表格中填写（失焦即保存）。
         预计货值 = 发货金额 − 退货金额 − 结算金额；差异 = 实际库存金额 − 预计货值，负数表示实际短于预计。
-        「区间结算」只统计结算日期落在所选区间内的结算；「可售天数」= 测算库存 ÷ 日均结算，测算库存优先取实际库存、未填时回退预计货值。
+        「区间结算」统计与所选全局区间有重叠的结算条目；「可售天数」= 测算库存 ÷ 日均结算，日均按这些条目自身区间合并去重后的天数计算；测算库存优先取实际库存、未填时回退预计货值。
       </div>
     </section>
 
@@ -461,10 +494,11 @@
         <div>· 数据源：<b>寄售发货明细</b>（工作表「销售单合并货品」，表头第 1 行，共 29 列）；<b>AC 列（第 29 列）</b>为「归属」，取值为公式 <code>XLOOKUP(客户账号, Sheet1)</code> 的匹配结果。</div>
         <div>· 统计范围：<b>归属为空或为 N/A 的行不纳入统计</b>；其余按「归属」聚合成寄售客户，发货金额取明细「金额」列（已扣优惠后的行金额）求和。</div>
         <div>· 订单状态不做额外过滤：源表中「已取消 / 已取消-被合并」的行只要归属有效仍计入发货金额，看板会在数据源卡片标注行数与金额，便于复核。</div>
-        <div>· 退货金额（退货日期 + 金额 + 备注）与结算金额（结算日期 + 金额 + 备注）为手工录入，按客户归集；实际库存金额按客户手工填写。三者均保存在本浏览器 <code>localStorage</code>（key：<code>toolsGoods.consignmentInventory.v1</code>），刷新不丢失；清理浏览器数据或换设备不会同步。换设备前请点页头「导出录入数据」保存为 .json，在新设备用「导入录入数据」按客户名合并还原；「导出表格」可导出当前金额一览（含合计行）用于会议。</div>
-        <div>· 可售天数测算：日均结算金额 = 所选区间内的结算金额合计 ÷ 区间天数（含首尾两天）；可售天数 = 测算库存金额 ÷ 日均结算金额；折合月数 = 可售天数 ÷ 30（保留一位小数）。区间结算为 0、无结算数据或区间无效时显示「无法测算」，不显示 0 或无穷大。</div>
+        <div>· 退货金额（退货日期 + 金额 + 备注）与结算金额（开始日期 + 结束日期 + 金额 + 备注）为手工录入，按客户归集；实际库存金额按客户手工填写。三者均保存在本浏览器 <code>localStorage</code>（key：<code>toolsGoods.consignmentInventory.v1</code>），刷新不丢失；清理浏览器数据或换设备不会同步。换设备前请点页头「导出录入数据」保存为 .json，在新设备用「导入录入数据」按客户名合并还原；「导出表格」可导出当前金额一览（含合计行）用于会议。</div>
+        <div>· 可售天数测算：日均结算金额 = Σ参与测算的结算金额 ÷ Σ这些结算条目覆盖的天数；可售天数 = 测算库存金额 ÷ 日均结算金额；折合月数 = 可售天数 ÷ 30（保留一位小数）。天数按每条结算记录自身的开始/结束日期计算（含首尾两天），多条记录区间重叠时按并集只计一次，不重复计时。例：库存 ¥30,000，结算条目 2026-09-01 ~ 2026-09-30 金额 ¥10,000 → 覆盖 30 天，日均 ¥333.33，可售 90 天 ≈ 3.0 个月。</div>
+        <div>· 全局结算区间只用于筛选参与测算的条目：与区间有重叠即纳入，但天数仍以条目自身区间为准（不按全局区间裁剪）。区间结算为 0、没有可测算条目或测算库存为负时显示「无法测算」，不显示 0 或无穷大。多条结算区间重叠的客户会在表格和提示中标注「重叠已去重」。</div>
         <div>· 测算库存取数优先级：优先「实际库存金额」；该客户未填写时回退「预计货值」，并可能在预计货值为 0 或负数时无法测算。表格「可售天数」列会标注每户当前使用的是哪一种口径。</div>
-        <div>· 兼容旧数据：仅有金额、没有「结算日期」的历史结算记录标记为<b>无日期</b>，默认不计入任何区间统计，页面会提示笔数与金额；在对应客户「录入」中补填结算日期后自动纳入。结算区间与结算日期均保存在本浏览器，刷新后保留。</div>
+        <div>· 兼容旧数据：仅有金额、没有日期的历史结算记录标记为<b>未设区间</b>，默认不计入任何测算，页面会提示笔数与金额，并提供「按整月补录 / 按区间补录」一键入口（抽屉内只补当前客户，面板上补全部客户），补完立即参与计算。历史单日结算按单日 1 天计算，可在抽屉里用每行「整月」快捷改为整月区间。结算区间与全局筛选区间均保存在本浏览器，刷新后保留。</div>
         <div>· 本阶段只做金额口径，不做数量与 SKU 维度。</div>
       </div>
     </section>
@@ -502,10 +536,17 @@
           <button class="btn btn-sm" type="button" data-add="settle">新增结算</button>
         </div>
         <div class="block-body">
-          <div class="entry-head is-settle"><span>结算日期</span><span>金额</span><span>备注</span><span></span></div>
+          <div class="entry-head is-settle"><span>开始日期</span><span>结束日期</span><span>金额</span><span>备注</span><span>整月</span><span></span></div>
           <div class="entry-list" id="settleList"></div>
           <div class="entry-foot">结算合计 <b id="settleTotal">0.00</b></div>
           <div class="entry-hint" id="settleDateHint" hidden></div>
+          <div class="undated-bar" id="drawerUndatedBar" hidden>
+            <span id="drawerUndatedText"></span>
+            <label>整月 <select id="drawerUndatedMonth"></select></label>
+            <button class="btn btn-sm" type="button" data-backfill="month">按整月补录</button>
+            <label>区间 <input type="date" id="drawerUndatedStart"> <span>至</span> <input type="date" id="drawerUndatedEnd"></label>
+            <button class="btn btn-sm" type="button" data-backfill="range">按区间补录</button>
+          </div>
         </div>
       </div>
 
@@ -530,7 +571,7 @@
 
     var STORAGE_KEY = 'toolsGoods.consignmentInventory.v1';
     var APP_ID = 'toolsGoods.consignmentInventory';
-    var STORE_VERSION = 2;
+    var STORE_VERSION = 3;
     var $ = function (id) { return document.getElementById(id); };
 
     var state = {
@@ -596,16 +637,24 @@
     /* ---------------- 本地存储 ---------------- */
     function normalizeManual(m) {
       var src = m || {};
-      function rows(list, withDate) {
+      function rows(list) {
         if (!Array.isArray(list)) return [];
         return list.map(function (e) {
-          var item = { id: String((e && e.id) || uid()), amount: num(e && e.amount), note: String((e && e.note) || '') };
-          if (withDate) item.date = String((e && e.date) || '');
-          return item;
+          return { id: String((e && e.id) || uid()), date: String((e && e.date) || ''), amount: num(e && e.amount), note: String((e && e.note) || '') };
+        });
+      }
+      function settleRows(list) {
+        if (!Array.isArray(list)) return [];
+        return list.map(function (e) {
+          var start = String((e && (e.start || e.date)) || '');
+          var end = String((e && (e.end || e.date)) || '');
+          if (start && !end) end = start;
+          if (end && !start) start = end;
+          return { id: String((e && e.id) || uid()), start: start, end: end, amount: num(e && e.amount), note: String((e && e.note) || '') };
         });
       }
       var actual = (src.actual === null || src.actual === undefined || src.actual === '') ? null : num(src.actual);
-      return { returns: rows(src.returns, true), settlements: rows(src.settlements, true), actual: actual };
+      return { returns: rows(src.returns), settlements: settleRows(src.settlements), actual: actual };
     }
 
     function loadStore() {
@@ -670,7 +719,7 @@
           name: name,
           actual: m.actual,
           returns: m.returns.map(function (e) { return { date: e.date, amount: e.amount, note: e.note }; }),
-          settlements: m.settlements.map(function (e) { return { date: e.date, amount: e.amount, note: e.note }; })
+          settlements: m.settlements.map(function (e) { return { start: e.start, end: e.end, amount: e.amount, note: e.note }; })
         };
       });
 
@@ -764,9 +813,9 @@
         return;
       }
 
-      var head = ['寄售客户', '发货金额', '退货金额', '结算金额', '区间结算金额', '预计货值', '实际库存金额', '差异', '差异率', '可售天数', '折合月数'];
+      var head = ['寄售客户', '发货金额', '退货金额', '结算金额', '区间结算金额', '覆盖天数', '预计货值', '实际库存金额', '差异', '差异率', '可售天数', '折合月数'];
       var aoa = [head];
-      var shipTotal = 0, returnTotal = 0, settleTotal = 0, rangeTotal = 0, expectedTotal = 0, actualTotal = 0, diffTotal = 0, stockTotal = 0, measureStock = 0, actualCount = 0;
+      var shipTotal = 0, returnTotal = 0, settleTotal = 0, rangeTotal = 0, expectedTotal = 0, actualTotal = 0, diffTotal = 0, stockTotal = 0, measureStock = 0, actualCount = 0, dailySum = 0;
       var pInfo = periodState();
 
       rows.forEach(function (r) {
@@ -777,6 +826,7 @@
           r.returns,
           r.settlements,
           pInfo.valid ? r.settleRange : '',
+          r.settleRangeDays || '',
           r.expected,
           r.actual === null ? '' : r.actual,
           r.diff === null ? '' : r.diff,
@@ -790,19 +840,27 @@
         rangeTotal += r.settleRange;
         expectedTotal += r.expected;
         stockTotal += r.stockBase;
-        if (r.settleRange > 0) measureStock += r.stockBase;
+        if (r.settleRange > 0 && r.settleRangeDays > 0) {
+          measureStock += r.stockBase;
+          dailySum += r.settleRange / r.settleRangeDays;
+        }
         if (r.actual !== null) { actualTotal += r.actual; diffTotal += r.diff; actualCount++; }
       });
 
       diffTotal = round2(diffTotal);
       var totalRate = (actualCount && expectedTotal) ? round2(diffTotal / expectedTotal * 100) : null;
-      var totalSale = calcSaleable(round2(measureStock), round2(rangeTotal), pInfo.days);
+      dailySum = round2(dailySum);
+      var totalSale = dailySum > 0 && measureStock >= 0 ? {
+        days: measureStock / dailySum,
+        months: measureStock / dailySum / 30
+      } : null;
       aoa.push([
         '合计（' + rows.length + ' 户）',
         round2(shipTotal),
         round2(returnTotal),
         round2(settleTotal),
         pInfo.valid ? round2(rangeTotal) : '',
+        '',
         round2(expectedTotal),
         actualCount ? round2(actualTotal) : '',
         actualCount ? diffTotal : '',
@@ -812,15 +870,20 @@
       ]);
 
       var ws = XLSX.utils.aoa_to_sheet(aoa);
-      ws['!cols'] = [{ wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 11 }, { wch: 12 }, { wch: 12 }];
+      ws['!cols'] = [{ wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 10 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 11 }, { wch: 12 }, { wch: 12 }];
       for (var r = 1; r < aoa.length; r++) {
-        for (var c = 1; c <= 7; c++) {
+        for (var c = 1; c <= 8; c++) {
+          if (c === 5) continue;
           var cell = ws[XLSX.utils.encode_cell({ r: r, c: c })];
           if (cell && cell.t === 'n') cell.z = '#,##0.00';
         }
-        var rateCell = ws[XLSX.utils.encode_cell({ r: r, c: 8 })];
+        for (var dc = 5; dc <= 5; dc++) {
+          var coverCell = ws[XLSX.utils.encode_cell({ r: r, c: dc })];
+          if (coverCell && coverCell.t === 'n') coverCell.z = '0';
+        }
+        var rateCell = ws[XLSX.utils.encode_cell({ r: r, c: 9 })];
         if (rateCell && rateCell.t === 'n') rateCell.z = '0.00"%"';
-        for (var d = 9; d <= 10; d++) {
+        for (var d = 10; d <= 11; d++) {
           var dayCell = ws[XLSX.utils.encode_cell({ r: r, c: d })];
           if (dayCell && dayCell.t === 'n') dayCell.z = '0.0';
         }
@@ -1039,17 +1102,29 @@
     function monthRange(ym) {
       return { start: ym + '-01', end: ym + '-' + String(lastDayOfMonth(ym)).padStart(2, '0') };
     }
+    function isFullMonth(start, end) {
+      if (!start || !end) return false;
+      var r = monthRange(String(start).slice(0, 7));
+      return start === r.start && end === r.end;
+    }
     function currentMonth() {
       var d = new Date();
       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    }
+    function entryMonths(e) {
+      var out = [];
+      [e && e.start, e && e.end, e && e.date].forEach(function (s) {
+        s = String(s || '');
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) out.push(s.slice(0, 7));
+      });
+      return out;
     }
     function settlementMonths() {
       var set = {};
       set[currentMonth()] = 1;
       Object.keys(state.manual).forEach(function (name) {
         ((state.manual[name] || {}).settlements || []).forEach(function (e) {
-          var d = String((e && e.date) || '');
-          if (/^\d{4}-\d{2}-\d{2}$/.test(d)) set[d.slice(0, 7)] = 1;
+          entryMonths(e).forEach(function (ym) { set[ym] = 1; });
         });
       });
       return Object.keys(set).sort().reverse();
@@ -1058,8 +1133,8 @@
       var best = '';
       Object.keys(state.manual).forEach(function (name) {
         ((state.manual[name] || {}).settlements || []).forEach(function (e) {
-          var d = String((e && e.date) || '');
-          if (/^\d{4}-\d{2}-\d{2}$/.test(d) && d > best) best = d;
+          var r = entryRange(e);
+          if (r && r.end > best) best = r.end;
         });
       });
       return best ? best.slice(0, 7) : '';
@@ -1086,18 +1161,65 @@
       var days = periodDays(start, end);
       return { start: start, end: end, days: days, valid: days > 0 };
     }
+    function dayNum(s) {
+      var d = parseDateStr(s);
+      return d ? Math.round(d.getTime() / 86400000) : null;
+    }
+    /* 单条结算记录的有效区间；无日期返回 null；结束早于开始标记为无效 */
+    function entryRange(e) {
+      if (!e) return null;
+      var start = String(e.start || e.date || '');
+      var end = String(e.end || e.date || '');
+      if (start && !end) end = start;
+      if (end && !start) start = end;
+      if (!start || !end) return null;
+      var a = dayNum(start), b = dayNum(end);
+      if (a === null || b === null) return null;
+      return { start: start, end: end, valid: start <= end, days: Math.max(0, b - a + 1) };
+    }
+    /* 多条区间合并去重（并集），相邻区间也会合并；overlap 表示存在真正的重叠天数 */
+    function unionDays(ranges) {
+      var list = ranges.filter(function (r) { return r && r.valid; }).sort(function (a, b) {
+        return a.start < b.start ? -1 : (a.start > b.start ? 1 : 0);
+      });
+      var days = 0, overlap = false, cur = null;
+      list.forEach(function (r) {
+        if (!cur) { cur = { start: r.start, end: r.end }; return; }
+        var a = dayNum(r.start), b = dayNum(cur.end);
+        if (a <= b) {
+          overlap = true;
+          if (dayNum(r.end) > b) cur.end = r.end;
+        } else if (a === b + 1) {
+          cur.end = r.end;
+        } else {
+          days += dayNum(cur.end) - dayNum(cur.start) + 1;
+          cur = { start: r.start, end: r.end };
+        }
+      });
+      if (cur) days += dayNum(cur.end) - dayNum(cur.start) + 1;
+      return { days: days, overlap: overlap };
+    }
+    /* 与全局区间有重叠的结算条目；金额求和，天数按条目自身区间并集计算 */
     function settleRangeOf(name) {
       var p = periodState();
       var m = state.manual[name];
-      var total = 0;
-      var count = 0;
-      if (p.valid && m) {
-        (m.settlements || []).forEach(function (e) {
-          var d = String((e && e.date) || '');
-          if (d && d >= p.start && d <= p.end) { total += num(e.amount); count++; }
-        });
-      }
-      return { amount: round2(total), count: count };
+      var out = { amount: 0, count: 0, days: 0, overlap: false, invalid: 0 };
+      if (!m) return out;
+      var ranges = [];
+      (m.settlements || []).forEach(function (e) {
+        var r = entryRange(e);
+        if (!r) return;
+        if (!r.valid) { out.invalid++; return; }
+        if (!p.valid || r.end < p.start || r.start > p.end) return;
+        out.amount += num(e.amount);
+        out.count++;
+        ranges.push(r);
+      });
+      out.amount = round2(out.amount);
+      var u = unionDays(ranges);
+      out.days = u.days;
+      out.overlap = u.overlap;
+      return out;
     }
     function undatedSettleOf(name) {
       var m = state.manual[name];
@@ -1105,10 +1227,21 @@
       var count = 0;
       if (m) {
         (m.settlements || []).forEach(function (e) {
-          if (!String((e && e.date) || '')) { total += num(e.amount); count++; }
+          if (!String((e && (e.start || e.end || e.date)) || '')) { total += num(e.amount); count++; }
         });
       }
       return { amount: round2(total), count: count };
+    }
+    function invalidSettleOf(name) {
+      var m = state.manual[name];
+      var count = 0;
+      if (m) {
+        (m.settlements || []).forEach(function (e) {
+          var r = entryRange(e);
+          if (r && !r.valid) count++;
+        });
+      }
+      return count;
     }
     function calcSaleable(stockValue, rangeAmount, days) {
       if (!(days > 0) || !(rangeAmount > 0)) return null;
@@ -1128,6 +1261,7 @@
       };
       saveStore();
       renderAll();
+      if (drawerCustomer) renderDrawerSummary();
     }
 
     function manualOf(name) {
@@ -1167,7 +1301,7 @@
         var range = settleRangeOf(name);
         var undated = undatedSettleOf(name);
         var stockBase = actual === null ? expected : actual;
-        var sale = calcSaleable(stockBase, range.amount, periodState().days);
+        var sale = calcSaleable(stockBase, range.amount, range.days);
         return {
           name: name,
           shipAmount: ship.amount,
@@ -1184,6 +1318,9 @@
           diff: actual === null ? null : round2(actual - expected),
           settleRange: range.amount,
           settleRangeCount: range.count,
+          settleRangeDays: range.days,
+          settleRangeOverlap: range.overlap,
+          settleInvalid: range.invalid,
           undatedSettle: undated.amount,
           undatedCount: undated.count,
           stockBase: round2(stockBase),
@@ -1284,7 +1421,7 @@
         { label: '寄售客户', value: fmtInt(rows.length) + ' 户', note: '源表纳入 ' + fmtInt(fileCount) + ' 户' + (rows.length > fileCount ? '，手工补录 ' + fmtInt(rows.length - fileCount) + ' 户' : '') },
         { label: '发货金额合计', value: fmtMoney(round2(shipTotal)), note: '按归属汇总 AC 列有效行' },
         { label: '退货金额合计', value: fmtMoney(round2(returnTotal)), note: '手工录入 · 退货日期 + 备注' },
-        { label: '结算金额合计', value: fmtMoney(round2(settleTotal)), note: '手工录入 · 结算日期 + 备注' },
+        { label: '结算金额合计', value: fmtMoney(round2(settleTotal)), note: '手工录入 · 结算区间 + 备注' },
         { label: '预计货值合计', value: fmtMoney(round2(expectedTotal)), note: '发货 − 退货 − 结算', cls: 'is-accent' },
         { label: '实际库存合计', value: fmtMoney(round2(actualTotal)), note: '已录入 ' + actualCount + ' / ' + rows.length + ' 户' },
         { label: '差异合计', value: diffText, note: actualCount ? '实际 − 预计（正数偏多、负数偏少）' : '填写实际库存后显示', cls: diffCls }
@@ -1346,7 +1483,7 @@
         if (!pInfo.valid) {
           rangeHtml = '<span class="saleable-na">—</span>';
         } else if (r.settleRange > 0) {
-          rangeHtml = fmt(r.settleRange) + '<div class="diff-rate">日均 ' + fmtMoney(r.dailySettle) + '</div>';
+          rangeHtml = fmt(r.settleRange) + '<div class="diff-rate">日均 ' + fmtMoney(r.dailySettle) + ' · 覆盖 ' + r.settleRangeDays + ' 天' + (r.settleRangeOverlap ? ' · 重叠去重' : '') + '</div>';
         } else {
           rangeHtml = '<span class="saleable-na">无结算</span>';
         }
@@ -1383,6 +1520,8 @@
       var stockTotal = 0;
       var measureStock = 0;
       var measureCnt = 0;
+      var dailySum = 0;
+      var overlapCnt = 0;
       var actualCount = 0;
       totalRows.forEach(function (r) {
         shipTotal += r.shipAmount;
@@ -1391,14 +1530,24 @@
         rangeTotal += r.settleRange;
         expectedTotal += r.expected;
         stockTotal += r.stockBase;
-        if (r.settleRange > 0) { measureStock += r.stockBase; measureCnt++; }
+        if (r.settleRange > 0 && r.settleRangeDays > 0) {
+          measureStock += r.stockBase;
+          measureCnt++;
+          dailySum += r.settleRange / r.settleRangeDays;
+          if (r.settleRangeOverlap) overlapCnt++;
+        }
         if (r.actual !== null) { actualTotal += r.actual; diffTotal += r.diff; actualCount++; }
       });
       diffTotal = round2(diffTotal);
       var diffCls = actualCount === 0 ? '' : (Math.abs(diffTotal) < 0.005 ? 'is-zero' : (diffTotal < 0 ? 'is-neg' : 'is-pos'));
-      var totalSale = calcSaleable(round2(measureStock), round2(rangeTotal), pInfo.days);
+      dailySum = round2(dailySum);
+      var totalSale = (dailySum > 0 && measureStock >= 0) ? {
+        daily: dailySum,
+        days: measureStock / dailySum,
+        months: measureStock / dailySum / 30
+      } : null;
       var totalRangeHtml = !pInfo.valid ? '<span class="saleable-na">—</span>'
-        : (round2(rangeTotal) > 0 ? fmt(round2(rangeTotal)) + '<div class="diff-rate">日均 ' + fmtMoney(rangeTotal / pInfo.days) + '</div>' : '<span class="saleable-na">无结算</span>');
+        : (round2(rangeTotal) > 0 ? fmt(round2(rangeTotal)) + '<div class="diff-rate">合计日均 ' + fmtMoney(dailySum) + (overlapCnt ? ' · ' + overlapCnt + ' 户重叠去重' : '') + '</div>' : '<span class="saleable-na">无结算</span>');
       var totalSaleHtml = totalSale
         ? '<div class="saleable-val">' + fmtInt(Math.round(totalSale.days)) + ' 天</div><div class="saleable-sub">≈ ' + totalSale.months.toFixed(1) + ' 个月 · 可测算 ' + measureCnt + ' 户</div>'
         : '<span class="saleable-na">无法测算</span>';
@@ -1477,11 +1626,17 @@
       }).join('') : '<div class="entry-empty">暂无退货记录，点击右上角「新增退货」。</div>';
 
       $('settleList').innerHTML = (m.settlements || []).length ? m.settlements.map(function (e, idx) {
-        var dateVal = String(e.date || '');
-        return '<div class="entry-row is-settle' + (dateVal ? '' : ' is-undated') + '" data-kind="settle" data-idx="' + idx + '">' +
-          '<input type="date" data-f="date" class="date-input' + (dateVal ? '' : ' is-undated') + '" value="' + escapeHtml(dateVal) + '" title="' + (dateVal ? '结算日期，用于区间测算' : '无日期：不计入区间测算，可在此补填') + '">' +
+        var start = String(e.start || '');
+        var end = String(e.end || '');
+        var undated = !start && !end;
+        var invalid = !!(start && end && start > end);
+        var monthVal = (start && end && isFullMonth(start, end)) ? start.slice(0, 7) : '';
+        return '<div class="entry-row is-settle' + (undated ? ' is-undated' : '') + (invalid ? ' is-invalid' : '') + '" data-kind="settle" data-idx="' + idx + '">' +
+          '<input type="date" data-f="start" class="date-input' + (undated ? ' is-undated' : '') + '" value="' + escapeHtml(start) + '"' + (end ? ' max="' + escapeHtml(end) + '"' : '') + ' title="结算区间开始日期">' +
+          '<input type="date" data-f="end" class="date-input' + (undated ? ' is-undated' : '') + '" value="' + escapeHtml(end) + '"' + (start ? ' min="' + escapeHtml(start) + '"' : '') + ' title="结算区间结束日期">' +
           '<input type="number" data-f="amount" step="0.01" min="0" placeholder="0.00" value="' + (e.amount || '') + '">' +
           '<input class="note-input" type="text" data-f="note" placeholder="备注（结算批次 / 单号）" value="' + escapeHtml(e.note || '') + '">' +
+          '<input type="month" data-f="month" class="month-quick" value="' + escapeHtml(monthVal) + '" title="整月快捷：自动填开始/结束日期">' +
           '<button class="btn btn-sm btn-danger" type="button" data-del="settle" data-idx="' + idx + '">删除</button>' +
           '</div>';
       }).join('') : '<div class="entry-empty">暂无结算记录，点击右上角「新增结算」。</div>';
@@ -1497,32 +1652,45 @@
       $('settleTotal').textContent = fmt(r.settlements);
 
       var u = undatedSettleOf(drawerCustomer);
+      var pInfo = periodState();
+      var pr = settleRangeOf(drawerCustomer);
+      var invalidCnt = invalidSettleOf(drawerCustomer);
       var hintEl = $('settleDateHint');
       if (hintEl) {
+        var hints = [];
+        if (invalidCnt) hints.push('有 ' + invalidCnt + ' 笔结束日期早于开始日期（标红），已排除测算，请修正。');
+        if (pr.overlap) hints.push('筛选区间内该客户的结算区间存在重叠，重叠天数已按并集去重。');
+        hintEl.hidden = !hints.length;
+        hintEl.innerHTML = hints.join('<br>');
+      }
+      var bar = $('drawerUndatedBar');
+      if (bar) {
         if (u.count) {
-          hintEl.hidden = false;
-          hintEl.textContent = '有 ' + u.count + ' 笔 / ' + fmtMoney(u.amount) + ' 结算未填日期（标黄），按「无日期」处理、不计入区间，可直接补填。';
+          bar.hidden = false;
+          $('drawerUndatedText').innerHTML = '未设区间 <b>' + u.count + '</b> 笔 / <b>' + fmtMoney(u.amount) + '</b>，默认不计入测算，可批量补录：';
+          renderMonthSelect($('drawerUndatedMonth'), latestSettleMonth() || currentMonth());
         } else {
-          hintEl.hidden = true;
-          hintEl.textContent = '';
+          bar.hidden = true;
         }
       }
 
-      var pInfo = periodState();
-      var pr = settleRangeOf(drawerCustomer);
       var base = r.actual === null ? r.expected : r.actual;
-      var sale = calcSaleable(base, pr.amount, pInfo.days);
+      var sale = calcSaleable(base, pr.amount, pr.days);
 
       var diffLine = '<div class="sum-line"><span>实际库存</span><b>' + (r.actual === null ? '待录入' : fmtMoney(r.actual)) + '</b></div>';
       var diffCls = r.diff === null ? '' : (Math.abs(r.diff) < 0.005 ? 'is-zero' : (r.diff < 0 ? 'is-neg' : 'is-pos'));
       var diffText = r.diff === null ? '待录入' : (r.diff > 0 ? '+' : '') + fmtMoney(r.diff);
+      var rangeLabel = pInfo.valid
+        ? '计入结算（' + pr.count + ' 笔 · 覆盖 ' + pr.days + ' 天' + (pr.overlap ? '，重叠去重' : '') + '）'
+        : '计入结算（未选有效区间）';
       $('drawerSummary').innerHTML =
         '<div class="sum-line"><span>发货金额</span><b>' + fmtMoney(r.shipAmount) + '</b></div>' +
         '<div class="sum-line"><span>退货金额</span><b>- ' + fmtMoney(r.returns) + '</b></div>' +
         '<div class="sum-line"><span>结算金额</span><b>- ' + fmtMoney(r.settlements) + '</b></div>' +
         '<div class="sum-line is-hl"><span>预计货值</span><b>' + fmtMoney(r.expected) + '</b></div>' +
         diffLine +
-        '<div class="sum-line"><span>区间结算（' + (pInfo.valid ? pInfo.days + ' 天' : '未选区间') + '）</span><b>' + (pInfo.valid ? fmtMoney(pr.amount) : '—') + '</b></div>' +
+        '<div class="sum-line"><span>' + rangeLabel + '</span><b>' + (pInfo.valid ? fmtMoney(pr.amount) : '—') + '</b></div>' +
+        '<div class="sum-line"><span>日均结算</span><b>' + (sale ? fmtMoney(sale.daily) : '—') + '</b></div>' +
         '<div class="sum-line is-hl"><span>可售天数</span><b>' + (sale ? fmtInt(Math.round(sale.days)) + ' 天（≈' + sale.months.toFixed(1) + ' 个月）' : '无法测算') + '</b></div>' +
         '<div class="sum-line is-hl"><span>差异（实际 − 预计）</span><b class="' + diffCls + '">' + diffText + '</b></div>';
     }
@@ -1576,43 +1744,68 @@
       renderPeriodMonthOptions();
 
       var rows = customerRows();
-      var rangeTotal = 0, stockTotal = 0, measureStock = 0, measureCnt = 0, actualCnt = 0, expCnt = 0, undTotal = 0, undCnt = 0;
+      var rangeTotal = 0, settleCount = 0, stockTotal = 0, measureStock = 0, measureCnt = 0;
+      var actualCnt = 0, expCnt = 0, undTotal = 0, undCnt = 0, invalidCnt = 0, overlapCnt = 0, dailySum = 0;
       rows.forEach(function (r) {
         rangeTotal += r.settleRange;
+        settleCount += r.settleRangeCount;
         stockTotal += r.stockBase;
-        if (r.settleRange > 0) { measureStock += r.stockBase; measureCnt++; }
+        if (r.settleRange > 0 && r.settleRangeDays > 0) {
+          measureStock += r.stockBase;
+          measureCnt++;
+          dailySum += r.settleRange / r.settleRangeDays;
+          if (r.settleRangeOverlap) overlapCnt++;
+        }
         if (r.actual !== null) actualCnt++; else expCnt++;
         undTotal += r.undatedSettle;
         undCnt += r.undatedCount;
+        invalidCnt += r.settleInvalid;
       });
       rangeTotal = round2(rangeTotal);
       stockTotal = round2(stockTotal);
       measureStock = round2(measureStock);
-      var daily = (p.valid && rangeTotal > 0) ? round2(rangeTotal / p.days) : null;
-      var sale = calcSaleable(measureStock, rangeTotal, p.days);
+      undTotal = round2(undTotal);
+      dailySum = round2(dailySum);
+      var sale = (dailySum > 0 && measureStock >= 0) ? {
+        daily: dailySum,
+        days: measureStock / dailySum,
+        months: measureStock / dailySum / 30
+      } : null;
 
       $('saleableNote').innerHTML = p.valid
-        ? '区间 <b>' + escapeHtml(p.start) + '</b> ~ <b>' + escapeHtml(p.end) + '</b> · 共 <b>' + p.days + '</b> 天'
+        ? '筛选区间 <b>' + escapeHtml(p.start) + '</b> ~ <b>' + escapeHtml(p.end) + '</b> · <b>' + p.days + '</b> 天'
         : '未选择有效的结算区间';
       $('periodText').textContent = p.valid
-        ? '区间天数 ' + p.days + ' 天 · 已计入有日期的结算'
+        ? '仅筛选参与测算的条目，天数按条目自身区间'
         : '';
 
       var cards = [
-        { label: '区间天数', value: p.valid ? p.days + ' 天' : '—', note: p.valid ? '含起止两天' : '请选择起止日期' },
-        { label: '区间结算金额', value: p.valid ? fmtMoney(rangeTotal) : '—', note: '区间内有日期的结算合计' },
-        { label: '日均结算金额', value: daily === null ? '—' : fmtMoney(daily), note: '区间结算 ÷ 区间天数' },
-        { label: '测算库存合计', value: fmtMoney(stockTotal), note: '实际库存 ' + actualCnt + ' 户 / 预计货值 ' + expCnt + ' 户', cls: 'is-accent' },
-        { label: '合计可售天数', value: sale ? fmtInt(Math.round(sale.days)) + ' 天' : '无法测算', note: sale ? '仅含区间内有结算的 ' + measureCnt + ' 户' : '区间结算为 0 或库存为负' },
+        { label: '筛选区间天数', value: p.valid ? p.days + ' 天' : '—', note: p.valid ? '仅用于筛选结算条目' : '请选择起止日期' },
+        { label: '计入结算金额', value: p.valid ? fmtMoney(rangeTotal) : '—', note: p.valid ? settleCount + ' 笔 · 可测算 ' + measureCnt + ' 户' : '—' },
+        { label: '日均结算合计', value: dailySum > 0 ? fmtMoney(dailySum) : '—', note: '各户日均之和（区间去重）' },
+        { label: '测算库存合计', value: fmtMoney(stockTotal), note: '全部客户 · 实际 ' + actualCnt + ' 户 / 预计 ' + expCnt + ' 户', cls: 'is-accent' },
+        { label: '合计可售天数', value: sale ? fmtInt(Math.round(sale.days)) + ' 天' : '无法测算', note: sale ? '仅含可测算 ' + measureCnt + ' 户' : '无有效结算或库存为负' },
         { label: '合计折合月数', value: sale ? '≈ ' + sale.months.toFixed(1) + ' 个月' : '无法测算', note: '可售天数 ÷ 30' }
       ];
       $('saleableCards').innerHTML = cards.map(function (c) {
         return '<div class="calc-card ' + (c.cls || '') + '"><span>' + escapeHtml(c.label) + '</span><b>' + escapeHtml(c.value) + '</b><small>' + escapeHtml(c.note) + '</small></div>';
       }).join('');
 
+      var bar = $('undatedBar');
+      if (undCnt) {
+        bar.hidden = false;
+        $('undatedText').innerHTML = '有 <b>' + undCnt + '</b> 笔 / <b>' + fmtMoney(undTotal) + '</b> 结算未设区间，默认不计入测算，可一键补录：';
+        renderMonthSelect($('undatedMonth'), latestSettleMonth() || currentMonth());
+      } else {
+        bar.hidden = true;
+      }
+
       var warns = [];
-      if (!p.valid) warns.push('结算区间未填写完整，或起始日期晚于结束日期，暂不做测算。');
-      if (undCnt) warns.push('有 ' + undCnt + ' 笔 / ' + fmtMoney(undTotal) + ' 结算未填「结算日期」，已按「无日期」处理、不计入区间；可在对应客户的「录入」中补填日期后自动生效。');
+      if (!p.valid) warns.push('筛选区间未填写完整，或起始日期晚于结束日期，暂不做测算。');
+      if (p.valid && settleCount === 0) warns.push('所选筛选区间内没有与任何结算区间重叠的记录，无法测算；请调整筛选区间，或为结算补录区间。');
+      if (p.valid && settleCount > 0 && rangeTotal <= 0) warns.push('所选筛选区间内的结算金额合计为 0，无法测算。');
+      if (invalidCnt) warns.push('有 ' + invalidCnt + ' 笔结算的结束日期早于开始日期（抽屉中标红），已排除，请修正后自动纳入。');
+      if (overlapCnt) warns.push('有 ' + overlapCnt + ' 户的结算区间存在重叠，重叠天数已按并集只计一次，不重复计时。');
       var warnEl = $('saleableWarn');
       if (warns.length) {
         warnEl.hidden = false;
@@ -1621,6 +1814,61 @@
         warnEl.hidden = true;
         warnEl.innerHTML = '';
       }
+    }
+    function renderMonthSelect(sel, preferred) {
+      if (!sel) return;
+      var months = settlementMonths();
+      var key = months.join(',');
+      if (sel.getAttribute('data-months') !== key) {
+        sel.setAttribute('data-months', key);
+        sel.innerHTML = months.map(function (ym) {
+          return '<option value="' + ym + '">' + ym + '</option>';
+        }).join('');
+      }
+      if (!sel.value || months.indexOf(sel.value) < 0) sel.value = preferred && months.indexOf(preferred) >= 0 ? preferred : (months[0] || '');
+    }
+    function backfillUndated(customer, mode) {
+      var start = '', end = '';
+      if (mode === 'month') {
+        var sel = customer ? $('drawerUndatedMonth') : $('undatedMonth');
+        var ym = sel ? sel.value : '';
+        if (!ym) { showBanner('请先选择要补录的月份。', 'error'); return; }
+        var range = monthRange(ym);
+        start = range.start;
+        end = range.end;
+      } else {
+        var sEl = customer ? $('drawerUndatedStart') : $('undatedStart');
+        var eEl = customer ? $('drawerUndatedEnd') : $('undatedEnd');
+        start = sEl ? sEl.value : '';
+        end = eEl ? eEl.value : '';
+        if (start && !end) end = start;
+        if (end && !start) start = end;
+        if (!start || !end || start > end) {
+          showBanner('请填写有效的补录区间，结束日期不能早于开始日期。', 'error');
+          return;
+        }
+      }
+      var names = customer ? [customer] : Object.keys(state.manual);
+      var n = 0;
+      var amt = 0;
+      names.forEach(function (name) {
+        var m = state.manual[name];
+        if (!m) return;
+        (m.settlements || []).forEach(function (e) {
+          if (!String((e && (e.start || e.end || e.date)) || '')) {
+            e.start = start;
+            e.end = end;
+            if (e.date) delete e.date;
+            n++;
+            amt += num(e.amount);
+          }
+        });
+      });
+      if (!n) { showBanner('没有需要补录区间的结算记录。', 'error'); return; }
+      saveStore();
+      renderAll();
+      if (drawerCustomer) renderDrawer();
+      showBanner('已为 ' + n + ' 笔 / ' + fmtMoney(amt) + ' 结算补录区间 ' + start + ' ~ ' + end + '，已纳入测算。', 'ok');
     }
 
     /* ---------------- 全量渲染 ---------------- */
@@ -1668,6 +1916,8 @@
         saveStore();
         renderAll();
       });
+      $('undatedApplyMonth').addEventListener('click', function () { backfillUndated(null, 'month'); });
+      $('undatedApplyRange').addEventListener('click', function () { backfillUndated(null, 'range'); });
 
       ['dragenter', 'dragover'].forEach(function (type) {
         $('dropZone').addEventListener(type, function (e) {
@@ -1743,6 +1993,11 @@
       });
 
       $('drawer').addEventListener('click', function (e) {
+        var backfill = e.target.closest('[data-backfill]');
+        if (backfill && drawerCustomer) {
+          backfillUndated(drawerCustomer, backfill.getAttribute('data-backfill'));
+          return;
+        }
         var add = e.target.closest('[data-add]');
         if (add && drawerCustomer) {
           var isReturn = add.getAttribute('data-add') === 'return';
@@ -1750,7 +2005,7 @@
           if (isReturn) {
             m.returns.push({ id: uid(), date: todayStr(), amount: 0, note: '' });
           } else {
-            m.settlements.push({ id: uid(), date: todayStr(), amount: 0, note: '' });
+            m.settlements.push({ id: uid(), start: todayStr(), end: todayStr(), amount: 0, note: '' });
           }
           saveStore();
           renderDrawer();
@@ -1809,13 +2064,61 @@
         var entry = entryList[idx];
         if (!entry) return;
         var f = field.getAttribute('data-f');
-        if (f === 'amount') entry.amount = num(field.value);
-        else entry[f] = field.value;
-        if (f === 'date') {
-          var undated = !field.value;
-          field.classList.toggle('is-undated', undated);
-          var rowEl = field.closest('.entry-row');
-          if (rowEl) rowEl.classList.toggle('is-undated', undated);
+        if (kind === 'settle') {
+          if (f === 'start' || f === 'end') {
+            entry[f] = field.value;
+            var s = String(entry.start || '');
+            var en = String(entry.end || '');
+            if (f === 'start' && s && !en) {
+              entry.end = s;
+              en = s;
+              var endEl = row.querySelector('[data-f="end"]');
+              if (endEl) endEl.value = s;
+            }
+            if (f === 'end' && en && !s) {
+              entry.start = en;
+              s = en;
+              var startEl = row.querySelector('[data-f="start"]');
+              if (startEl) startEl.value = en;
+            }
+            var invalid = !!(s && en && s > en);
+            var undated = !s && !en;
+            row.classList.toggle('is-invalid', invalid);
+            row.classList.toggle('is-undated', undated);
+            field.classList.toggle('is-undated', undated);
+            var sInput = row.querySelector('[data-f="start"]');
+            var eInput = row.querySelector('[data-f="end"]');
+            if (sInput) {
+              if (en) sInput.setAttribute('max', en); else sInput.removeAttribute('max');
+            }
+            if (eInput) {
+              if (s) eInput.setAttribute('min', s); else eInput.removeAttribute('min');
+            }
+            var monthEl = row.querySelector('[data-f="month"]');
+            if (monthEl) monthEl.value = (s && en && isFullMonth(s, en)) ? s.slice(0, 7) : '';
+          } else if (f === 'month') {
+            if (field.value) {
+              var mr = monthRange(field.value);
+              entry.start = mr.start;
+              entry.end = mr.end;
+              row.querySelector('[data-f="start"]').value = mr.start;
+              row.querySelector('[data-f="end"]').value = mr.end;
+              row.classList.remove('is-invalid');
+              row.classList.remove('is-undated');
+            }
+          } else if (f === 'amount') {
+            entry.amount = num(field.value);
+          } else {
+            entry[f] = field.value;
+          }
+        } else {
+          if (f === 'amount') entry.amount = num(field.value);
+          else entry[f] = field.value;
+          if (f === 'date') {
+            var undatedReturn = !field.value;
+            field.classList.toggle('is-undated', undatedReturn);
+            row.classList.toggle('is-undated', undatedReturn);
+          }
         }
         saveStore();
         renderDrawerSummary();
